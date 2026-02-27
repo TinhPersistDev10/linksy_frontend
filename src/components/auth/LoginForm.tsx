@@ -1,21 +1,21 @@
 // components/auth/LoginForm.tsx
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
-import Input from '@/components/ui/Input';
-import Button from '@/components/ui/Button';
-import { LoginRequest } from '@/lib/types/auth';
-import { Eye, EyeOff, MessageCircle } from 'lucide-react';
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
+import {Input} from "@/components/ui/Input";
+import {Button} from "@/components/ui/Button";
+import { LoginRequest } from "@/lib/types/auth";
+import { Eye, EyeOff, MessageCircle } from "lucide-react";
 
 export default function LoginForm() {
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const {
     register,
@@ -26,10 +26,10 @@ export default function LoginForm() {
   const onSubmit = async (data: LoginRequest) => {
     try {
       setIsLoading(true);
-      setError('');
+      setError("");
       await login(data);
     } catch (err: any) {
-      setError(err.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+      setError(err.message || "Đăng nhập thất bại. Vui lòng thử lại.");
     } finally {
       setIsLoading(false);
     }
@@ -44,8 +44,12 @@ export default function LoginForm() {
             <MessageCircle className="text-blue-600" size={40} />
           </div>
         </div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Chào mừng trở lại!</h1>
-        <p className="text-gray-600">Đăng nhập vào Linksy để tiếp tục trò chuyện</p>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          Chào mừng trở lại!
+        </h1>
+        <p className="text-gray-600">
+          Đăng nhập vào Linksy để tiếp tục trò chuyện
+        </p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -62,8 +66,8 @@ export default function LoginForm() {
           type="text"
           placeholder="example@email.com hoặc username"
           error={errors.emailOrUsername?.message}
-          {...register('emailOrUsername', {
-            required: 'Email hoặc tên người dùng là bắt buộc',
+          {...register("emailOrUsername", {
+            required: "Email hoặc tên người dùng là bắt buộc",
           })}
         />
 
@@ -71,11 +75,11 @@ export default function LoginForm() {
         <div className="relative">
           <Input
             label="Mật khẩu"
-            type={showPassword ? 'text' : 'password'}
+            type={showPassword ? "text" : "password"}
             placeholder="••••••••"
             error={errors.password?.message}
-            {...register('password', {
-              required: 'Mật khẩu là bắt buộc',
+            {...register("password", {
+              required: "Mật khẩu là bắt buộc",
             })}
           />
           <button
@@ -93,7 +97,10 @@ export default function LoginForm() {
             <input type="checkbox" className="mr-2 w-4 h-4" />
             <span className="text-gray-600">Ghi nhớ đăng nhập</span>
           </label>
-          <Link href="/forgot-password" className="text-blue-600 hover:text-blue-700">
+          <Link
+            href="/forgot-password"
+            className="text-blue-600 hover:text-blue-700"
+          >
             Quên mật khẩu?
           </Link>
         </div>
@@ -111,8 +118,11 @@ export default function LoginForm() {
 
         {/* Register Link */}
         <div className="text-center text-sm text-gray-600">
-          Chưa có tài khoản?{' '}
-          <Link href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+          Chưa có tài khoản?{" "}
+          <Link
+            href="/register"
+            className="text-blue-600 hover:text-blue-700 font-medium"
+          >
             Đăng ký ngay
           </Link>
         </div>
