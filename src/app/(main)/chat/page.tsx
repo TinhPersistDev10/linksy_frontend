@@ -1,10 +1,10 @@
 // app/(main)/chat/page.tsx
 
-'use client';
+"use client";
 
-import { useAuth } from '@/contexts/AuthContext';
-import Button from '@/components/ui/Button';
-import { LogOut, User } from 'lucide-react';
+import { useAuth } from "@/contexts/AuthContext";
+import Button from "@/components/ui/Button";
+import { LogOut, User } from "lucide-react";
 
 export default function ChatPage() {
   const { user, logout } = useAuth();
@@ -26,11 +26,15 @@ export default function ChatPage() {
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
               <img
-                src={user.avatar ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${user.avatar}` : '/default-avatar.png'}
+                src={
+                  user.avatar
+                    ? `${process.env.NEXT_PUBLIC_API_URL?.replace("/", "")}${user.avatar}`
+                    : "/default-avatar.png"
+                }
                 alt={user.fullname}
                 className="w-10 h-10 rounded-full"
                 onError={(e) => {
-                  e.currentTarget.src = '/default-avatar.png';
+                  e.currentTarget.src = "/default-avatar.png";
                 }}
               />
               <div>
@@ -59,14 +63,31 @@ export default function ChatPage() {
             Xin chào, {user.fullname}! 👋
           </h2>
           <div className="text-left max-w-md mx-auto space-y-2">
-            <p className="text-gray-600"><strong>User ID:</strong> {user.userId}</p>
-            <p className="text-gray-600"><strong>Username:</strong> @{user.username}</p>
-            <p className="text-gray-600"><strong>Email:</strong> {user.email}</p>
-            <p className="text-gray-600"><strong>Ngày sinh:</strong> {new Date(user.dateOfBirth).toLocaleDateString('vi-VN')}</p>
-            <p className="text-gray-600"><strong>Email verified:</strong> {user.isEmailVerified ? '✅' : '❌'}</p>
-            <p className="text-gray-600"><strong>Đăng nhập lần cuối:</strong> {new Date(user.lastLoginAt).toLocaleString('vi-VN')}</p>
+            <p className="text-gray-600">
+              <strong>User ID:</strong> {user.userId}
+            </p>
+            <p className="text-gray-600">
+              <strong>Username:</strong> @{user.username}
+            </p>
+            <p className="text-gray-600">
+              <strong>Email:</strong> {user.email}
+            </p>
+            <p className="text-gray-600">
+              <strong>Ngày sinh:</strong>{" "}
+              {new Date(user.dateOfBirth).toLocaleDateString("vi-VN")}
+            </p>
+            <p className="text-gray-600">
+              <strong>Email verified:</strong>{" "}
+              {user.isEmailVerified ? "✅" : "❌"}
+            </p>
+            <p className="text-gray-600">
+              <strong>Đăng nhập lần cuối:</strong>{" "}
+              {new Date(user.lastLoginAt).toLocaleString("vi-VN")}
+            </p>
           </div>
-          <p className="mt-6 text-gray-500">Trang chat đang được phát triển...</p>
+          <p className="mt-6 text-gray-500">
+            Trang chat đang được phát triển...
+          </p>
         </div>
       </main>
     </div>

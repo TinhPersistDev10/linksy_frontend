@@ -1,11 +1,11 @@
 // components/auth/VerifyEmailForm.tsx
 
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import Button from '@/components/ui/Button';
-import { MessageCircle, Mail } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import Button from "@/components/ui/Button";
+import { MessageCircle, Mail } from "lucide-react";
 
 interface VerifyEmailFormProps {
   email: string;
@@ -13,11 +13,11 @@ interface VerifyEmailFormProps {
 
 export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
   const { verifyEmail, resendOtp } = useAuth();
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
 
@@ -47,7 +47,7 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
       const prevInput = document.getElementById(`otp-${index - 1}`);
       prevInput?.focus();
     }
@@ -55,11 +55,11 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').slice(0, 6);
-    
+    const pastedData = e.clipboardData.getData("text").slice(0, 6);
+
     if (!/^\d+$/.test(pastedData)) return;
 
-    const newOtp = pastedData.split('').concat(Array(6).fill('')).slice(0, 6);
+    const newOtp = pastedData.split("").concat(Array(6).fill("")).slice(0, 6);
     setOtp(newOtp);
 
     // Focus ô cuối cùng
@@ -69,23 +69,23 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const otpCode = otp.join('');
+
+    const otpCode = otp.join("");
     if (otpCode.length !== 6) {
-      setError('Vui lòng nhập đầy đủ 6 số OTP');
+      setError("Vui lòng nhập đầy đủ 6 số OTP");
       return;
     }
 
     try {
       setIsLoading(true);
-      setError('');
+      setError("");
       await verifyEmail({ email, otpCode });
       // Redirect được xử lý trong AuthContext
     } catch (err: any) {
-      setError(err.message || 'Xác thực thất bại. Vui lòng thử lại.');
+      setError(err.message || "Xác thực thất bại. Vui lòng thử lại.");
       // Clear OTP khi sai
-      setOtp(['', '', '', '', '', '']);
-      document.getElementById('otp-0')?.focus();
+      setOtp(["", "", "", "", "", ""]);
+      document.getElementById("otp-0")?.focus();
     } finally {
       setIsLoading(false);
     }
@@ -94,18 +94,18 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
   const handleResendOtp = async () => {
     try {
       setIsResending(true);
-      setError('');
-      setSuccess('');
-      
+      setError("");
+      setSuccess("");
+
       await resendOtp({ email });
-      
-      setSuccess('Mã OTP mới đã được gửi đến email của bạn');
+
+      setSuccess("Mã OTP mới đã được gửi đến email của bạn");
       setCountdown(60);
       setCanResend(false);
-      setOtp(['', '', '', '', '', '']);
-      document.getElementById('otp-0')?.focus();
+      setOtp(["", "", "", "", "", ""]);
+      document.getElementById("otp-0")?.focus();
     } catch (err: any) {
-      setError(err.message || 'Gửi lại OTP thất bại');
+      setError(err.message || "Gửi lại OTP thất bại");
     } finally {
       setIsResending(false);
     }
@@ -120,10 +120,10 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
             <Mail className="text-blue-600" size={40} />
           </div>
         </div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Xác thực Email</h1>
-        <p className="text-gray-600">
-          Chúng tôi đã gửi mã OTP gồm 6 số đến
-        </p>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          Xác thực Email
+        </h1>
+        <p className="text-gray-600">Chúng tôi đã gửi mã OTP gồm 6 số đến</p>
         <p className="text-blue-600 font-medium mt-1">{email}</p>
       </div>
 
@@ -171,7 +171,7 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
           variant="primary"
           size="lg"
           isLoading={isLoading}
-          disabled={otp.join('').length !== 6}
+          disabled={otp.join("").length !== 6}
           className="w-full"
         >
           Xác thực
@@ -190,15 +190,18 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
               disabled={isResending}
               className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
             >
-              {isResending ? 'Đang gửi...' : 'Gửi lại mã OTP'}
+              {isResending ? "Đang gửi..." : "Gửi lại mã OTP"}
             </button>
           )}
         </div>
 
         {/* Back to Register */}
         <div className="text-center text-sm text-gray-600">
-          Email không chính xác?{' '}
-          <a href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+          Email không chính xác?{" "}
+          <a
+            href="/register"
+            className="text-blue-600 hover:text-blue-700 font-medium"
+          >
             Đăng ký lại
           </a>
         </div>

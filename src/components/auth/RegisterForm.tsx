@@ -1,16 +1,16 @@
 // components/auth/RegisterForm.tsx
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import Input from '@/components/ui/Input';
-import Button from '@/components/ui/Button';
-import { RegisterRequest } from '@/lib/types/auth';
-import { Eye, EyeOff, MessageCircle } from 'lucide-react';
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import Input from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
+import { RegisterRequest } from "@/lib/types/auth";
+import { Eye, EyeOff, MessageCircle } from "lucide-react";
 
 export default function RegisterForm() {
   const { register: registerUser } = useAuth();
@@ -18,7 +18,7 @@ export default function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const {
     register,
@@ -27,19 +27,23 @@ export default function RegisterForm() {
     formState: { errors },
   } = useForm<RegisterRequest>();
 
-  const password = watch('password');
+  const password = watch("password");
 
   const onSubmit = async (data: RegisterRequest) => {
     try {
       setIsLoading(true);
-      setError('');
-      
+      setError("");
+
       const result = await registerUser(data);
-      
-      // Chuyển sang màn verify OTP
+
+      console.log("Register result:", result); // Thêm dòng này
+      console.log(
+        "Redirecting to:",
+        `/verify-email?email=${encodeURIComponent(result.email)}`,
+      );
       router.push(`/verify-email?email=${encodeURIComponent(result.email)}`);
     } catch (err: any) {
-      setError(err.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+      setError(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
     } finally {
       setIsLoading(false);
     }
@@ -54,8 +58,12 @@ export default function RegisterForm() {
             <MessageCircle className="text-blue-600" size={40} />
           </div>
         </div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Tạo tài khoản mới</h1>
-        <p className="text-gray-600">Tham gia Linksy để kết nối với mọi người</p>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          Tạo tài khoản mới
+        </h1>
+        <p className="text-gray-600">
+          Tham gia Linksy để kết nối với mọi người
+        </p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -72,15 +80,15 @@ export default function RegisterForm() {
           type="text"
           placeholder="Nguyễn Văn A"
           error={errors.fullname?.message}
-          {...register('fullname', {
-            required: 'Họ và tên là bắt buộc',
+          {...register("fullname", {
+            required: "Họ và tên là bắt buộc",
             minLength: {
               value: 2,
-              message: 'Họ và tên phải có ít nhất 2 ký tự',
+              message: "Họ và tên phải có ít nhất 2 ký tự",
             },
             maxLength: {
               value: 100,
-              message: 'Họ và tên không được quá 100 ký tự',
+              message: "Họ và tên không được quá 100 ký tự",
             },
           })}
         />
@@ -91,19 +99,19 @@ export default function RegisterForm() {
           type="text"
           placeholder="username"
           error={errors.username?.message}
-          {...register('username', {
-            required: 'Tên người dùng là bắt buộc',
+          {...register("username", {
+            required: "Tên người dùng là bắt buộc",
             minLength: {
               value: 3,
-              message: 'Tên người dùng phải có ít nhất 3 ký tự',
+              message: "Tên người dùng phải có ít nhất 3 ký tự",
             },
             maxLength: {
               value: 50,
-              message: 'Tên người dùng không được quá 50 ký tự',
+              message: "Tên người dùng không được quá 50 ký tự",
             },
             pattern: {
               value: /^[a-zA-Z0-9_]+$/,
-              message: 'Tên người dùng chỉ được chứa chữ, số và dấu gạch dưới',
+              message: "Tên người dùng chỉ được chứa chữ, số và dấu gạch dưới",
             },
           })}
         />
@@ -114,11 +122,11 @@ export default function RegisterForm() {
           type="email"
           placeholder="example@email.com"
           error={errors.email?.message}
-          {...register('email', {
-            required: 'Email là bắt buộc',
+          {...register("email", {
+            required: "Email là bắt buộc",
             pattern: {
               value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-              message: 'Email không hợp lệ',
+              message: "Email không hợp lệ",
             },
           })}
         />
@@ -128,25 +136,25 @@ export default function RegisterForm() {
           label="Ngày sinh (không bắt buộc)"
           type="date"
           error={errors.dateOfBirth?.message}
-          {...register('dateOfBirth')}
+          {...register("dateOfBirth")}
         />
 
         {/* Mật khẩu */}
         <div className="relative">
           <Input
             label="Mật khẩu"
-            type={showPassword ? 'text' : 'password'}
+            type={showPassword ? "text" : "password"}
             placeholder="••••••••"
             error={errors.password?.message}
-            {...register('password', {
-              required: 'Mật khẩu là bắt buộc',
+            {...register("password", {
+              required: "Mật khẩu là bắt buộc",
               minLength: {
                 value: 6,
-                message: 'Mật khẩu phải có ít nhất 6 ký tự',
+                message: "Mật khẩu phải có ít nhất 6 ký tự",
               },
               maxLength: {
                 value: 100,
-                message: 'Mật khẩu không được quá 100 ký tự',
+                message: "Mật khẩu không được quá 100 ký tự",
               },
             })}
           />
@@ -163,13 +171,13 @@ export default function RegisterForm() {
         <div className="relative">
           <Input
             label="Xác nhận mật khẩu"
-            type={showConfirmPassword ? 'text' : 'password'}
+            type={showConfirmPassword ? "text" : "password"}
             placeholder="••••••••"
             error={errors.confirmPassword?.message}
-            {...register('confirmPassword', {
-              required: 'Vui lòng xác nhận mật khẩu',
+            {...register("confirmPassword", {
+              required: "Vui lòng xác nhận mật khẩu",
               validate: (value) =>
-                value === password || 'Mật khẩu xác nhận không khớp',
+                value === password || "Mật khẩu xác nhận không khớp",
             })}
           />
           <button
@@ -183,14 +191,14 @@ export default function RegisterForm() {
 
         {/* Terms */}
         <div className="text-xs text-gray-600">
-          Bằng cách đăng ký, bạn đồng ý với{' '}
+          Bằng cách đăng ký, bạn đồng ý với{" "}
           <Link href="/terms" className="text-blue-600 hover:text-blue-700">
             Điều khoản sử dụng
-          </Link>{' '}
-          và{' '}
+          </Link>{" "}
+          và{" "}
           <Link href="/privacy" className="text-blue-600 hover:text-blue-700">
             Chính sách bảo mật
-          </Link>{' '}
+          </Link>{" "}
           của chúng tôi.
         </div>
 
@@ -207,8 +215,11 @@ export default function RegisterForm() {
 
         {/* Login Link */}
         <div className="text-center text-sm text-gray-600">
-          Đã có tài khoản?{' '}
-          <Link href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+          Đã có tài khoản?{" "}
+          <Link
+            href="/login"
+            className="text-blue-600 hover:text-blue-700 font-medium"
+          >
             Đăng nhập
           </Link>
         </div>

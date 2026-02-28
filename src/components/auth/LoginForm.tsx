@@ -6,8 +6,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import {Input} from "@/components/ui/Input";
-import {Button} from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
 import { LoginRequest } from "@/lib/types/auth";
 import { Eye, EyeOff, MessageCircle } from "lucide-react";
 
@@ -16,7 +16,7 @@ export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-
+  const [justVerified, setJustVerified] = useState(false);
   const {
     register,
     handleSubmit,

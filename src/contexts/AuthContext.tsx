@@ -1,8 +1,9 @@
-// contexts/AuthContext.tsx
-
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import {
+  createContext, useContext, useState,
+  useEffect, useRef, ReactNode,
+} from 'react';
 import { User, LoginRequest, RegisterRequest, VerifyEmailRequest, ResendOtpRequest } from '@/lib/types/auth';
 import { authApi } from '@/lib/api/auth';
 import { useRouter } from 'next/navigation';
@@ -11,7 +12,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (data: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<{email: string}>;
+  register: (data: RegisterRequest) => Promise<{ email: string }>;
   verifyEmail: (data: VerifyEmailRequest) => Promise<void>;
   resendOtp: (data: ResendOtpRequest) => Promise<void>;
   logout: () => Promise<void>;
@@ -22,85 +23,96 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // ✅ Bắt đầu false để server và client render giống nhau
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const hasFetched = useRef(false);
 
   useEffect(() => {
-    checkAuth();
-  }, []);
+    if (hasFetched.current) return;
+    hasFetched.current = true;
 
-  const checkAuth = async () => {
-    try {
-      // Gọi API getCurrentUser - cookie sẽ tự động được gửi
-      const userData = await authApi.getCurrentUser();
-      setUser(userData);
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+    // ✅ Set loading true chỉ ở client, trong useEffect
+    setLoading(true);
+
+    const checkAuth = async () => {
+      try {
+        const userData = await authApi.getCurrentUser();
+        if (userData && userData.isEmailVerified) {
+          setUser(userData);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []); // ✅ Empty dependency - chỉ chạy 1 lần
 
   const login = async (data: LoginRequest) => {
+    let response;
     try {
-      const response = await authApi.login(data);
-      
-      if (response.success) {
-        setUser(response.user);
-        router.push('/chat');
-      } else {
-        throw new Error(response.message || 'Đăng nhập thất bại');
-      }
+      response = await authApi.login(data);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Đăng nhập thất bại';
-      throw new Error(errorMessage);
+      throw new Error(
+        error.response?.data?.message || error.message || 'Đăng nhập thất bại'
+      );
+    }
+    if (response.success) {
+      setUser(response.user);
+      router.push('/chat');
+    } else {
+      throw new Error(response.message || 'Đăng nhập thất bại');
     }
   };
 
   const register = async (data: RegisterRequest): Promise<{ email: string }> => {
+    let response;
     try {
-      const response = await authApi.register(data);
-      
-      if (response.success) {
-        // Không set user, chỉ trả về email để chuyển sang màn verify
-        return { email: response.email };
-      } else {
-        throw new Error(response.message || 'Đăng ký thất bại');
-      }
+      response = await authApi.register(data);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Đăng ký thất bại';
-      throw new Error(errorMessage);
+      throw new Error(
+        error.response?.data?.message || error.message || 'Đăng ký thất bại'
+      );
     }
+    if (response.success && response.email) {
+      return { email: response.email };
+    }
+    throw new Error(response.message || 'Đăng ký thất bại');
   };
 
   const verifyEmail = async (data: VerifyEmailRequest) => {
+    let response;
     try {
-      const response = await authApi.verifyEmail(data);
-      
-      if (response.success) {
-        // Cookie đã được set tự động
-        setUser(response.user);
-        router.push('/chat');
-      } else {
-        throw new Error(response.message || 'Xác thực thất bại');
-      }
+      response = await authApi.verifyEmail(data);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Xác thực thất bại';
-      throw new Error(errorMessage);
+      throw new Error(
+        error.response?.data?.message || error.message || 'Xác thực thất bại'
+      );
+    }
+    if (response.success) {
+      setUser(response.user);
+      router.push('/chat');
+    } else {
+      throw new Error(response.message || 'Xác thực thất bại');
     }
   };
 
   const resendOtp = async (data: ResendOtpRequest) => {
+    let response;
     try {
-      const response = await authApi.resendOtp(data);
-      
-      if (!response.success) {
-        throw new Error(response.message || 'Gửi lại OTP thất bại');
-      }
+      response = await authApi.resendOtp(data);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Gửi lại OTP thất bại';
-      throw new Error(errorMessage);
+      throw new Error(
+        error.response?.data?.message || error.message || 'Gửi lại OTP thất bại'
+      );
+    }
+    if (!response.success) {
+      throw new Error(response.message || 'Gửi lại OTP thất bại');
     }
   };
 
@@ -111,23 +123,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
+      hasFetched.current = false; // ✅ Reset để checkAuth chạy lại sau logout
       router.push('/login');
     }
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        register,
-        verifyEmail,
-        resendOtp,
-        logout,
-        isAuthenticated: !!user,
-      }}
-    >
+    <AuthContext.Provider value={{
+      user, loading, login, register,
+      verifyEmail, resendOtp, logout,
+      isAuthenticated: !!user && (user.isEmailVerified ?? false),
+    }}>
       {children}
     </AuthContext.Provider>
   );

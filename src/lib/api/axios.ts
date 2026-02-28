@@ -5,47 +5,41 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-// Request interceptor - thêm token vào header
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+let isRefreshing = false; // ✅ Chặn gọi refresh nhiều lần
 
-// Response interceptor - xử lý refresh token
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // ✅ Không retry với các endpoint auth
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/');
+    
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isAuthEndpoint &&
+      !isRefreshing
+    ) {
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
-          { refreshToken }
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh-token`,
+          {},
+          { withCredentials: true }
         );
 
-        const { accessToken } = response.data;
-        localStorage.setItem('accessToken', accessToken);
-
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        isRefreshing = false;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+        isRefreshing = false;
+        // ✅ Không dùng window.location - chỉ reject lỗi
+        // Để AuthContext tự xử lý setUser(null)
         return Promise.reject(refreshError);
       }
     }
