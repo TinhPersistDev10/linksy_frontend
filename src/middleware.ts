@@ -6,7 +6,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Các route không cần authentication
-  const publicRoutes = ['/login', '/register', '/'];
+  const publicRoutes = ['/login', '/register', '/', '/verify-email'];
 
   // Nếu đã đăng nhập và truy cập trang login/register, redirect về chat
   if (token && (pathname === '/login' || pathname === '/register')) {

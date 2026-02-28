@@ -54,21 +54,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []); // ✅ Empty dependency - chỉ chạy 1 lần
 
   const login = async (data: LoginRequest) => {
-    let response;
-    try {
-      response = await authApi.login(data);
-    } catch (error: any) {
-      throw new Error(
-        error.response?.data?.message || error.message || 'Đăng nhập thất bại'
-      );
+  let response;
+  try {
+    response = await authApi.login(data);
+  } catch (error: any) {
+    const serverMessage = error.response?.data?.message || '';
+    const email = error.response?.data?.email || '';
+
+    // Nếu email chưa xác thực, redirect sang verify-email
+    if (error.response?.status === 403 && email) {
+      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+      return;
     }
-    if (response.success) {
-      setUser(response.user);
-      router.push('/chat');
-    } else {
-      throw new Error(response.message || 'Đăng nhập thất bại');
-    }
-  };
+
+    throw new Error(serverMessage || error.message || 'Đăng nhập thất bại');
+  }
+
+  if (response.success) {
+    setUser(response.user);
+    router.push('/chat');
+  } else {
+    throw new Error(response.message || 'Đăng nhập thất bại');
+  }
+};
 
   const register = async (data: RegisterRequest): Promise<{ email: string }> => {
     let response;

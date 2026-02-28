@@ -21,6 +21,7 @@ export interface LoginResponse {
   success: boolean;
   message: string;
   user: User;
+  email?: string;
 }
 
 export interface RegisterRequest {
