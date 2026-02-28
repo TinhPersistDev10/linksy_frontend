@@ -1,3 +1,4 @@
+// src/app/(main)/layout.tsx
 'use client';
 
 import { useEffect } from 'react';
@@ -14,8 +15,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
   }, [isAuthenticated, loading, router]);
 
-  // ✅ Không block render bằng spinner
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
   if (!isAuthenticated) return null;
 
   return <>{children}</>;
