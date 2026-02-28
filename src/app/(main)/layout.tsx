@@ -1,17 +1,21 @@
 // src/app/(main)/layout.tsx
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
-export default function MainLayout({ children }: { children: React.ReactNode }) {
+export default function MainLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
-
+  console.log("MainLayout:", { loading, isAuthenticated });
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.push('/login');
+      router.push("/login");
     }
   }, [isAuthenticated, loading, router]);
 

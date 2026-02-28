@@ -21,19 +21,44 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Helper lưu/đọc user từ sessionStorage
+const USER_KEY = 'auth_user';
+
+function saveUser(user: User | null) {
+  if (typeof window === 'undefined') return;
+  if (user) {
+    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  } else {
+    sessionStorage.removeItem(USER_KEY);
+  }
+}
+
+function loadUser(): User | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  // ✅ Bắt đầu false để server và client render giống nhau
+  // ✅ Khởi tạo user từ sessionStorage ngay lập tức — không cần chờ API
+  const [user, setUserState] = useState<User | null>(() => loadUser());
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const hasFetched = useRef(false);
 
+  // Wrapper để luôn sync sessionStorage khi setUser
+  const setUser = (u: User | null) => {
+    saveUser(u);
+    setUserState(u);
+  };
+
   useEffect(() => {
     if (hasFetched.current) return;
     hasFetched.current = true;
-
-    // ✅ Set loading true chỉ ở client, trong useEffect
-    setLoading(true);
 
     const checkAuth = async () => {
       try {
@@ -44,39 +69,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       } catch (error) {
-        setUser(null);
+        // Nếu lỗi 401 và có user trong sessionStorage → giữ nguyên
+        // để tránh flicker, axios interceptor sẽ tự refresh token
+        const cached = loadUser();
+        if (!cached) {
+          setUser(null);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     checkAuth();
-  }, []); // ✅ Empty dependency - chỉ chạy 1 lần
+  }, []);
 
   const login = async (data: LoginRequest) => {
-  let response;
-  try {
-    response = await authApi.login(data);
-  } catch (error: any) {
-    const serverMessage = error.response?.data?.message || '';
-    const email = error.response?.data?.email || '';
+    let response;
+    try {
+      response = await authApi.login(data);
+    } catch (error: any) {
+      const serverMessage = error.response?.data?.message || '';
+      const email = error.response?.data?.email || '';
 
-    // Nếu email chưa xác thực, redirect sang verify-email
-    if (error.response?.status === 403 && email) {
-      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
-      return;
+      if (error.response?.status === 403 && email) {
+        router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
+
+      throw new Error(serverMessage || error.message || 'Đăng nhập thất bại');
     }
 
-    throw new Error(serverMessage || error.message || 'Đăng nhập thất bại');
-  }
-
-  if (response.success) {
-    setUser(response.user);
-    router.push('/chat');
-  } else {
-    throw new Error(response.message || 'Đăng nhập thất bại');
-  }
-};
+    if (response.success) {
+      setUser(response.user); // ✅ lưu vào sessionStorage luôn
+      router.push('/dashboard');
+    } else {
+      throw new Error(response.message || 'Đăng nhập thất bại');
+    }
+  };
 
   const register = async (data: RegisterRequest): Promise<{ email: string }> => {
     let response;
@@ -103,8 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
     }
     if (response.success) {
-      setUser(response.user);
-      router.push('/chat');
+      setUser(response.user); // ✅ lưu vào sessionStorage luôn
+      router.push('/dashboard');
     } else {
       throw new Error(response.message || 'Xác thực thất bại');
     }
@@ -130,8 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      setUser(null);
-      hasFetched.current = false; // ✅ Reset để checkAuth chạy lại sau logout
+      setUser(null); // ✅ xóa sessionStorage luôn
+      hasFetched.current = false;
       router.push('/login');
     }
   };

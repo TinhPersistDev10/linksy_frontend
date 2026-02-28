@@ -10,7 +10,7 @@ export function middleware(request: NextRequest) {
 
   // Nếu đã đăng nhập và truy cập trang login/register, redirect về chat
   if (token && (pathname === '/login' || pathname === '/register')) {
-    return NextResponse.redirect(new URL('/chat', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   // Nếu chưa đăng nhập và truy cập protected routes, redirect về login

@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/sidebar/app-sidebar"
+import ChatWindowLayout from "@/components/chat/ChatWindowLayout"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -29,13 +30,10 @@ export default function Page() {
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
                   <BreadcrumbLink href="#">
-                    Build Your Application
+                    <ChatWindowLayout/>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-                </BreadcrumbItem>
+                
               </BreadcrumbList>
             </Breadcrumb>
           </div>

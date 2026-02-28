@@ -11,7 +11,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (!loading && isAuthenticated && !pathname.includes('/verify-email')) {
-      router.push('/chat');
+      router.push('/dashboard');
     }
   }, [isAuthenticated, loading, router, pathname]);
 
