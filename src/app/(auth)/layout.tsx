@@ -1,8 +1,9 @@
+// src/app/(auth)/layout.tsx
 'use client';
 
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();

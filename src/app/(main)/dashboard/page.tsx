@@ -1,52 +1,44 @@
-import { AppSidebar } from "@/components/sidebar/app-sidebar"
-import ChatWindowLayout from "@/components/chat/ChatWindowLayout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
+"use client";
+
+import { useState } from "react";
+import { AppSidebar } from "@/components/sidebar/app-sidebar";
+import ChatWindowLayout from "@/components/chat/ChatWindowLayout";
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
+import type { Chatroom } from "@/lib/types/chatroom";
+
 export default function Page() {
+  const [selectedChatroom, setSelectedChatroom] = useState<Chatroom | null>(null);
+
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar
+        onSelectChat={setSelectedChatroom}
+        selectedChatroomId={selectedChatroom?.chatroomId}
+      />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2">
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator
-              orientation="vertical"
-              className="mr-2 data-[orientation=vertical]:h-4"
-            />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="#">
-                    <ChatWindowLayout/>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+          <span className="text-sm font-medium text-muted-foreground">
+            {selectedChatroom
+              ? selectedChatroom.members?.find(m => m.userId !== undefined)?.fullname || selectedChatroom.name
+              : 'Linksy Chat'}
+          </span>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-          <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-            <div className="bg-muted/50 aspect-video rounded-xl" />
-            <div className="bg-muted/50 aspect-video rounded-xl" />
-            <div className="bg-muted/50 aspect-video rounded-xl" />
-          </div>
-          <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
+
+        {/* Chat area */}
+        <div className="flex flex-1 overflow-hidden">
+          <ChatWindowLayout
+            chatroom={selectedChatroom}
+            onBack={() => setSelectedChatroom(null)}
+          />
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }

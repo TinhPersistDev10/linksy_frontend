@@ -1,16 +1,7 @@
-export interface User {
-  userId: string;
-  username: string;
-  email: string;
-  fullname: string;
-  avatar: string;
-  bio: string;
-  isActive: boolean;
-  dateOfBirth: string;
-  isEmailVerified: boolean;
-  createdAt: string;
-  lastLoginAt: string;
-}
+// src/lib/types/auth.ts
+import { User } from './user';
+
+export type { User };
 
 export interface LoginRequest {
   emailOrUsername: string;
@@ -51,11 +42,12 @@ export interface VerifyEmailResponse {
   user: User;
 }
 
+export interface ResendOtpRequest {
+  email: string;
+}
+
 export interface ApiError {
   success: false;
   message: string;
   errors?: Record<string, string[]>;
-}
-export interface ResendOtpRequest {
-  email: string;
 }

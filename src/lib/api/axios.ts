@@ -1,4 +1,5 @@
-import axios from 'axios';
+// src/lib/api/axios.ts
+import axios, { AxiosError } from 'axios';
 
 const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -8,19 +9,35 @@ const apiClient = axios.create({
   withCredentials: true,
 });
 
-let isRefreshing = false; // ✅ Chặn gọi refresh nhiều lần
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value: unknown) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
+
+// Xử lý queue các request bị pending trong khi đang refresh token
+const processQueue = (error: AxiosError | null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(null);
+    }
+  });
+  failedQueue = [];
+};
 
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as typeof error.config & { _retry?: boolean };
 
-    // ✅ Không retry với các endpoint auth
-    const isAuthEndpoint = originalRequest.url?.includes('/auth/');
-    
+    // Không retry với auth endpoints để tránh loop vô hạn
+    const isAuthEndpoint = originalRequest?.url?.includes('/auth/');
+
     if (
       error.response?.status === 401 &&
-      !originalRequest._retry &&
+      !originalRequest?._retry &&
       !isAuthEndpoint &&
       !isRefreshing
     ) {
@@ -34,14 +51,22 @@ apiClient.interceptors.response.use(
           { withCredentials: true }
         );
 
+        processQueue(null);
         isRefreshing = false;
         return apiClient(originalRequest);
       } catch (refreshError) {
+        processQueue(refreshError as AxiosError);
         isRefreshing = false;
-        // ✅ Không dùng window.location - chỉ reject lỗi
-        // Để AuthContext tự xử lý setUser(null)
         return Promise.reject(refreshError);
       }
+    }
+
+    // Nếu đang refresh, queue request lại thay vì reject ngay
+    if (error.response?.status === 401 && isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      }).then(() => apiClient(originalRequest!))
+        .catch((err) => Promise.reject(err));
     }
 
     return Promise.reject(error);
