@@ -1,30 +1,35 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { User, Lock, Bell, Palette, Shield, LogOut } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import ProfileSettings from './ProfileSettings';
-import PasswordSettings from './PasswordSettings';
-import NotificationSettings from './NotificationSettings';
-import AppearanceSettings from './AppearanceSettings';
+import { useState } from "react";
+import { User, Lock, Bell, Palette, Shield, LogOut } from "lucide-react";
+import { cn } from "@/lib/utils";
+import ProfileSettings from "./ProfileSettings";
+import PasswordSettings from "./PasswordSettings";
+import NotificationSettings from "./NotificationSettings";
+import AppearanceSettings from "./AppearanceSettings";
 
 const navItems = [
-  { id: 'profile', label: 'Thông tin cá nhân', icon: User },
-  { id: 'password', label: 'Đổi mật khẩu', icon: Lock },
-  { id: 'notifications', label: 'Thông báo', icon: Bell },
-  { id: 'appearance', label: 'Giao diện', icon: Palette },
+  { id: "profile", label: "Thông tin cá nhân", icon: User },
+  { id: "password", label: "Đổi mật khẩu", icon: Lock },
+  { id: "notifications", label: "Thông báo", icon: Bell },
+  { id: "appearance", label: "Giao diện", icon: Palette },
 ];
 
 export default function SettingsLayout() {
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState("profile");
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'profile': return <ProfileSettings />;
-      case 'password': return <PasswordSettings />;
-      case 'notifications': return <NotificationSettings />;
-      case 'appearance': return <AppearanceSettings />;
-      default: return <ProfileSettings />;
+      case "profile":
+        return <ProfileSettings />;
+      case "password":
+        return <PasswordSettings />;
+      case "notifications":
+        return <NotificationSettings />;
+      case "appearance":
+        return <AppearanceSettings />;
+      default:
+        return <ProfileSettings />;
     }
   };
 
@@ -39,10 +44,10 @@ export default function SettingsLayout() {
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left',
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left",
                 activeTab === item.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
               <Icon size={18} />

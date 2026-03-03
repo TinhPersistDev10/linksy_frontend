@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/lib/hooks/useAuth';
 import { Camera, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';

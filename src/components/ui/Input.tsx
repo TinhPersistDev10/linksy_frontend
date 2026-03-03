@@ -8,7 +8,8 @@ interface InputProps extends React.ComponentProps<"input"> {
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, label, error, id, ...props }, ref) => {
-    const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+    const inputId =
+      id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined);
 
     return (
       <div className="w-full">
@@ -31,16 +32,14 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             error
               ? "border-red-400 focus-visible:ring-red-200 focus-visible:border-red-400"
               : "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
-            className
+            className,
           )}
           {...props}
         />
-        {error && (
-          <p className="mt-1 text-xs text-red-600">{error}</p>
-        )}
+        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>
     );
-  }
+  },
 );
 
 Input.displayName = "Input";

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { X, User, Lock, Bell, Palette, ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import ProfileSettings from './ProfileSettings';
-import PasswordSettings from './PasswordSettings';
-import NotificationSettings from './NotificationSettings';
-import AppearanceSettings from './AppearanceSettings';
+import { useState } from "react";
+import { X, User, Lock, Bell, Palette, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import ProfileSettings from "./ProfileSettings";
+import PasswordSettings from "./PasswordSettings";
+import NotificationSettings from "./NotificationSettings";
+import AppearanceSettings from "./AppearanceSettings";
 
 interface SettingsPanelProps {
   open: boolean;
@@ -14,10 +14,30 @@ interface SettingsPanelProps {
 }
 
 const navItems = [
-  { id: 'profile', label: 'Thông tin cá nhân', icon: User, description: 'Ảnh đại diện, tên, bio' },
-  { id: 'password', label: 'Đổi mật khẩu', icon: Lock, description: 'Bảo mật tài khoản' },
-  { id: 'notifications', label: 'Thông báo', icon: Bell, description: 'Quản lý thông báo' },
-  { id: 'appearance', label: 'Giao diện', icon: Palette, description: 'Dark mode, cỡ chữ' },
+  {
+    id: "profile",
+    label: "Thông tin cá nhân",
+    icon: User,
+    description: "Ảnh đại diện, tên, bio",
+  },
+  {
+    id: "password",
+    label: "Đổi mật khẩu",
+    icon: Lock,
+    description: "Bảo mật tài khoản",
+  },
+  {
+    id: "notifications",
+    label: "Thông báo",
+    icon: Bell,
+    description: "Quản lý thông báo",
+  },
+  {
+    id: "appearance",
+    label: "Giao diện",
+    icon: Palette,
+    description: "Dark mode, cỡ chữ",
+  },
 ];
 
 export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
@@ -25,11 +45,16 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'profile': return <ProfileSettings />;
-      case 'password': return <PasswordSettings />;
-      case 'notifications': return <NotificationSettings />;
-      case 'appearance': return <AppearanceSettings />;
-      default: return null;
+      case "profile":
+        return <ProfileSettings />;
+      case "password":
+        return <PasswordSettings />;
+      case "notifications":
+        return <NotificationSettings />;
+      case "appearance":
+        return <AppearanceSettings />;
+      default:
+        return null;
     }
   };
 
@@ -48,9 +73,9 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
       {/* Panel */}
       <div
         className={cn(
-          'fixed top-0 right-0 z-50 h-full bg-background shadow-2xl border-l flex transition-all duration-300 ease-in-out',
-          open ? 'translate-x-0' : 'translate-x-full',
-          activeTab ? 'w-[680px]' : 'w-80'
+          "fixed top-0 right-0 z-50 h-full bg-background shadow-2xl border-l flex transition-all duration-300 ease-in-out",
+          open ? "translate-x-0" : "translate-x-full",
+          activeTab ? "w-[680px]" : "w-80",
         )}
       >
         {/* Left: Nav list */}
@@ -76,26 +101,58 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                   key={item.id}
                   onClick={() => setActiveTab(isActive ? null : item.id)}
                   className={cn(
-                    'w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all group',
+                    "w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all group",
                     isActive
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'hover:bg-accent'
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "hover:bg-accent",
                   )}
                 >
-                  <div className={cn(
-                    'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors',
-                    isActive ? 'bg-white/20' : 'bg-muted group-hover:bg-background'
-                  )}>
-                    <Icon size={18} className={isActive ? 'text-primary-foreground' : 'text-muted-foreground'} />
+                  <div
+                    className={cn(
+                      "w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                      isActive
+                        ? "bg-white/20"
+                        : "bg-muted group-hover:bg-background",
+                    )}
+                  >
+                    <Icon
+                      size={18}
+                      className={
+                        isActive
+                          ? "text-primary-foreground"
+                          : "text-muted-foreground"
+                      }
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={cn('text-sm font-medium', isActive ? 'text-primary-foreground' : '')}>{item.label}</p>
-                    <p className={cn('text-xs truncate', isActive ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{item.description}</p>
+                    <p
+                      className={cn(
+                        "text-sm font-medium",
+                        isActive ? "text-primary-foreground" : "",
+                      )}
+                    >
+                      {item.label}
+                    </p>
+                    <p
+                      className={cn(
+                        "text-xs truncate",
+                        isActive
+                          ? "text-primary-foreground/70"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {item.description}
+                    </p>
                   </div>
-                  <ChevronRight size={14} className={cn(
-                    'shrink-0 transition-transform',
-                    isActive ? 'text-primary-foreground rotate-90' : 'text-muted-foreground'
-                  )} />
+                  <ChevronRight
+                    size={14}
+                    className={cn(
+                      "shrink-0 transition-transform",
+                      isActive
+                        ? "text-primary-foreground rotate-90"
+                        : "text-muted-foreground",
+                    )}
+                  />
                 </button>
               );
             })}
@@ -110,11 +167,18 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
               {activeItem && (
                 <>
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                    {(() => { const Icon = activeItem.icon; return <Icon size={16} className="text-primary" />; })()}
+                    {(() => {
+                      const Icon = activeItem.icon;
+                      return <Icon size={16} className="text-primary" />;
+                    })()}
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold">{activeItem.label}</h3>
-                    <p className="text-xs text-muted-foreground">{activeItem.description}</p>
+                    <h3 className="text-sm font-semibold">
+                      {activeItem.label}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {activeItem.description}
+                    </p>
                   </div>
                 </>
               )}
@@ -127,9 +191,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             </div>
 
             {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {renderContent()}
-            </div>
+            <div className="flex-1 overflow-y-auto p-6">{renderContent()}</div>
           </div>
         )}
       </div>

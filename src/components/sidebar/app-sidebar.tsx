@@ -83,7 +83,8 @@ export function AppSidebar({
     setRefreshTrigger((p) => p + 1);
   };
 
-  const tabLabel = navItems.find((n) => n.id === activeTab)?.label ?? "Tin nhắn";
+  const tabLabel =
+    navItems.find((n) => n.id === activeTab)?.label ?? "Tin nhắn";
 
   return (
     <>
@@ -107,7 +108,7 @@ export function AppSidebar({
                   "relative w-10 h-10 rounded-xl flex items-center justify-center transition-all group",
                   activeTab === id
                     ? "bg-sky-500 text-white shadow-sm"
-                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
               >
                 <Icon size={18} />
@@ -260,7 +261,10 @@ export function AppSidebar({
         </Sidebar>
       </div>
 
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
       <AddFriendModal
         open={addFriendOpen}
         onClose={() => setAddFriendOpen(false)}
