@@ -1,6 +1,6 @@
 // src/lib/api/friends.ts
 import apiClient from './axios';
-import type { Friend, FriendRequest, SearchUserResult } from '../types/chat';
+import type { Friend, FriendRequest, SearchUserResult } from '../types/chatroom';
 
 export const friendsApi = {
   getFriends: async (): Promise<Friend[]> => {
