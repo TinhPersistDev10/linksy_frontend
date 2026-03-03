@@ -1,4 +1,4 @@
-// src/lib/types/chat.ts - Sync với backend response
+// src/lib/types/chatroom.ts - Sync với backend response
 
 export interface SearchUserResult {
   userId: string;
@@ -20,19 +20,19 @@ export interface Friend {
 }
 
 export interface FriendRequest {
-  requestId: string;
-  senderId: string;
+  requestId: string;       // Guid → string
+  senderId: string | null;
   senderUsername: string;
   senderFullname: string;
   senderAvatar: string;
-  receiverId: string;
+  receiverId: string | null;
   receiverUsername: string;
   receiverFullname: string;
   receiverAvatar: string;
+  message: string;
   status: string;
-  message?: string;
   sentAt: string;
-  respondedAt?: string;
+  respondedAt: string | null;
 }
 
 // ✅ Đúng theo backend response
@@ -41,7 +41,7 @@ export interface ChatroomMember {
   username: string;
   fullname: string;
   avatar: string;
-  memberRole: 'admin' | 'member';   // backend: memberRole
+  memberRole: 'admin' | 'member';
   joinedAt: string;
   isOnline: boolean;
 }
@@ -54,14 +54,14 @@ export interface Message {
   senderFullname: string;
   senderAvatar: string;
   senderNickname: string | null;
-  messageType: string;              // backend: messageType
-  messageText: string;              // backend: messageText (không phải content)
+  messageType: string;
+  messageText: string;
   parentMessageId: string | null;
   replyCount: number;
   isEdited: boolean;
   isDeleted: boolean;
   isOwn: boolean;
-  sentAt: string;                   // backend: sentAt (không phải createdAt)
+  sentAt: string;
   editedAt: string | null;
   deletedAt: string | null;
   attachments: unknown | null;
@@ -69,14 +69,14 @@ export interface Message {
 
 export interface Chatroom {
   chatroomId: string;
-  roomName: string;                 // backend: roomName (không phải name)
+  roomName: string;
   description: string;
   avatar: string;
-  roomType: 'direct' | 'group';    // backend: roomType (không phải type)
+  roomType: 'direct' | 'group';
   isActive: boolean;
   isArchived: boolean;
   createdAt: string;
-  lastActivityAt: string;          // backend: lastActivityAt (không phải lastMessageAt)
+  lastActivityAt: string;
   lastMessage?: Message;
   members: ChatroomMember[];
   unreadCount: number;
@@ -84,7 +84,7 @@ export interface Chatroom {
 }
 
 export interface SendMessageRequest {
-  messageText: string;             // backend nhận: messageText
+  messageText: string;
   messageType?: string;
   parentMessageId?: string | null;
 }

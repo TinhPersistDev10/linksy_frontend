@@ -14,8 +14,8 @@ export const chatroomsApi = {
     return res.data.chatroom ?? res.data;
   },
 
-  createDirect: async (friendId: string): Promise<Chatroom> => {
-    const res = await apiClient.post('/chatrooms/direct', { friendId });
+  createDirect: async (otherUserId : string): Promise<Chatroom> => {
+    const res = await apiClient.post('/chatrooms/direct', { otherUserId });
     return res.data.chatroom ?? res.data;
   },
 

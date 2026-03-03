@@ -2,7 +2,12 @@
 
 import { createContext, useState, useEffect, useRef, ReactNode } from "react";
 import type { User } from "@/lib/types/user";
-import type { LoginRequest, RegisterRequest, VerifyEmailRequest, ResendOtpRequest } from "@/lib/types/auth";
+import type {
+  LoginRequest,
+  RegisterRequest,
+  VerifyEmailRequest,
+  ResendOtpRequest,
+} from "@/lib/types/auth";
 import { authApi } from "@/lib/api/auth";
 import { storage } from "@/lib/utils/storage";
 import { useRouter } from "next/navigation";
@@ -18,7 +23,9 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined,
+);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<User | null>(null);
@@ -44,6 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasFetched.current = true;
 
     const checkAuth = async () => {
+      // ← THÊM: set user từ cache trước để tránh blank screen khi reload
+      const cachedUser = storage.getUser<User>();
+      if (cachedUser?.isEmailVerified) {
+        setUserState(cachedUser);
+      }
+
       try {
         const userData = await authApi.getCurrentUser();
         setUser(userData?.isEmailVerified ? userData : null);
@@ -53,7 +66,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     };
-
     checkAuth();
   }, [isMounted]);
 
@@ -65,7 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.push(`/verify-email?email=${encodeURIComponent(email)}`);
         return null;
       }
-      throw new Error(error.response?.data?.message || error.message || "Đăng nhập thất bại");
+      throw new Error(
+        error.response?.data?.message || error.message || "Đăng nhập thất bại",
+      );
     });
     if (response?.success) {
       setUser(response.user);
@@ -73,13 +87,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (data: RegisterRequest): Promise<{ email: string }> => {
+  const register = async (
+    data: RegisterRequest,
+  ): Promise<{ email: string }> => {
     try {
       const response = await authApi.register(data);
       if (response.success && response.email) return { email: response.email };
       throw new Error(response.message || "Đăng ký thất bại");
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || error.message || "Đăng ký thất bại");
+      throw new Error(
+        error.response?.data?.message || error.message || "Đăng ký thất bại",
+      );
     }
   };
 
@@ -91,16 +109,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.push("/dashboard");
       } else throw new Error(response.message || "Xác thực thất bại");
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || error.message || "Xác thực thất bại");
+      throw new Error(
+        error.response?.data?.message || error.message || "Xác thực thất bại",
+      );
     }
   };
 
   const resendOtp = async (data: ResendOtpRequest) => {
     try {
       const response = await authApi.resendOtp(data);
-      if (!response.success) throw new Error(response.message || "Gửi lại OTP thất bại");
+      if (!response.success)
+        throw new Error(response.message || "Gửi lại OTP thất bại");
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || error.message || "Gửi lại OTP thất bại");
+      throw new Error(
+        error.response?.data?.message ||
+          error.message ||
+          "Gửi lại OTP thất bại",
+      );
     }
   };
 
@@ -110,20 +135,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authApi.logout();
     } catch (error: any) {
-      if (error?.response?.status !== 401) console.error("Logout error:", error);
+      if (error?.response?.status !== 401)
+        console.error("Logout error:", error);
     }
     window.location.href = "/login";
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      // loading=true khi: belum mount ATAU sedang fetch
-      // Cả server lẫn client đều bắt đầu với loading=true → không mismatch
-      loading: !isMounted || loading,
-      isAuthenticated: !!user && (user.isEmailVerified ?? false),
-      login, register, verifyEmail, resendOtp, logout,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        // loading=true khi: belum mount ATAU sedang fetch
+        // Cả server lẫn client đều bắt đầu với loading=true → không mismatch
+        loading: !isMounted || loading,
+        isAuthenticated: !!user && (user.isEmailVerified ?? false),
+        login,
+        register,
+        verifyEmail,
+        resendOtp,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

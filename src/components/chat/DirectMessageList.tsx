@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { chatroomsApi } from '@/lib/api/chatrooms';
 import type { Chatroom } from '@/lib/types/chatroom';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -11,6 +11,7 @@ interface DirectMessageListProps {
   onSelectChat: (chatroom: Chatroom) => void;
   selectedChatroomId?: string;
   refreshTrigger?: number;
+  searchQuery?: string;
 }
 
 function Avatar({ src, name, size = 8 }: { src?: string; name: string; size?: number }) {
@@ -51,6 +52,7 @@ export default function DirectMessageList({
   onSelectChat,
   selectedChatroomId,
   refreshTrigger,
+  searchQuery = '',
 }: DirectMessageListProps) {
   const { user } = useAuth();
   const [chatrooms, setChatrooms] = useState<Chatroom[]>([]);
@@ -63,7 +65,6 @@ export default function DirectMessageList({
   const loadChatrooms = async () => {
     try {
       const data = await chatroomsApi.getChatrooms();
-      // ✅ Dùng roomType thay vì type
       const direct = data.filter(c => c.roomType === 'direct');
       setChatrooms(direct);
     } catch (e) {
@@ -73,10 +74,25 @@ export default function DirectMessageList({
     }
   };
 
-  // ✅ Lấy thông tin người còn lại trong direct chat
   const getOtherMember = (chatroom: Chatroom) => {
     return chatroom.members?.find(m => m.userId !== user?.userId);
   };
+
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return chatrooms;
+    const q = searchQuery.toLowerCase();
+    return chatrooms.filter(c => {
+      const other = c.members?.find(m => m.userId !== user?.userId);
+      const name = other?.fullname || c.roomName || '';
+      const username = other?.username || '';
+      const lastMsg = c.lastMessage?.messageText || '';
+      return (
+        name.toLowerCase().includes(q) ||
+        username.toLowerCase().includes(q) ||
+        lastMsg.toLowerCase().includes(q)
+      );
+    });
+  }, [chatrooms, searchQuery, user?.userId]);
 
   if (loading) {
     return (
@@ -96,27 +112,30 @@ export default function DirectMessageList({
 
   if (chatrooms.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-4 gap-2 text-center px-2">
+      <div className="flex flex-col items-center justify-center py-8 gap-2 text-center px-2">
         <MessageCircle size={20} className="text-muted-foreground/50" />
         <p className="text-xs text-muted-foreground">Chưa có tin nhắn nào</p>
       </div>
     );
   }
 
+  if (filtered.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 gap-2 text-center px-2">
+        <MessageCircle size={20} className="text-muted-foreground/50" />
+        <p className="text-xs text-muted-foreground">Không tìm thấy kết quả</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-0.5">
-      {chatrooms.map(chatroom => {
+      {filtered.map(chatroom => {
         const other = getOtherMember(chatroom);
         const isSelected = chatroom.chatroomId === selectedChatroomId;
-
-        // ✅ Dùng roomName thay vì name
         const displayName = other?.fullname || chatroom.roomName || 'Unknown';
-
-        // ✅ Dùng messageText thay vì content, sentAt thay vì createdAt
         const lastMsg = chatroom.lastMessage;
-        const lastMsgText = lastMsg?.isDeleted
-          ? 'Tin nhắn đã bị xóa'
-          : lastMsg?.messageText;
+        const lastMsgText = lastMsg?.isDeleted ? 'Tin nhắn đã bị xóa' : lastMsg?.messageText;
 
         return (
           <button
@@ -125,11 +144,16 @@ export default function DirectMessageList({
             className={cn(
               'w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-left transition-colors',
               isSelected
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                ? 'bg-sky-500/10 text-sky-700 dark:text-sky-400'
                 : 'hover:bg-sidebar-accent/60'
             )}
           >
-            <Avatar src={other?.avatar} name={displayName} size={8} />
+            <div className="relative shrink-0">
+              <Avatar src={other?.avatar} name={displayName} size={8} />
+              {other?.isOnline && (
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-background rounded-full" />
+              )}
+            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-1">
                 <span className={cn(
@@ -138,7 +162,6 @@ export default function DirectMessageList({
                 )}>
                   {displayName}
                 </span>
-                {/* ✅ Dùng lastActivityAt thay vì lastMessageAt */}
                 {chatroom.lastActivityAt && (
                   <span className="text-[10px] text-muted-foreground shrink-0">
                     {formatTime(chatroom.lastActivityAt)}
@@ -154,7 +177,7 @@ export default function DirectMessageList({
                     : 'Bắt đầu cuộc trò chuyện'}
                 </span>
                 {chatroom.unreadCount > 0 && (
-                  <span className="shrink-0 min-w-4 h-4 px-1 bg-blue-500 text-white text-[10px] font-medium rounded-full flex items-center justify-center">
+                  <span className="shrink-0 min-w-4 h-4 px-1 bg-sky-500 text-white text-[10px] font-medium rounded-full flex items-center justify-center">
                     {chatroom.unreadCount > 99 ? '99+' : chatroom.unreadCount}
                   </span>
                 )}

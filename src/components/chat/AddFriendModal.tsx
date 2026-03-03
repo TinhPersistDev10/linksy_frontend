@@ -16,9 +16,12 @@ interface AddFriendModalProps {
   onFriendAdded?: () => void;
 }
 
-function Avatar({ src, name, size = 10 }: { src?: string; name: string; size?: number }) {
-  const initials = name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
-  const avatarSrc = src
+function Avatar({ src, name, size = 10 }: { src?: string; name?: string; size?: number }) {
+  const safeName = name?.trim() || '?';
+  const initials = safeName !== '?'
+    ? safeName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : '?';
+  const avatarSrc = src?.trim()
     ? src.startsWith('http') ? src : `${BASE_URL}${src}`
     : undefined;
 
@@ -28,7 +31,7 @@ function Avatar({ src, name, size = 10 }: { src?: string; name: string; size?: n
       `w-${size} h-${size}`
     )}>
       {avatarSrc ? (
-        <img src={avatarSrc} alt={name} className="w-full h-full object-cover"
+        <img src={avatarSrc} alt={safeName} className="w-full h-full object-cover"
           onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
       ) : (
         <span className={cn('font-semibold text-white', size <= 8 ? 'text-xs' : 'text-sm')}>
@@ -39,7 +42,6 @@ function Avatar({ src, name, size = 10 }: { src?: string; name: string; size?: n
   );
 }
 
-// ✅ Dùng đúng fields từ backend: relationshipStatus + canSendRequest
 function ActionButton({
   user,
   loadingId,
@@ -58,7 +60,6 @@ function ActionButton({
       </span>
     );
   }
-
   if (user.relationshipStatus === 'request_sent') {
     return (
       <span className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full font-medium">
@@ -66,7 +67,6 @@ function ActionButton({
       </span>
     );
   }
-
   if (user.relationshipStatus === 'request_received') {
     return (
       <span className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full font-medium">
@@ -74,7 +74,6 @@ function ActionButton({
       </span>
     );
   }
-
   if (user.canSendRequest) {
     return (
       <button
@@ -89,7 +88,6 @@ function ActionButton({
       </button>
     );
   }
-
   return null;
 }
 
@@ -124,49 +122,32 @@ export default function AddFriendModal({ open, onClose, onFriendAdded }: AddFrie
     }
   };
 
-  // Debounce search
   useEffect(() => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      setError('');
-      return;
-    }
+    if (!query.trim()) { setSearchResults([]); setError(''); return; }
     const timer = setTimeout(async () => {
-      setSearching(true);
-      setError('');
+      setSearching(true); setError('');
       try {
         const results = await friendsApi.searchUsers(query.trim());
         setSearchResults(results);
       } catch (e: any) {
-        console.error('Search error:', e);
-        const msg = e?.response?.data?.message || e?.message || 'Tìm kiếm thất bại';
-        setError(msg);
+        setError(e?.response?.data?.message || e?.message || 'Tìm kiếm thất bại');
         setSearchResults([]);
-      } finally {
-        setSearching(false);
-      }
+      } finally { setSearching(false); }
     }, 400);
     return () => clearTimeout(timer);
   }, [query]);
 
   const handleSendRequest = async (userId: string) => {
-    setLoadingId(userId);
-    setError('');
+    setLoadingId(userId); setError('');
     try {
       await friendsApi.sendRequest(userId);
-      // ✅ Cập nhật đúng field relationshipStatus
-      setSearchResults(prev =>
-        prev.map(u => u.userId === userId
-          ? { ...u, relationshipStatus: 'request_sent', canSendRequest: false }
-          : u
-        )
-      );
+      setSearchResults(prev => prev.map(u =>
+        u.userId === userId ? { ...u, relationshipStatus: 'request_sent', canSendRequest: false } : u
+      ));
       await loadRequests();
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Gửi lời mời thất bại');
-    } finally {
-      setLoadingId(null);
-    }
+    } finally { setLoadingId(null); }
   };
 
   const handleAccept = async (requestId: string) => {
@@ -177,9 +158,7 @@ export default function AddFriendModal({ open, onClose, onFriendAdded }: AddFrie
       onFriendAdded?.();
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Thao tác thất bại');
-    } finally {
-      setLoadingId(null);
-    }
+    } finally { setLoadingId(null); }
   };
 
   const handleReject = async (requestId: string) => {
@@ -189,9 +168,7 @@ export default function AddFriendModal({ open, onClose, onFriendAdded }: AddFrie
       setReceivedRequests(prev => prev.filter(r => r.requestId !== requestId));
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Thao tác thất bại');
-    } finally {
-      setLoadingId(null);
-    }
+    } finally { setLoadingId(null); }
   };
 
   const handleCancel = async (requestId: string) => {
@@ -201,9 +178,7 @@ export default function AddFriendModal({ open, onClose, onFriendAdded }: AddFrie
       setSentRequests(prev => prev.filter(r => r.requestId !== requestId));
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Thao tác thất bại');
-    } finally {
-      setLoadingId(null);
-    }
+    } finally { setLoadingId(null); }
   };
 
   if (!open) return null;
@@ -284,25 +259,17 @@ export default function AddFriendModal({ open, onClose, onFriendAdded }: AddFrie
                   autoFocus
                 />
               </div>
-
               {searching && (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
                 </div>
               )}
-
               {!searching && query && searchResults.length === 0 && !error && (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  Không tìm thấy người dùng nào
-                </div>
+                <p className="text-center py-8 text-sm text-muted-foreground">Không tìm thấy người dùng nào</p>
               )}
-
               {!searching && !query && (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  Nhập username hoặc tên để tìm kiếm
-                </div>
+                <p className="text-center py-8 text-sm text-muted-foreground">Nhập username hoặc tên để tìm kiếm</p>
               )}
-
               <div className="space-y-2">
                 {searchResults.map(user => (
                   <div key={user.userId}
@@ -311,11 +278,8 @@ export default function AddFriendModal({ open, onClose, onFriendAdded }: AddFrie
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{user.fullname}</p>
                       <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
-                      {user.bio && (
-                        <p className="text-xs text-muted-foreground/60 truncate mt-0.5">{user.bio}</p>
-                      )}
+                      {user.bio && <p className="text-xs text-muted-foreground/60 truncate mt-0.5">{user.bio}</p>}
                     </div>
-                    {/* ✅ ActionButton dùng relationshipStatus */}
                     <ActionButton user={user} loadingId={loadingId} onSend={handleSendRequest} />
                   </div>
                 ))}
@@ -327,22 +291,26 @@ export default function AddFriendModal({ open, onClose, onFriendAdded }: AddFrie
           {tab === 'received' && (
             <div className="space-y-2">
               {receivedRequests.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  Không có lời mời kết bạn nào
-                </div>
+                <p className="text-center py-8 text-sm text-muted-foreground">Không có lời mời kết bạn nào</p>
               ) : receivedRequests.map(req => (
-                <div key={req.requestId}
-                  className="flex items-center gap-3 p-3 rounded-xl border bg-card">
+                <div key={req.requestId} className="flex items-center gap-3 p-3 rounded-xl border bg-card">
+                  {/* ✅ senderFullname / senderAvatar / senderUsername từ FriendRequestDto */}
                   <Avatar src={req.senderAvatar} name={req.senderFullname} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{req.senderFullname}</p>
-                    <p className="text-xs text-muted-foreground">@{req.senderUsername}</p>
+                    <p className="text-sm font-medium truncate">
+                      {req.senderFullname || 'Người dùng'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {req.senderUsername ? `@${req.senderUsername}` : ''}
+                    </p>
                   </div>
                   <div className="flex gap-1.5">
                     <button onClick={() => handleAccept(req.requestId)}
                       disabled={loadingId === req.requestId}
                       className="w-8 h-8 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center transition-colors disabled:opacity-50">
-                      <Check size={14} />
+                      {loadingId === req.requestId
+                        ? <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" />
+                        : <Check size={14} />}
                     </button>
                     <button onClick={() => handleReject(req.requestId)}
                       disabled={loadingId === req.requestId}
@@ -359,20 +327,25 @@ export default function AddFriendModal({ open, onClose, onFriendAdded }: AddFrie
           {tab === 'sent' && (
             <div className="space-y-2">
               {sentRequests.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  Chưa gửi lời mời kết bạn nào
-                </div>
+                <p className="text-center py-8 text-sm text-muted-foreground">Chưa gửi lời mời kết bạn nào</p>
               ) : sentRequests.map(req => (
-                <div key={req.requestId}
-                  className="flex items-center gap-3 p-3 rounded-xl border bg-card">
+                <div key={req.requestId} className="flex items-center gap-3 p-3 rounded-xl border bg-card">
+                  {/* ✅ receiverFullname / receiverAvatar / receiverUsername từ FriendRequestDto */}
                   <Avatar src={req.receiverAvatar} name={req.receiverFullname} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{req.receiverFullname}</p>
-                    <p className="text-xs text-muted-foreground">@{req.receiverUsername}</p>
+                    <p className="text-sm font-medium truncate">
+                      {req.receiverFullname || 'Người dùng'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {req.receiverUsername ? `@${req.receiverUsername}` : ''}
+                    </p>
                   </div>
                   <button onClick={() => handleCancel(req.requestId)}
                     disabled={loadingId === req.requestId}
-                    className="text-xs text-red-500 hover:text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                    className="text-xs text-red-500 hover:text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5 shrink-0">
+                    {loadingId === req.requestId
+                      ? <div className="w-3 h-3 border border-red-300 border-t-red-500 rounded-full animate-spin" />
+                      : null}
                     Hủy
                   </button>
                 </div>
