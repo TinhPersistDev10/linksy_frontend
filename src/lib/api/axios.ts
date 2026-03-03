@@ -26,7 +26,11 @@ const processQueue = (error: AxiosError | null) => {
   });
   failedQueue = [];
 };
-
+const redirectToLogin = () => {
+  if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+    window.location.href = '/login';
+  }
+};
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -57,6 +61,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError as AxiosError);
         isRefreshing = false;
+        redirectToLogin(); 
         return Promise.reject(refreshError);
       }
     }

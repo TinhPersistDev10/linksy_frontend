@@ -1,20 +1,27 @@
-// src/app/(auth)/layout.tsx
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/lib/hooks/useAuth';
+"use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && isAuthenticated && !pathname.includes('/verify-email')) {
-      router.push('/dashboard');
+    if (!loading && isAuthenticated) {
+      router.replace("/dashboard");
     }
-  }, [isAuthenticated, loading, router, pathname]);
+  }, [loading, isAuthenticated, router]);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) return null;
 
   return <>{children}</>;
 }

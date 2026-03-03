@@ -26,7 +26,7 @@ export default function Page() {
           <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
           <span className="text-sm font-medium text-muted-foreground">
             {selectedChatroom
-              ? selectedChatroom.members?.find(m => m.userId !== undefined)?.fullname || selectedChatroom.name
+              ? selectedChatroom.members?.find(m => m.userId !== undefined)?.fullname || selectedChatroom.roomName
               : 'Linksy Chat'}
           </span>
         </header>
