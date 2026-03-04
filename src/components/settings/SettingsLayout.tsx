@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { User, Lock, Bell, Palette, Shield, LogOut } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import ProfileSettings from "./ProfileSettings";
 import PasswordSettings from "./PasswordSettings";
 import NotificationSettings from "./NotificationSettings";

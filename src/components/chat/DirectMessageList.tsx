@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import type { Chatroom } from "@/lib/types/chatroom";
 import { useAuth } from "@/lib/hooks/useAuth";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { MessageCircle } from "lucide-react";
 
 interface DirectMessageListProps {

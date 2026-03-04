@@ -14,7 +14,7 @@ import {
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import type { Chatroom, Message } from "@/lib/types/chatroom";
 import { useAuth } from "@/lib/hooks/useAuth";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
@@ -93,7 +93,6 @@ function formatDateDivider(dateStr: string) {
   });
 }
 
-// ✅ Lazy load SignalR hook — chỉ chạy ở client
 function useChatSignalRClient(options: {
   chatroomId: string | null;
   onReceiveMessage: (msg: Message) => void;

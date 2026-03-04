@@ -5,7 +5,7 @@ import { Search, X, MessageCircle } from "lucide-react";
 import { friendsApi } from "@/lib/api/friends";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import type { Friend, Chatroom } from "@/lib/types/chatroom";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||

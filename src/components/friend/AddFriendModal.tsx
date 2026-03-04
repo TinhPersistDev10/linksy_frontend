@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Search, UserPlus, Check, X, Clock, Users, Bell } from "lucide-react";
 import { friendsApi } from "@/lib/api/friends";
 import type { SearchUserResult, FriendRequest } from "@/lib/types/chatroom";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 type Tab = "search" | "received" | "sent";
 
