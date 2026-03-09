@@ -1,0 +1,151 @@
+// src/components/chat/window/MessageList.tsx
+"use client";
+
+import { useRef, useEffect, useCallback } from "react";
+import { Loader2 } from "lucide-react";
+import type { Message, ChatroomMember } from "@/lib/types/chatroom";
+import MessageItem from "./MessageItem";
+import TypingIndicator from "./TypingIndicator";
+import ChatAvatar from "./ChatAvatar";
+
+const SCROLL_LOAD_THRESHOLD   = 80;   // px from top  → fetch older msgs
+const SCROLL_BOTTOM_THRESHOLD = 120;  // px from bottom → auto-scroll eligible
+
+interface MessageListProps {
+  messages: Message[];
+  currentUserId: string;
+  otherMember: ChatroomMember | undefined;
+  typingUsers: { userId: string; username: string }[];
+  loadingInitial: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
+  pageSize: number;
+  onLoadMore: () => void;
+  onDelete: (messageId: string) => void;
+  /** Parent sets this ref so it can imperatively scroll to bottom */
+  scrollToBottomRef: React.MutableRefObject<(() => void) | null>;
+  /** Parent tracks whether auto-scroll should fire on new messages */
+  onNearBottom: (near: boolean) => void;
+}
+
+export default function MessageList({
+  messages,
+  currentUserId,
+  otherMember,
+  typingUsers,
+  loadingInitial,
+  loadingMore,
+  hasMore,
+  pageSize,
+  onLoadMore,
+  onDelete,
+  scrollToBottomRef,
+  onNearBottom,
+}: MessageListProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const bottomRef    = useRef<HTMLDivElement>(null);
+
+  // Scroll-anchor refs — keep position when prepending old messages
+  const anchorIdRef     = useRef<string | null>(null);
+  const anchorOffsetRef = useRef(0);
+  const prevLoadingMoreRef = useRef(false);
+
+  // Expose scrollToBottom to parent
+  useEffect(() => {
+    scrollToBottomRef.current = () =>
+      bottomRef.current?.scrollIntoView({ behavior: "instant" });
+  });
+
+  // Snapshot anchor the moment loadingMore flips true
+  useEffect(() => {
+    if (loadingMore && !prevLoadingMoreRef.current) {
+      const container = containerRef.current;
+      const firstMsg  = container?.querySelector<HTMLElement>("[data-msg-id]");
+      if (container && firstMsg) {
+        anchorIdRef.current     = firstMsg.dataset.msgId ?? null;
+        anchorOffsetRef.current =
+          firstMsg.getBoundingClientRect().top - container.getBoundingClientRect().top;
+      }
+    }
+    prevLoadingMoreRef.current = loadingMore;
+  }, [loadingMore]);
+
+  // Restore scroll after prepend
+  useEffect(() => {
+    if (loadingMore || !anchorIdRef.current) return;
+    const container = containerRef.current;
+    const anchor    = container?.querySelector<HTMLElement>(`[data-msg-id="${anchorIdRef.current}"]`);
+    if (container && anchor) {
+      const newOffset = anchor.getBoundingClientRect().top - container.getBoundingClientRect().top;
+      container.scrollTop += newOffset - anchorOffsetRef.current;
+    }
+    anchorIdRef.current = null;
+  }, [loadingMore, messages]);
+
+  // Scroll listener
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (el.scrollTop < SCROLL_LOAD_THRESHOLD && hasMore && !loadingMore) onLoadMore();
+    onNearBottom(el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_BOTTOM_THRESHOLD);
+  }, [hasMore, loadingMore, onLoadMore, onNearBottom]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+
+      {loadingInitial ? (
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
+
+      ) : messages.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-full gap-2 text-center">
+          <ChatAvatar src={otherMember?.avatar} name={otherMember?.fullname || ""} size={14} />
+          <p className="font-medium">{otherMember?.fullname}</p>
+          <p className="text-sm text-muted-foreground">Hãy bắt đầu cuộc trò chuyện! 👋</p>
+        </div>
+
+      ) : (
+        <>
+          {/* Top status bar */}
+          <div className="flex items-center justify-center py-2 min-h-[32px]">
+            {loadingMore ? (
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 size={14} className="animate-spin" /> Đang tải tin nhắn cũ...
+              </span>
+            ) : !hasMore && messages.length >= pageSize ? (
+              <p className="text-xs text-muted-foreground/60">Đây là tin nhắn đầu tiên trong cuộc trò chuyện</p>
+            ) : null}
+          </div>
+
+          {/* Message bubbles */}
+          {messages.map((msg, i) => (
+            <MessageItem
+              key={msg.messageId}
+              msg={msg}
+              prevMsg={messages[i - 1]}
+              nextMsg={messages[i + 1]}
+              currentUserId={currentUserId}
+              onDelete={onDelete}
+            />
+          ))}
+
+          {/* Typing indicator */}
+          {typingUsers.length > 0 && (
+            <TypingIndicator avatarSrc={otherMember?.avatar} username={typingUsers[0].username} />
+          )}
+
+          <div ref={bottomRef} />
+        </>
+      )}
+    </div>
+  );
+}

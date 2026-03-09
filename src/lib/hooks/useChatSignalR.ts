@@ -1,21 +1,23 @@
 // src/lib/hooks/useChatSignalR.ts
-'use client';
+"use client";
 
-import { useEffect, useRef, useCallback, useState } from 'react';
-import * as signalR from '@microsoft/signalr';
-import type { Message } from '@/lib/types/chatroom';
+import { useState, useEffect, useRef, useCallback } from "react";
+import type { Message } from "@/lib/types/chatroom";
 
-const HUB_URL = `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5253'}/hubs/chat`;
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:5253";
+
+// Retry delays: 0s, 2s, 5s, 10s, 30s
+const RETRY_DELAYS = [0, 2000, 5000, 10000, 30000];
+const MAX_MANUAL_RETRIES = 5;
 
 interface UseChatSignalROptions {
   chatroomId: string | null;
-  onReceiveMessage: (message: Message) => void;
-  onMessageDeleted: (data: { messageId: string; chatroomId: string }) => void;
-  onMessageEdited: (message: Message) => void;
-  onUserTyping: (data: { userId: string; username: string; chatroomId: string }) => void;
-  onUserStoppedTyping: (data: { userId: string; chatroomId: string }) => void;
-  onUserOnline?: (userId: string) => void;
-  onUserOffline?: (userId: string) => void;
+  onReceiveMessage:    (msg: Message) => void;
+  onMessageDeleted:    (data: { messageId: string }) => void;
+  onMessageEdited:     (msg: Message) => void;
+  onUserTyping:        (data: { userId: string; username: string; chatroomId: string }) => void;
+  onUserStoppedTyping: (data: { userId: string }) => void;
 }
 
 export function useChatSignalR({
@@ -25,163 +27,175 @@ export function useChatSignalR({
   onMessageEdited,
   onUserTyping,
   onUserStoppedTyping,
-  onUserOnline,
-  onUserOffline,
 }: UseChatSignalROptions) {
-  const connectionRef = useRef<signalR.HubConnection | null>(null);
-  const currentRoomRef = useRef<string | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected]   = useState(false);
+  const [isMounted,   setIsMounted]     = useState(false);
 
-  // Build connection một lần duy nhất
+  const connectionRef    = useRef<any>(null);
+  const currentRoomRef   = useRef<string | null>(null);
+  const retryCountRef    = useRef(0);
+  const retryTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const destroyedRef     = useRef(false);
+
+  // Keep latest callbacks in a ref — avoids stale closures without re-registering handlers
+  const cbRef = useRef({ onReceiveMessage, onMessageDeleted, onMessageEdited, onUserTyping, onUserStoppedTyping });
+  cbRef.current = { onReceiveMessage, onMessageDeleted, onMessageEdited, onUserTyping, onUserStoppedTyping };
+
+  // ── Mount guard (prevents SSR import of signalR) ──────────────────────────
   useEffect(() => {
-    const connection = new signalR.HubConnectionBuilder()
-      .withUrl(HUB_URL, {
-        // Cookie httpOnly được gửi tự động - không cần truyền token thủ công
-        withCredentials: true,
-      })
-      .withAutomaticReconnect([0, 1000, 3000, 5000, 10000])
-      .configureLogging(signalR.LogLevel.Warning)
-      .build();
+    setIsMounted(true);
+    return () => { destroyedRef.current = true; };
+  }, []);
 
-    // ── Event listeners ──
-    connection.on('ReceiveMessage', (message: Message) => {
-      onReceiveMessage(message);
-    });
+  // ── Build & start connection ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!isMounted) return;
 
-    connection.on('MessageDeleted', (data: { messageId: string; chatroomId: string }) => {
-      onMessageDeleted(data);
-    });
+    destroyedRef.current = false;
+    let connection: any;
 
-    connection.on('MessageEdited', (message: Message) => {
-      onMessageEdited(message);
-    });
+    const startConnection = async () => {
+      const signalR = await import("@microsoft/signalr");
 
-    connection.on('UserTyping', (data: { userId: string; username: string; chatroomId: string }) => {
-      onUserTyping(data);
-    });
+      connection = new signalR.HubConnectionBuilder()
+        .withUrl(`${BASE_URL}/hubs/chat`, {
+          withCredentials: true,
+        })
+        // Let SignalR handle reconnect automatically after successful first connect
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: (ctx) =>
+            RETRY_DELAYS[ctx.previousRetryCount] ?? 30000,
+        })
+        .configureLogging(signalR.LogLevel.Warning)
+        .build();
 
-    connection.on('UserStoppedTyping', (data: { userId: string; chatroomId: string }) => {
-      onUserStoppedTyping(data);
-    });
+      // ── Register event handlers (use cbRef to always call latest version) ──
+      connection.on("ReceiveMessage",    (msg: Message)  => cbRef.current.onReceiveMessage(msg));
+      connection.on("MessageDeleted",    (data: any)     => cbRef.current.onMessageDeleted(data));
+      connection.on("MessageEdited",     (msg: Message)  => cbRef.current.onMessageEdited(msg));
+      connection.on("UserTyping",        (data: any)     => cbRef.current.onUserTyping(data));
+      connection.on("UserStoppedTyping", (data: any)     => cbRef.current.onUserStoppedTyping(data));
+      connection.on("Error",             (err: any)      => console.error("[SignalR] Server error:", err?.message));
 
-    connection.on('UserOnline', (userId: string) => {
-      onUserOnline?.(userId);
-    });
+      connection.onreconnecting(() => {
+        if (!destroyedRef.current) setIsConnected(false);
+      });
 
-    connection.on('UserOffline', (userId: string) => {
-      onUserOffline?.(userId);
-    });
-
-    connection.on('Error', (err: { message: string }) => {
-      console.error('[SignalR] Server error:', err.message);
-    });
-
-    // ── Reconnect: rejoin room ──
-    connection.onreconnected(async () => {
-      setIsConnected(true);
-      if (currentRoomRef.current) {
-        try {
-          await connection.invoke('JoinChatroom', currentRoomRef.current);
-        } catch (e) {
-          console.error('[SignalR] Rejoin after reconnect failed:', e);
-        }
-      }
-    });
-
-    connection.onclose(() => setIsConnected(false));
-    connection.onreconnecting(() => setIsConnected(false));
-
-    // Start connection
-    connection.start()
-      .then(() => {
+      connection.onreconnected(async () => {
+        if (destroyedRef.current) return;
         setIsConnected(true);
-        connectionRef.current = connection;
-      })
-      .catch(e => console.error('[SignalR] Connection failed:', e));
+        retryCountRef.current = 0;
+        // Re-join current room after reconnect
+        if (currentRoomRef.current) {
+          try { await connection.invoke("JoinChatroom", currentRoomRef.current); } catch {}
+        }
+      });
+
+      connection.onclose(() => {
+        if (destroyedRef.current) return;
+        setIsConnected(false);
+        // withAutomaticReconnect gave up — do a manual retry
+        scheduleManualRetry();
+      });
+
+      connectionRef.current = connection;
+
+      // ── Attempt to start ──────────────────────────────────────────────────
+      try {
+        await connection.start();
+        if (destroyedRef.current) { connection.stop(); return; }
+        setIsConnected(true);
+        retryCountRef.current = 0;
+      } catch (err: any) {
+        if (destroyedRef.current) return;
+        console.warn(`[SignalR] Connect failed (attempt ${retryCountRef.current + 1}):`, err?.message);
+        scheduleManualRetry();
+      }
+    };
+
+    const scheduleManualRetry = () => {
+      if (destroyedRef.current) return;
+      if (retryCountRef.current >= MAX_MANUAL_RETRIES) {
+        console.error("[SignalR] Max retries reached. Giving up.");
+        return;
+      }
+      const delay = RETRY_DELAYS[retryCountRef.current] ?? 30000;
+      retryCountRef.current += 1;
+      console.info(`[SignalR] Retrying in ${delay}ms (attempt ${retryCountRef.current})...`);
+      retryTimerRef.current = setTimeout(() => {
+        if (!destroyedRef.current) startConnection();
+      }, delay);
+    };
+
+    startConnection();
 
     return () => {
-      connection.stop();
+      destroyedRef.current = true;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      connection?.stop();
+      connectionRef.current = null;
+      setIsConnected(false);
     };
-  }, []); // chỉ chạy 1 lần
+  }, [isMounted]);
 
-  // Join/Leave room khi chatroomId thay đổi
+  // ── Join / leave chatroom when chatroomId changes ─────────────────────────
   useEffect(() => {
+    if (!isMounted || !isConnected) return;
     const conn = connectionRef.current;
-    if (!conn || conn.state !== signalR.HubConnectionState.Connected) return;
+    if (!conn) return;
 
-    const joinRoom = async () => {
-      // Leave room cũ nếu có
+    const manage = async () => {
+      // Leave previous room
       if (currentRoomRef.current && currentRoomRef.current !== chatroomId) {
-        try {
-          await conn.invoke('LeaveChatroom', currentRoomRef.current);
-        } catch (e) {
-          console.error('[SignalR] Leave room error:', e);
-        }
+        try { await conn.invoke("LeaveChatroom", currentRoomRef.current); } catch {}
       }
-
-      // Join room mới
+      // Join new room
       if (chatroomId) {
         try {
-          await conn.invoke('JoinChatroom', chatroomId);
+          await conn.invoke("JoinChatroom", chatroomId);
           currentRoomRef.current = chatroomId;
         } catch (e) {
-          console.error('[SignalR] Join room error:', e);
+          console.error("[SignalR] JoinChatroom error:", e);
         }
       } else {
         currentRoomRef.current = null;
       }
     };
 
-    joinRoom();
-  }, [chatroomId, isConnected]);
+    manage();
+  }, [chatroomId, isConnected, isMounted]);
 
-  // ── Actions ──
-  const sendMessage = useCallback(async (chatroomId: string, messageText: string, messageType = 'text') => {
-    const conn = connectionRef.current;
-    if (!conn || conn.state !== signalR.HubConnectionState.Connected) {
-      throw new Error('SignalR not connected');
-    }
-    await conn.invoke('SendMessage', {
-      ChatroomId: chatroomId,
-      MessageText: messageText,
-      MessageType: messageType,
-    });
-  }, []);
+  // ── Actions ───────────────────────────────────────────────────────────────
+  const sendMessage = useCallback(
+    async (chatroomId: string, text: string, type = "text") => {
+      const conn = connectionRef.current;
+      if (!conn) throw new Error("SignalR not connected");
+      await conn.invoke("SendMessage", {
+        ChatroomId:  chatroomId,
+        MessageText: text,
+        MessageType: type,
+      });
+    },
+    [],
+  );
 
   const sendTyping = useCallback(async (chatroomId: string) => {
-    const conn = connectionRef.current;
-    if (!conn || conn.state !== signalR.HubConnectionState.Connected) return;
-    try {
-      await conn.invoke('StartTyping', chatroomId);
-    } catch {}
+    try { await connectionRef.current?.invoke("StartTyping", chatroomId); } catch {}
   }, []);
 
   const stopTyping = useCallback(async (chatroomId: string) => {
-    const conn = connectionRef.current;
-    if (!conn || conn.state !== signalR.HubConnectionState.Connected) return;
-    try {
-      await conn.invoke('StopTyping', chatroomId);
-    } catch {}
+    try { await connectionRef.current?.invoke("StopTyping", chatroomId); } catch {}
   }, []);
 
   const deleteMessage = useCallback(async (chatroomId: string, messageId: string) => {
-    const conn = connectionRef.current;
-    if (!conn || conn.state !== signalR.HubConnectionState.Connected) return;
-    await conn.invoke('DeleteMessage', chatroomId, messageId);
-  }, []);
-
-  const editMessage = useCallback(async (chatroomId: string, messageId: string, newText: string) => {
-    const conn = connectionRef.current;
-    if (!conn || conn.state !== signalR.HubConnectionState.Connected) return;
-    await conn.invoke('EditMessage', chatroomId, messageId, newText);
+    try { await connectionRef.current?.invoke("DeleteMessage", chatroomId, messageId); } catch {}
   }, []);
 
   return {
-    isConnected,
+    isConnected: isMounted && isConnected,
     sendMessage,
     sendTyping,
     stopTyping,
     deleteMessage,
-    editMessage,
   };
 }
