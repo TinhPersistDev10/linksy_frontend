@@ -6,10 +6,9 @@ import { friendsApi } from "@/lib/api/friends";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import type { Friend, Chatroom } from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
+import { getApiOrigin } from "@/lib/utils/apiUrl";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
-  "http://localhost:5253";
+const BASE_URL = getApiOrigin();
 
 interface CreateNewChatProps {
   open: boolean;

@@ -42,8 +42,8 @@ export default function RegisterForm() {
         `/verify-email?email=${encodeURIComponent(result.email)}`,
       );
       router.push(`/verify-email?email=${encodeURIComponent(result.email)}`);
-    } catch (err: any) {
-      setError(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Đăng ký thất bại. Vui lòng thử lại."));
     } finally {
       setIsLoading(false);
     }

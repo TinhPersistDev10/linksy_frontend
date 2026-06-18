@@ -4,13 +4,12 @@ import { useState, useEffect } from "react";
 import { Search, UserPlus, Check, X, Clock, Users, Bell } from "lucide-react";
 import { friendsApi } from "@/lib/api/friends";
 import type { SearchUserResult, FriendRequest } from "@/lib/types/chatroom";
+import { getApiOrigin } from "@/lib/utils/apiUrl";
 import { cn } from "@/lib/utils/cn";
 
 type Tab = "search" | "received" | "sent";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
-  "http://localhost:5253";
+const BASE_URL = getApiOrigin();
 
 interface AddFriendModalProps {
   open: boolean;
@@ -171,9 +170,11 @@ export default function AddFriendModal({
       try {
         const results = await friendsApi.searchUsers(query.trim());
         setSearchResults(results);
-      } catch (e: any) {
+      } catch (e: unknown) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const error = (e as any);
         setError(
-          e?.response?.data?.message || e?.message || "Tìm kiếm thất bại",
+          error?.response?.data?.message || error?.message || "Tìm kiếm thất bại",
         );
         setSearchResults([]);
       } finally {
@@ -200,8 +201,10 @@ export default function AddFriendModal({
         ),
       );
       await loadRequests();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Gửi lời mời thất bại");
+    } catch (e: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const error = (e as any);
+      setError(error?.response?.data?.message || "Gửi lời mời thất bại");
     } finally {
       setLoadingId(null);
     }
@@ -215,8 +218,10 @@ export default function AddFriendModal({
         prev.filter((r) => r.requestId !== requestId),
       );
       onFriendAdded?.();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Thao tác thất bại");
+    } catch (e: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const error = (e as any);
+      setError(error?.response?.data?.message || "Thao tác thất bại");
     } finally {
       setLoadingId(null);
     }
@@ -229,8 +234,10 @@ export default function AddFriendModal({
       setReceivedRequests((prev) =>
         prev.filter((r) => r.requestId !== requestId),
       );
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Thao tác thất bại");
+    } catch (e: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const error = (e as any);
+      setError(error?.response?.data?.message || "Thao tác thất bại");
     } finally {
       setLoadingId(null);
     }
@@ -241,8 +248,10 @@ export default function AddFriendModal({
     try {
       await friendsApi.cancelRequest(requestId);
       setSentRequests((prev) => prev.filter((r) => r.requestId !== requestId));
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Thao tác thất bại");
+    } catch (e: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const error = (e as any);
+      setError(error?.response?.data?.message || "Thao tác thất bại");
     } finally {
       setLoadingId(null);
     }

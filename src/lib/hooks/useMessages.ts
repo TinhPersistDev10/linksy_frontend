@@ -1,23 +1,21 @@
-// src/components/chat/hooks/useMessages.ts
+﻿// src/components/chat/hooks/useMessages.ts
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { chatroomsApi } from "@/lib/api/chatrooms";
-import type { Message } from "@/lib/types/chatroom";
+import { messagesApi } from "@/lib/api/messages";
+import type { MessageResponse } from "../types/message";
 
 export const PAGE_SIZE = 30;
 
 export function useMessages(chatroomId: string | undefined) {
-  const [messages, setMessages]         = useState<Message[]>([]);
-  const [page, setPage]                 = useState(1);
-  const [hasMore, setHasMore]           = useState(true);
+  const [messages, setMessages] = useState<MessageResponse[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [loadingInitial, setLoadingInitial] = useState(false);
-  const [loadingMore, setLoadingMore]   = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  // True → MessageList should scroll to bottom after next render
   const shouldScrollToBottomRef = useRef(true);
 
-  // ── First page (newest messages) ──────────────────────────────────────────
   const loadInitial = useCallback(async () => {
     if (!chatroomId) return;
     setLoadingInitial(true);
@@ -26,9 +24,9 @@ export function useMessages(chatroomId: string | undefined) {
     setHasMore(true);
     shouldScrollToBottomRef.current = true;
     try {
-      const data = await chatroomsApi.getMessages(chatroomId, 1, PAGE_SIZE);
-      setMessages(data);
-      if (data.length < PAGE_SIZE) setHasMore(false);
+      const data = await messagesApi.getMessages(chatroomId, 1, PAGE_SIZE);
+      setMessages(data.messages);
+      setHasMore(data.hasMore);
     } catch (e) {
       console.error("[useMessages] loadInitial:", e);
     } finally {
@@ -36,16 +34,20 @@ export function useMessages(chatroomId: string | undefined) {
     }
   }, [chatroomId]);
 
-  // ── Older messages (prepend) ───────────────────────────────────────────────
   const loadMore = useCallback(async () => {
     if (!chatroomId || loadingMore || !hasMore) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const older = await chatroomsApi.getMessages(chatroomId, nextPage, PAGE_SIZE);
-      if (older.length < PAGE_SIZE) setHasMore(false);
-      if (older.length > 0) {
-        setMessages((prev) => [...older, ...prev]);
+      const older = await messagesApi.getMessages(
+        chatroomId,
+        nextPage,
+        PAGE_SIZE,
+      );
+      setHasMore(older.hasMore);
+
+      if (older.messages.length > 0) {
+        setMessages((prev) => [...older.messages, ...prev]);
         setPage(nextPage);
       }
     } catch (e) {
@@ -55,8 +57,7 @@ export function useMessages(chatroomId: string | undefined) {
     }
   }, [chatroomId, loadingMore, hasMore, page]);
 
-  // ── Realtime handlers ──────────────────────────────────────────────────────
-  const receiveMessage = useCallback((msg: Message) => {
+  const receiveMessage = useCallback((msg: MessageResponse) => {
     setMessages((prev) => {
       // Remove optimistic duplicates when server confirms our own message
       const base = msg.isOwn
@@ -68,31 +69,41 @@ export function useMessages(chatroomId: string | undefined) {
     shouldScrollToBottomRef.current = true;
   }, []);
 
-  const onMessageDeleted = useCallback(({ messageId }: { messageId: string }) => {
+  const onMessageDeleted = useCallback(
+    ({ messageId }: { messageId: string }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.messageId === messageId
+            ? { ...m, isDeleted: true, messageText: "Tin nhắn đã bị xóa" }
+            : m,
+        ),
+      );
+    },
+    [],
+  );
+
+  const onMessageEdited = useCallback((updated: MessageResponse) => {
     setMessages((prev) =>
       prev.map((m) =>
-        m.messageId === messageId
-          ? { ...m, isDeleted: true, messageText: "Tin nhắn đã bị xóa" }
-          : m,
+        m.messageId === updated.messageId ? { ...m, ...updated } : m,
       ),
     );
   }, []);
 
-  const onMessageEdited = useCallback((updated: Message) => {
-    setMessages((prev) =>
-      prev.map((m) => (m.messageId === updated.messageId ? { ...m, ...updated } : m)),
-    );
-  }, []);
-
-  // ── Optimistic helpers ─────────────────────────────────────────────────────
-  const appendOptimistic = useCallback((msg: Message) => {
+  // -- Optimistic helpers -----------------------------------------------------
+  const appendOptimistic = useCallback((msg: MessageResponse) => {
     setMessages((prev) => [...prev, msg]);
     shouldScrollToBottomRef.current = true;
   }, []);
 
-  const replaceOptimistic = useCallback((tempId: string, confirmed: Message) => {
-    setMessages((prev) => prev.map((m) => (m.messageId === tempId ? confirmed : m)));
-  }, []);
+  const replaceOptimistic = useCallback(
+    (tempId: string, confirmed: MessageResponse) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.messageId === tempId ? confirmed : m)),
+      );
+    },
+    [],
+  );
 
   const removeOptimistic = useCallback((tempId: string) => {
     setMessages((prev) => prev.filter((m) => m.messageId !== tempId));
@@ -114,3 +125,4 @@ export function useMessages(chatroomId: string | undefined) {
     removeOptimistic,
   };
 }
+

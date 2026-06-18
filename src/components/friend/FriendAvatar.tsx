@@ -1,8 +1,9 @@
 'use client';
 
+import { getApiOrigin } from '@/lib/utils/apiUrl';
 import { cn } from '@/lib/utils/cn';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5253';
+const BASE_URL = getApiOrigin();
 
 interface FriendAvatarProps {
   src?: string;

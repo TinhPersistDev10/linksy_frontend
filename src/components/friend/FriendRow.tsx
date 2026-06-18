@@ -15,7 +15,7 @@ interface FriendRowProps {
 }
 
 export default function FriendRow({ friend, onMessage, onRemove, isStartingChat }: FriendRowProps) {
-  const isOnline = (friend as any).isOnline === true;
+  const isOnline = ((friend as unknown) as Record<string, unknown>).isOnline === true;
 
   return (
     <div className="group flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-sidebar-accent/60 transition-colors">

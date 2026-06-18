@@ -1,99 +1,111 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Sun, Moon, Monitor, Check } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { useEffect, useState } from "react";
+import { Check, Monitor, Moon, Sun } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
-type Theme = 'light' | 'dark' | 'system';
+type Theme = "light" | "dark" | "system";
+type FontSize = "sm" | "md" | "lg";
 
 const themes: { value: Theme; label: string; icon: React.ElementType; description: string }[] = [
-  { value: 'light', label: 'Sáng', icon: Sun, description: 'Giao diện sáng, phù hợp ban ngày' },
-  { value: 'dark', label: 'Tối', icon: Moon, description: 'Giao diện tối, giảm mỏi mắt ban đêm' },
-  { value: 'system', label: 'Theo hệ thống', icon: Monitor, description: 'Tự động theo cài đặt thiết bị' },
+  { value: "light", label: "Sáng", icon: Sun, description: "Giao diện sáng, phù hợp ban ngày" },
+  { value: "dark", label: "Tối", icon: Moon, description: "Giao diện tối, giảm mỏi mắt ban đêm" },
+  { value: "system", label: "Theo hệ thống", icon: Monitor, description: "Tự động theo cài đặt thiết bị" },
 ];
 
-export default function AppearanceSettings() {
-  const [theme, setTheme] = useState<Theme>('system');
-  const [fontSize, setFontSize] = useState<'sm' | 'md' | 'lg'>('md');
-  const [isSaving, setIsSaving] = useState(false);
-  const [success, setSuccess] = useState('');
+const fontSizes: Record<FontSize, string> = {
+  sm: "14px",
+  md: "16px",
+  lg: "18px",
+};
 
-  useEffect(() => {
-    const saved = localStorage.getItem('theme') as Theme | null;
-    if (saved) setTheme(saved);
-    const savedFont = localStorage.getItem('fontSize') as 'sm' | 'md' | 'lg' | null;
-    if (savedFont) setFontSize(savedFont);
-  }, []);
+export default function AppearanceSettings() {
+  const [theme, setTheme] = useState<Theme>("system");
+  const [fontSize, setFontSize] = useState<FontSize>("md");
+  const [isSaving, setIsSaving] = useState(false);
+  const [success, setSuccess] = useState("");
 
   const applyTheme = (t: Theme) => {
     const root = document.documentElement;
-    if (t === 'dark') {
-      root.classList.add('dark');
-    } else if (t === 'light') {
-      root.classList.remove('dark');
-    } else {
-      // system
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        root.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
-      }
+    if (t === "dark") {
+      root.classList.add("dark");
+      return;
     }
+
+    if (t === "light") {
+      root.classList.remove("dark");
+      return;
+    }
+
+    root.classList.toggle("dark", window.matchMedia("(prefers-color-scheme: dark)").matches);
   };
 
-  const handleThemeChange = (t: Theme) => {
-    setTheme(t);
-    applyTheme(t);
+  const applyFontSize = (size: FontSize) => {
+    document.documentElement.style.fontSize = fontSizes[size];
+  };
+
+  useEffect(() => {
+    const savedTheme = (localStorage.getItem("theme") as Theme | null) ?? "system";
+    const savedFont = (localStorage.getItem("fontSize") as FontSize | null) ?? "md";
+    setTheme(savedTheme);
+    setFontSize(savedFont);
+    applyTheme(savedTheme);
+    applyFontSize(savedFont);
+  }, []);
+
+  const handleThemeChange = (nextTheme: Theme) => {
+    setTheme(nextTheme);
+    applyTheme(nextTheme);
+  };
+
+  const handleFontSizeChange = (nextSize: FontSize) => {
+    setFontSize(nextSize);
+    applyFontSize(nextSize);
   };
 
   const handleSave = async () => {
     setIsSaving(true);
-    localStorage.setItem('theme', theme);
-    localStorage.setItem('fontSize', fontSize);
-    await new Promise((r) => setTimeout(r, 600));
+    localStorage.setItem("theme", theme);
+    localStorage.setItem("fontSize", fontSize);
     setIsSaving(false);
-    setSuccess('Đã lưu cài đặt giao diện!');
-    setTimeout(() => setSuccess(''), 3000);
+    setSuccess("Đã lưu cài đặt giao diện!");
+    setTimeout(() => setSuccess(""), 3000);
   };
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold">Giao diện</h2>
-        <p className="text-sm text-muted-foreground mt-1">Tùy chỉnh giao diện theo sở thích của bạn</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Tùy chỉnh giao diện theo sở thích của bạn
+        </p>
       </div>
 
-      {success && (
-        <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
-          {success}
-        </div>
-      )}
+      {success && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{success}</div>}
 
-      {/* Theme */}
       <div>
-        <h3 className="text-sm font-medium mb-3">Chủ đề màu sắc</h3>
+        <h3 className="mb-3 text-sm font-medium">Chủ đề màu sắc</h3>
         <div className="grid grid-cols-3 gap-3">
-          {themes.map((t) => {
-            const Icon = t.icon;
-            const isActive = theme === t.value;
+          {themes.map((item) => {
+            const Icon = item.icon;
+            const isActive = theme === item.value;
             return (
               <button
-                key={t.value}
-                onClick={() => handleThemeChange(t.value)}
-                className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                  isActive
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/40 hover:bg-accent/30'
+                key={item.value}
+                type="button"
+                onClick={() => handleThemeChange(item.value)}
+                className={`relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all ${
+                  isActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-accent/30"
                 }`}
               >
                 {isActive && (
-                  <span className="absolute top-2 right-2 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
+                  <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary">
                     <Check size={10} className="text-primary-foreground" />
                   </span>
                 )}
-                <Icon size={24} className={isActive ? 'text-primary' : 'text-muted-foreground'} />
-                <span className={`text-sm font-medium ${isActive ? 'text-primary' : ''}`}>{t.label}</span>
-                <span className="text-xs text-muted-foreground text-center leading-tight">{t.description}</span>
+                <Icon size={24} className={isActive ? "text-primary" : "text-muted-foreground"} />
+                <span className={`text-sm font-medium ${isActive ? "text-primary" : ""}`}>{item.label}</span>
+                <span className="text-center text-xs leading-tight text-muted-foreground">{item.description}</span>
               </button>
             );
           })}
@@ -102,21 +114,19 @@ export default function AppearanceSettings() {
 
       <div className="border-t" />
 
-      {/* Font size */}
       <div>
-        <h3 className="text-sm font-medium mb-3">Cỡ chữ tin nhắn</h3>
+        <h3 className="mb-3 text-sm font-medium">Cỡ chữ tin nhắn</h3>
         <div className="flex items-center gap-3">
-          {(['sm', 'md', 'lg'] as const).map((size) => {
-            const labels = { sm: 'Nhỏ', md: 'Vừa', lg: 'Lớn' };
-            const textSizes = { sm: 'text-sm', md: 'text-base', lg: 'text-lg' };
+          {(["sm", "md", "lg"] as const).map((size) => {
+            const labels = { sm: "Nhỏ", md: "Vừa", lg: "Lớn" };
+            const textSizes = { sm: "text-sm", md: "text-base", lg: "text-lg" };
             return (
               <button
                 key={size}
-                onClick={() => setFontSize(size)}
-                className={`flex-1 py-3 rounded-lg border-2 font-medium transition-all ${textSizes[size]} ${
-                  fontSize === size
-                    ? 'border-primary bg-primary/5 text-primary'
-                    : 'border-border hover:border-primary/40'
+                type="button"
+                onClick={() => handleFontSizeChange(size)}
+                className={`flex-1 rounded-lg border-2 py-3 font-medium transition-all ${textSizes[size]} ${
+                  fontSize === size ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"
                 }`}
               >
                 {labels[size]}
@@ -124,7 +134,7 @@ export default function AppearanceSettings() {
             );
           })}
         </div>
-        <p className="text-xs text-muted-foreground mt-2">Áp dụng cho khung chat tin nhắn</p>
+        <p className="mt-2 text-xs text-muted-foreground">Áp dụng cho giao diện trò chuyện</p>
       </div>
 
       <div className="border-t pt-4">

@@ -11,3 +11,15 @@ export interface User {
   createdAt: string;
   lastLoginAt: string;
 }
+
+export interface UpdateProfileRequest {
+  fullname?: string;
+  username?: string;
+  bio?: string;
+  dateOfBirth?: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}

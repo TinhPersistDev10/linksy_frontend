@@ -51,7 +51,7 @@ apiClient.interceptors.response.use(
       try {
         await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh-token`,
-          {},
+          null,
           { withCredentials: true }
         );
 

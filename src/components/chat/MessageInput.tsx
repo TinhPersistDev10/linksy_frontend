@@ -1,5 +1,5 @@
 // src/components/chat/window/MessageInput.tsx
-import { Send, Paperclip, Smile, Ghost, icons } from "lucide-react";
+import { Send, Paperclip, Smile } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Textarea } from "../ui/textarea";
 import Button from "../ui/Button";
@@ -19,7 +19,7 @@ export default function MessageInput({
   onSend,
 }: MessageInputProps) {
   return (
-    <div className="px-4 py-3 border-t bg-background shrink-0">
+    <div className="shrink-0 border-t bg-background px-4 py-3">
       <div className="flex items-center gap-2 bg-muted/50 rounded-2xl border px-3 py-2">
         <Button
           variant="ghost"

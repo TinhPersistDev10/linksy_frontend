@@ -1,17 +1,25 @@
 "use client";
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && isAuthenticated) {
+    if (loading || !isAuthenticated || !user) return;
+
+    if (user.isEmailVerified) {
       router.replace("/dashboard");
+      return;
     }
-  }, [loading, isAuthenticated, router]);
+
+    if (pathname !== "/verify-email") {
+      router.replace(`/verify-email?email=${encodeURIComponent(user.email)}`);
+    }
+  }, [loading, isAuthenticated, user, pathname, router]);
 
   if (loading) {
     return (
@@ -21,7 +29,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  if (isAuthenticated) return null;
+  if (isAuthenticated && user?.isEmailVerified) return null;
 
   return <>{children}</>;
 }

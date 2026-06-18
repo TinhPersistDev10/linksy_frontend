@@ -21,6 +21,7 @@ interface AuthContextType {
   verifyEmail: (data: VerifyEmailRequest) => Promise<void>;
   resendOtp: (data: ResendOtpRequest) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<User | null>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(
@@ -40,6 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserState(u);
   };
 
+  const refreshUser = async () => {
+    const userData = await authApi.getCurrentUser();
+    setUser(userData ?? null);
+    return userData ?? null;
+  };
+
   // Step 1: đánh dấu đã hydrate xong — không gây mismatch vì chỉ chạy ở client
   useEffect(() => {
     setIsMounted(true);
@@ -53,13 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkAuth = async () => {
       // ← THÊM: set user từ cache trước để tránh blank screen khi reload
       const cachedUser = storage.getUser<User>();
-      if (cachedUser?.isEmailVerified) {
+      if (cachedUser) {
         setUserState(cachedUser);
       }
 
       try {
-        const userData = await authApi.getCurrentUser();
-        setUser(userData?.isEmailVerified ? userData : null);
+        await refreshUser();
       } catch {
         setUser(null);
       } finally {
@@ -70,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isMounted]);
 
   const login = async (data: LoginRequest) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await authApi.login(data).catch((error: any) => {
       const status = error.response?.status;
       const email = error.response?.data?.email || "";
@@ -83,7 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (response?.success) {
       setUser(response.user);
-      router.push("/dashboard");
+      if (response.user?.isEmailVerified) {
+        window.location.href = "/dashboard";
+      } else {
+        router.push(
+          `/verify-email?email=${encodeURIComponent(response.user.email)}`,
+        );
+      }
     }
   };
 
@@ -94,9 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await authApi.register(data);
       if (response.success && response.email) return { email: response.email };
       throw new Error(response.message || "Đăng ký thất bại");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as any;
       throw new Error(
-        error.response?.data?.message || error.message || "Đăng ký thất bại",
+        err.response?.data?.message || err.message || "Đăng ký thất bại",
       );
     }
   };
@@ -108,9 +123,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(response.user);
         router.push("/dashboard");
       } else throw new Error(response.message || "Xác thực thất bại");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as any;
       throw new Error(
-        error.response?.data?.message || error.message || "Xác thực thất bại",
+        err.response?.data?.message || err.message || "Xác thực thất bại",
       );
     }
   };
@@ -120,11 +137,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await authApi.resendOtp(data);
       if (!response.success)
         throw new Error(response.message || "Gửi lại OTP thất bại");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as any;
       throw new Error(
-        error.response?.data?.message ||
-          error.message ||
-          "Gửi lại OTP thất bại",
+        err.response?.data?.message || err.message || "Gửi lại OTP thất bại",
       );
     }
   };
@@ -134,9 +151,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasFetched.current = false;
     try {
       await authApi.logout();
-    } catch (error: any) {
-      if (error?.response?.status !== 401)
-        console.error("Logout error:", error);
+    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as any;
+      if (err?.response?.status !== 401) console.error("Logout error:", err);
     }
     window.location.href = "/login";
   };
@@ -148,12 +166,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // loading=true khi: belum mount ATAU sedang fetch
         // Cả server lẫn client đều bắt đầu với loading=true → không mismatch
         loading: !isMounted || loading,
-        isAuthenticated: !!user && (user.isEmailVerified ?? false),
+        isAuthenticated: !!user,
         login,
         register,
         verifyEmail,
         resendOtp,
         logout,
+        refreshUser,
       }}
     >
       {children}

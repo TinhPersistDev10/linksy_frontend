@@ -1,90 +1,62 @@
-// src/lib/types/chatroom.ts - Sync với backend response
+﻿import type { MessageResponse } from "./message";
+import type {
+  ChatroomMemberDetailResponse,
+  ChatroomMemberResponse,
+  MemberInfoResponse,
+} from "./chatroom-member";
 
-export interface SearchUserResult {
-  userId: string;
-  username: string;
-  fullname: string;
-  avatar: string;
-  bio: string | null;
-  relationshipStatus: string;
-  actionButtonText: string | null;
-  canSendRequest: boolean;
-}
-
-export interface Friend {
-  userId: string;
-  username: string;
-  fullname: string;
-  avatar: string;
-  friendsSince: string;
-}
-
-export interface FriendRequest {
-  requestId: string;       // Guid → string
-  senderId: string | null;
-  senderUsername: string;
-  senderFullname: string;
-  senderAvatar: string;
-  receiverId: string | null;
-  receiverUsername: string;
-  receiverFullname: string;
-  receiverAvatar: string;
-  message: string;
-  status: string;
-  sentAt: string;
-  respondedAt: string | null;
-}
-
-// ✅ Đúng theo backend response
-export interface ChatroomMember {
-  userId: string;
-  username: string;
-  fullname: string;
-  avatar: string;
-  memberRole: 'admin' | 'member';
-  joinedAt: string;
-  isOnline: boolean;
-}
-
-export interface Message {
-  messageId: string;
-  chatroomId: string;
-  senderId: string;
-  senderUsername: string;
-  senderFullname: string;
-  senderAvatar: string;
-  senderNickname: string | null;
-  messageType: string;
-  messageText: string;
-  parentMessageId: string | null;
-  replyCount: number;
-  isEdited: boolean;
-  isDeleted: boolean;
-  isOwn: boolean;
-  sentAt: string;
-  editedAt: string | null;
-  deletedAt: string | null;
-  attachments: unknown | null;
-}
-
-export interface Chatroom {
+export interface ChatroomResponse {
   chatroomId: string;
   roomName: string;
   description: string;
-  avatar: string;
-  roomType: 'direct' | 'group';
+  avatar: string | null;
+  roomType: "direct" | "group" | string;
   isActive: boolean;
   isArchived: boolean;
   createdAt: string;
-  lastActivityAt: string;
-  lastMessage?: Message;
-  members: ChatroomMember[];
+  lastActivityAt: string | null;
+  lastMessage: MessageResponse | null;
+  members: ChatroomMemberResponse[];
   unreadCount: number;
-  myMemberInfo: unknown | null;
+  myMemberInfo: MemberInfoResponse | null;
+}
+export interface ChatroomDetailResponse {
+  chatroomId: string;
+  roomName: string;
+  description: string;
+  avatar: string | null;
+  roomType: "direct" | "group" | string;
+  isActive: boolean;
+  isArchived: boolean;
+  createdAt: string;
+  createdBy: string;
+  createdByUsername: string;
+  members: ChatroomMemberDetailResponse[];
+  settings: unknown;
+  statistics: unknown;
+}
+export interface CreateDirectChatRequest {
+  otherUserId: string;
 }
 
-export interface SendMessageRequest {
-  messageText: string;
-  messageType?: string;
-  parentMessageId?: string | null;
+export interface CreateGroupChatroomRequest {
+  roomName: string;
+  description?: string;
+  memberIds: string[];
 }
+
+export interface UpdateChatroomRequest {
+  roomName?: string;
+  description?: string;
+}
+
+export interface ArchiveChatroomRequest {
+  isArchived: boolean;
+}
+export type Chatroom = ChatroomResponse;
+export type ChatroomMember = ChatroomMemberResponse;
+export type Message = MessageResponse;
+
+export type { ChatroomMemberResponse, ChatroomMemberDetailResponse, MemberInfoResponse } from "./chatroom-member";
+export type { Friend, FriendRequest, SearchUserResult } from "./friend";
+

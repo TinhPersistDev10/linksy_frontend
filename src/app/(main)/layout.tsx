@@ -5,14 +5,21 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
+    if (loading) return;
+
+    if (!isAuthenticated) {
       router.replace("/login");
+      return;
     }
-  }, [loading, isAuthenticated, router]);
+
+    if (user && !user.isEmailVerified) {
+      router.replace(`/verify-email?email=${encodeURIComponent(user.email)}`);
+    }
+  }, [loading, isAuthenticated, user, router]);
 
   // loading=true (server + client trước khi fetch xong) → spinner
   if (loading) {
@@ -26,7 +33,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated || !user?.isEmailVerified) return null;
 
   return <>{children}</>;
 }

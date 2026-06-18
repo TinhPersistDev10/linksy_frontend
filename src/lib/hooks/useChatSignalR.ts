@@ -3,9 +3,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Message } from "@/lib/types/chatroom";
+import { getApiOrigin } from "@/lib/utils/apiUrl";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:5253";
+const BASE_URL = getApiOrigin();
 
 // Retry delays: 0s, 2s, 5s, 10s, 30s
 const RETRY_DELAYS = [0, 2000, 5000, 10000, 30000];
@@ -31,6 +31,7 @@ export function useChatSignalR({
   const [isConnected, setIsConnected]   = useState(false);
   const [isMounted,   setIsMounted]     = useState(false);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const connectionRef    = useRef<any>(null);
   const currentRoomRef   = useRef<string | null>(null);
   const retryCountRef    = useRef(0);
@@ -52,6 +53,7 @@ export function useChatSignalR({
     if (!isMounted) return;
 
     destroyedRef.current = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let connection: any;
 
     const startConnection = async () => {
@@ -71,10 +73,14 @@ export function useChatSignalR({
 
       // ── Register event handlers (use cbRef to always call latest version) ──
       connection.on("ReceiveMessage",    (msg: Message)  => cbRef.current.onReceiveMessage(msg));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("MessageDeleted",    (data: any)     => cbRef.current.onMessageDeleted(data));
       connection.on("MessageEdited",     (msg: Message)  => cbRef.current.onMessageEdited(msg));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("UserTyping",        (data: any)     => cbRef.current.onUserTyping(data));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("UserStoppedTyping", (data: any)     => cbRef.current.onUserStoppedTyping(data));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("Error",             (err: any)      => console.error("[SignalR] Server error:", err?.message));
 
       connection.onreconnecting(() => {
@@ -106,6 +112,7 @@ export function useChatSignalR({
         if (destroyedRef.current) { connection.stop(); return; }
         setIsConnected(true);
         retryCountRef.current = 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         if (destroyedRef.current) return;
         console.warn(`[SignalR] Connect failed (attempt ${retryCountRef.current + 1}):`, err?.message);

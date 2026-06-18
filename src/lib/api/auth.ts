@@ -11,6 +11,7 @@ import {
   ResendOtpRequest,
   User,
 } from "../types/auth";
+import { ApiResponse } from "../types/common";
 
 export const authApi = {
   // Đăng nhập
@@ -49,10 +50,10 @@ export const authApi = {
 
   // Lấy thông tin user hiện tại
   getCurrentUser: async (): Promise<User> => {
-    const response = await apiClient.get<{ success: boolean; user: User }>(
+    const response = await apiClient.get<ApiResponse<User>>(
       "/users/profile",
     );
-    return response.data.user;
+    return response.data.data;
   },
 
   // Refresh token (tự động được gọi bởi axios interceptor)

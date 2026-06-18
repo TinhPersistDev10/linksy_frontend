@@ -16,7 +16,6 @@ export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [justVerified, setJustVerified] = useState(false);
   const {
     register,
     handleSubmit,
@@ -28,8 +27,8 @@ export default function LoginForm() {
       setIsLoading(true);
       setError("");
       await login(data);
-    } catch (err: any) {
-      setError(err.message || "Đăng nhập thất bại. Vui lòng thử lại.");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Đăng nhập thất bại. Vui lòng thử lại."));
     } finally {
       setIsLoading(false);
     }

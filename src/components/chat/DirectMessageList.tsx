@@ -1,48 +1,50 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Archive,
+  Ban,
+  BellOff,
+  Eye,
+  LogOut,
+  MailCheck,
+  MessageCircle,
+  MoreHorizontal,
+  TriangleAlert,
+  UsersRound,
+} from "lucide-react";
+import { blockedUsersApi } from "@/lib/api/blocked-users";
 import { chatroomsApi } from "@/lib/api/chatrooms";
-import type { Chatroom } from "@/lib/types/chatroom";
+import { messagesApi } from "@/lib/api/messages";
 import { useAuth } from "@/lib/hooks/useAuth";
+import type { ChatroomMemberResponse, ChatroomResponse } from "@/lib/types/chatroom";
+import { getApiOrigin } from "@/lib/utils/apiUrl";
 import { cn } from "@/lib/utils/cn";
-import { MessageCircle } from "lucide-react";
 
 interface DirectMessageListProps {
-  onSelectChat: (chatroom: Chatroom) => void;
+  onSelectChat: (chatroom: ChatroomResponse) => void;
   selectedChatroomId?: string;
   refreshTrigger?: number;
   searchQuery?: string;
+  onUnreadTotalChange?: (count: number) => void;
 }
 
-function Avatar({
-  src,
-  name,
-  size = 8,
-}: {
-  src?: string;
-  name: string;
-  size?: number;
-}) {
+function Avatar({ src, name, size = 8 }: { src?: string | null; name: string; size?: number }) {
   const initials =
     name
       ?.split(" ")
+      .filter(Boolean)
       .map((n) => n[0])
       .join("")
       .toUpperCase()
       .slice(0, 2) || "?";
-  const BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
-    "http://localhost:5253";
-  const avatarSrc = src
-    ? src.startsWith("http")
-      ? src
-      : `${BASE_URL}${src}`
-    : undefined;
+  const BASE_URL = getApiOrigin();
+  const avatarSrc = src ? (src.startsWith("http") ? src : `${BASE_URL}${src}`) : undefined;
 
   return (
     <div
       className={cn(
-        "rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center overflow-hidden shrink-0",
+        "flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-400 to-indigo-500",
         `w-${size} h-${size}`,
       )}
     >
@@ -50,7 +52,7 @@ function Avatar({
         <img
           src={avatarSrc}
           alt={name}
-          className="w-full h-full object-cover"
+          className="h-full w-full object-cover"
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = "none";
           }}
@@ -68,14 +70,40 @@ function formatTime(dateStr: string): string {
   const now = new Date();
   const diff = now.getTime() - date.getTime();
   const days = Math.floor(diff / 86400000);
-  if (days === 0)
-    return date.toLocaleTimeString("vi-VN", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  if (days === 0) {
+    return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  }
   if (days === 1) return "Hôm qua";
   if (days < 7) return date.toLocaleDateString("vi-VN", { weekday: "short" });
   return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+}
+
+function isGroupChat(chatroom: ChatroomResponse) {
+  return chatroom.roomType === "group";
+}
+
+function getOtherMember(chatroom: ChatroomResponse, currentUserId?: string) {
+  return chatroom.members?.find((member) => member.userId !== currentUserId);
+}
+
+function getDisplayName(chatroom: ChatroomResponse, otherMember: ChatroomMemberResponse | undefined) {
+  if (isGroupChat(chatroom)) return chatroom.roomName || "Nhóm chưa đặt tên";
+  return otherMember?.fullname || chatroom.roomName || "Chưa đặt tên";
+}
+
+function getAvatar(chatroom: ChatroomResponse, otherMember: ChatroomMemberResponse | undefined) {
+  return isGroupChat(chatroom) ? chatroom.avatar : otherMember?.avatar;
+}
+
+function getLastMessagePreview(chatroom: ChatroomResponse, currentUserId?: string) {
+  const lastMsg = chatroom.lastMessage;
+  if (!lastMsg) return "Bắt đầu cuộc trò chuyện";
+  if (lastMsg.isDeleted) return "Tin nhắn đã bị xóa";
+
+  const text = lastMsg.messageText || "Tin nhắn";
+  if (lastMsg.senderId === currentUserId) return `Bạn: ${text}`;
+  if (isGroupChat(chatroom)) return `${lastMsg.senderFullname || lastMsg.senderUsername}: ${text}`;
+  return text;
 }
 
 export default function DirectMessageList({
@@ -83,59 +111,116 @@ export default function DirectMessageList({
   selectedChatroomId,
   refreshTrigger,
   searchQuery = "",
+  onUnreadTotalChange,
 }: DirectMessageListProps) {
   const { user } = useAuth();
-  const [chatrooms, setChatrooms] = useState<Chatroom[]>([]);
+  const [chatrooms, setChatrooms] = useState<ChatroomResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   useEffect(() => {
     loadChatrooms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshTrigger]);
 
   const loadChatrooms = async () => {
     try {
+      if (chatrooms.length === 0) setLoading(true);
       const data = await chatroomsApi.getChatrooms();
-      const direct = data.filter((c) => c.roomType === "direct");
-      setChatrooms(direct);
-    } catch (e) {
-      console.error("Error loading chatrooms:", e);
+      setChatrooms(data.filter((chatroom) => chatroom.isActive !== false));
+    } catch (error) {
+      console.error("Error loading chatrooms:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getOtherMember = (chatroom: Chatroom) => {
-    return chatroom.members?.find((m) => m.userId !== user?.userId);
-  };
+  useEffect(() => {
+    const total = chatrooms.reduce((sum, chatroom) => {
+      if (chatroom.chatroomId === selectedChatroomId) return sum;
+      return sum + (chatroom.unreadCount ?? 0);
+    }, 0);
+
+    onUnreadTotalChange?.(total);
+  }, [chatrooms, selectedChatroomId, onUnreadTotalChange]);
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return chatrooms;
     const q = searchQuery.toLowerCase();
-    return chatrooms.filter((c) => {
-      const other = c.members?.find((m) => m.userId !== user?.userId);
-      const name = other?.fullname || c.roomName || "";
+
+    return chatrooms.filter((chatroom) => {
+      const other = getOtherMember(chatroom, user?.userId);
+      const displayName = getDisplayName(chatroom, other);
       const username = other?.username || "";
-      const lastMsg = c.lastMessage?.messageText || "";
+      const lastMsg = chatroom.lastMessage?.messageText || "";
       return (
-        name.toLowerCase().includes(q) ||
+        displayName.toLowerCase().includes(q) ||
         username.toLowerCase().includes(q) ||
         lastMsg.toLowerCase().includes(q)
       );
     });
   }, [chatrooms, searchQuery, user?.userId]);
 
+  const closeMenu = () => setOpenMenuId(null);
+
+  const runAction = async (key: string, action: () => Promise<void>) => {
+    try {
+      setPendingAction(key);
+      await action();
+    } catch (error) {
+      console.error("Chatroom action failed:", error);
+    } finally {
+      setPendingAction(null);
+      closeMenu();
+    }
+  };
+
+  const handleMarkRead = async (chatroomId: string) => {
+    await runAction(`read-${chatroomId}`, async () => {
+      await messagesApi.markAllRead(chatroomId);
+      setChatrooms((prev) =>
+        prev.map((item) => (item.chatroomId === chatroomId ? { ...item, unreadCount: 0 } : item)),
+      );
+    });
+  };
+
+  const handleArchive = async (chatroomId: string) => {
+    await runAction(`archive-${chatroomId}`, async () => {
+      await chatroomsApi.archiveChatroom(chatroomId, true);
+      setChatrooms((prev) => prev.filter((item) => item.chatroomId !== chatroomId));
+    });
+  };
+
+  const handleLeave = async (chatroomId: string) => {
+    if (!window.confirm("Rời khỏi cuộc trò chuyện này?")) return;
+
+    await runAction(`leave-${chatroomId}`, async () => {
+      await chatroomsApi.leaveChatroom(chatroomId);
+      setChatrooms((prev) => prev.filter((item) => item.chatroomId !== chatroomId));
+    });
+  };
+
+  const handleBlock = async (chatroom: ChatroomResponse) => {
+    const other = getOtherMember(chatroom, user?.userId);
+    if (!other) return;
+    if (!window.confirm(`Chặn ${other.fullname}?`)) return;
+
+    await runAction(`block-${chatroom.chatroomId}`, async () => {
+      await blockedUsersApi.blockUser(other.userId);
+      setChatrooms((prev) => prev.filter((item) => item.chatroomId !== chatroom.chatroomId));
+    });
+  };
+
   if (loading) {
     return (
       <div className="space-y-2 px-1">
         {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="flex items-center gap-2 p-2 rounded-lg animate-pulse"
-          >
-            <div className="w-8 h-8 rounded-full bg-muted" />
+          <div key={i} className="flex animate-pulse items-center gap-2 rounded-lg p-2">
+            <div className="h-8 w-8 rounded-full bg-muted" />
             <div className="flex-1 space-y-1">
-              <div className="h-3 bg-muted rounded w-2/3" />
-              <div className="h-2 bg-muted rounded w-1/2" />
+              <div className="h-3 w-2/3 rounded bg-muted" />
+              <div className="h-2 w-1/2 rounded bg-muted" />
             </div>
           </div>
         ))}
@@ -145,16 +230,16 @@ export default function DirectMessageList({
 
   if (chatrooms.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 gap-2 text-center px-2">
+      <div className="flex flex-col items-center justify-center gap-2 px-2 py-8 text-center">
         <MessageCircle size={20} className="text-muted-foreground/50" />
-        <p className="text-xs text-muted-foreground">Chưa có tin nhắn nào</p>
+        <p className="text-xs text-muted-foreground">Chưa có cuộc hội thoại nào</p>
       </div>
     );
   }
 
   if (filtered.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 gap-2 text-center px-2">
+      <div className="flex flex-col items-center justify-center gap-2 px-2 py-8 text-center">
         <MessageCircle size={20} className="text-muted-foreground/50" />
         <p className="text-xs text-muted-foreground">Không tìm thấy kết quả</p>
       </div>
@@ -164,65 +249,166 @@ export default function DirectMessageList({
   return (
     <div className="space-y-0.5">
       {filtered.map((chatroom) => {
-        const other = getOtherMember(chatroom);
+        const other = getOtherMember(chatroom, user?.userId);
+        const group = isGroupChat(chatroom);
         const isSelected = chatroom.chatroomId === selectedChatroomId;
-        const displayName = other?.fullname || chatroom.roomName || "Unknown";
-        const lastMsg = chatroom.lastMessage;
-        const lastMsgText = lastMsg?.isDeleted
-          ? "Tin nhắn đã bị xóa"
-          : lastMsg?.messageText;
+        const unreadCount = isSelected ? 0 : chatroom.unreadCount;
+        const displayName = getDisplayName(chatroom, other);
+        const avatar = getAvatar(chatroom, other);
+        const preview = getLastMessagePreview(chatroom, user?.userId);
+        const isMenuOpen = openMenuId === chatroom.chatroomId;
 
         return (
-          <button
-            key={chatroom.chatroomId}
-            onClick={() => onSelectChat(chatroom)}
-            className={cn(
-              "w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-left transition-colors",
-              isSelected
-                ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
-                : "hover:bg-sidebar-accent/60",
-            )}
-          >
-            <div className="relative shrink-0">
-              <Avatar src={other?.avatar} name={displayName} size={8} />
-              {other?.isOnline && (
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-background rounded-full" />
+          <div key={chatroom.chatroomId} className="group relative">
+            <button
+              type="button"
+              onClick={() => onSelectChat(chatroom)}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-2 py-2 pr-12 text-left transition-colors",
+                isSelected
+                  ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
+                  : "hover:bg-sidebar-accent/60",
               )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1">
-                <span
-                  className={cn(
-                    "text-sm truncate",
-                    chatroom.unreadCount > 0 ? "font-semibold" : "font-medium",
+            >
+              <div className="relative shrink-0">
+                <Avatar src={avatar ?? undefined} name={displayName} size={9} />
+                {group ? (
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-background bg-slate-700 text-white">
+                    <UsersRound size={10} />
+                  </span>
+                ) : other?.isOnline ? (
+                  <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background bg-green-500" />
+                ) : null}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1">
+                  <span className={cn("truncate text-sm", unreadCount > 0 ? "font-semibold" : "font-medium")}>
+                    {displayName}
+                  </span>
+                  {chatroom.lastActivityAt && (
+                    <span className="shrink-0 text-[10px] text-muted-foreground group-hover:opacity-0">
+                      {formatTime(chatroom.lastActivityAt)}
+                    </span>
                   )}
-                >
-                  {displayName}
-                </span>
-                {chatroom.lastActivityAt && (
-                  <span className="text-[10px] text-muted-foreground shrink-0">
-                    {formatTime(chatroom.lastActivityAt)}
-                  </span>
-                )}
+                </div>
+                <div className="flex items-center justify-between gap-1">
+                  <span className="truncate text-xs text-muted-foreground">{preview}</span>
+                  {unreadCount > 0 && (
+                    <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-sky-500 px-1 text-[10px] font-medium text-white group-hover:opacity-0">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-xs text-muted-foreground truncate">
-                  {lastMsg
-                    ? lastMsg.senderId === user?.userId
-                      ? `Bạn: ${lastMsgText}`
-                      : lastMsgText
-                    : "Bắt đầu cuộc trò chuyện"}
-                </span>
-                {chatroom.unreadCount > 0 && (
-                  <span className="shrink-0 min-w-4 h-4 px-1 bg-sky-500 text-white text-[10px] font-medium rounded-full flex items-center justify-center">
-                    {chatroom.unreadCount > 99 ? "99+" : chatroom.unreadCount}
-                  </span>
-                )}
-              </div>
+            </button>
+
+            <div className="absolute right-2 top-1/2 z-10 hidden -translate-y-1/2 items-center gap-1 group-hover:flex">
+              <button
+                type="button"
+                title="Tùy chọn"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setOpenMenuId(isMenuOpen ? null : chatroom.chatroomId);
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-background text-muted-foreground shadow-sm ring-1 ring-border hover:bg-muted hover:text-foreground"
+              >
+                <MoreHorizontal size={16} />
+              </button>
             </div>
-          </button>
+
+            {isMenuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Đóng menu tùy chọn"
+                  className="fixed inset-0 z-20 cursor-default bg-transparent"
+                  onClick={closeMenu}
+                />
+                <div className="absolute right-2 top-12 z-30 w-60 rounded-xl border bg-background p-2 shadow-xl">
+                  <MenuItem
+                    icon={MailCheck}
+                    label="Đánh dấu đã đọc"
+                    loading={pendingAction === `read-${chatroom.chatroomId}`}
+                    onClick={() => void handleMarkRead(chatroom.chatroomId)}
+                  />
+                  <MenuItem
+                    icon={Eye}
+                    label={group ? "Xem thông tin nhóm" : "Xem thông tin hội thoại"}
+                    onClick={() => {
+                      closeMenu();
+                      onSelectChat(chatroom);
+                    }}
+                  />
+                  <MenuItem icon={BellOff} label="Tắt thông báo" disabled helper="Chưa có API" />
+                  <div className="my-1 border-t" />
+                  <MenuItem
+                    icon={Archive}
+                    label="Lưu trữ cuộc trò chuyện"
+                    loading={pendingAction === `archive-${chatroom.chatroomId}`}
+                    onClick={() => void handleArchive(chatroom.chatroomId)}
+                  />
+                  {group ? (
+                    <MenuItem
+                      icon={LogOut}
+                      label="Rời nhóm"
+                      destructive
+                      loading={pendingAction === `leave-${chatroom.chatroomId}`}
+                      onClick={() => void handleLeave(chatroom.chatroomId)}
+                    />
+                  ) : (
+                    <MenuItem
+                      icon={Ban}
+                      label="Chặn người dùng"
+                      destructive
+                      loading={pendingAction === `block-${chatroom.chatroomId}`}
+                      onClick={() => void handleBlock(chatroom)}
+                    />
+                  )}
+                  <MenuItem icon={TriangleAlert} label="Báo cáo" disabled helper="Chưa có API" />
+                </div>
+              </>
+            )}
+          </div>
         );
       })}
     </div>
+  );
+}
+
+function MenuItem({
+  icon: Icon,
+  label,
+  helper,
+  destructive,
+  disabled,
+  loading,
+  onClick,
+}: {
+  icon: React.ElementType;
+  label: string;
+  helper?: string;
+  destructive?: boolean;
+  disabled?: boolean;
+  loading?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled || loading}
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+        destructive ? "text-red-600 hover:bg-red-50" : "text-foreground hover:bg-muted",
+        (disabled || loading) && "cursor-not-allowed opacity-50 hover:bg-transparent",
+      )}
+    >
+      <Icon size={17} className="shrink-0" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">{loading ? "Đang xử lý..." : label}</span>
+        {helper && <span className="block text-[10px] text-muted-foreground">{helper}</span>}
+      </span>
+    </button>
   );
 }

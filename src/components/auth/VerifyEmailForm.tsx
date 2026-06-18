@@ -81,8 +81,8 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
       setError("");
       await verifyEmail({ email, otpCode });
       // Redirect được xử lý trong AuthContext
-    } catch (err: any) {
-      setError(err.message || "Xác thực thất bại. Vui lòng thử lại.");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Xác thực thất bại. Vui lòng thử lại."));
       // Clear OTP khi sai
       setOtp(["", "", "", "", "", ""]);
       document.getElementById("otp-0")?.focus();
@@ -104,8 +104,8 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
       setCanResend(false);
       setOtp(["", "", "", "", "", ""]);
       document.getElementById("otp-0")?.focus();
-    } catch (err: any) {
-      setError(err.message || "Gửi lại OTP thất bại");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Gửi lại OTP thất bại"));
     } finally {
       setIsResending(false);
     }

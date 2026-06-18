@@ -1,4 +1,4 @@
-// src/middleware.ts
+﻿// src/middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -6,6 +6,8 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const accessToken = request.cookies.get("accessToken")?.value;
+  const refreshToken = request.cookies.get("refreshToken")?.value;
+  const hasAuthCookie = Boolean(accessToken || refreshToken);
 
   const isLoginOrRegister = pathname === "/login" || pathname === "/register";
   const isPublicRoute = [
@@ -16,28 +18,12 @@ export async function middleware(request: NextRequest) {
     "/forgot-password",
   ].some((route) => pathname.startsWith(route));
 
-  // Đã đăng nhập + vào login/register → redirect dashboard
   if (accessToken && isLoginOrRegister) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // Chưa đăng nhập + vào protected route → redirect login
-  // Đồng thời xóa cookie ngay tại middleware để tránh race condition
-  if (!accessToken && !isPublicRoute && !pathname.startsWith("/_next")) {
-    const response = NextResponse.redirect(new URL("/login", request.url));
-
-    // Xóa tất cả auth cookies còn sót lại
-    const cookieOptions = {
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax" as const, // ← đúng
-      path: "/",
-      expires: new Date(0),
-    };
-    response.cookies.set("accessToken", "", cookieOptions);
-    response.cookies.set("refreshToken", "", cookieOptions);
-
-    return response;
+  if (!hasAuthCookie && !isPublicRoute && !pathname.startsWith("/_next")) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   return NextResponse.next();
