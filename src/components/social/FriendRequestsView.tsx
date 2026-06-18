@@ -215,7 +215,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                     </div>
 
                     <p className="line-clamp-2 rounded border border-slate-200 px-3 py-3 text-sm text-slate-700">
-                      {request.message || `Xin chào, mình là ${name}. Kết bạn v?i m?nh nh?!`}
+                      {request.message || `Xin chào, mình là ${name}. Kết bạn với mình nhé!`}
                     </p>
 
                     <div className="mt-4 grid grid-cols-2 gap-2">
@@ -320,7 +320,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
 
               <p className="mt-5 rounded border border-slate-200 px-3 py-3 text-sm text-slate-700">
                 {profileRequest.message ||
-                  `Xin chào, mình là ${requestName(profileRequest, "sender")}. Kết bạn v?i m?nh nh?!`}
+                  `Xin chào, mình là ${requestName(profileRequest, "sender")}. Kết bạn với mình nhé`}
               </p>
 
               <div className="mt-3 grid grid-cols-2 gap-2">
