@@ -87,7 +87,6 @@ export function useSendMessage({
       messageText: content,
       parentMessageId: null,
       parentMessage: null,
-      replyCount: 0,
       isEdited: false,
       isDeleted: false,
       isOwn: true,
@@ -95,6 +94,10 @@ export function useSendMessage({
       editedAt: null,
       deletedAt: null,
       attachments: null,
+      deliveryStatus: "sent",
+      recipientCount: 0,
+      deliveredCount: 0,
+      readCount: 0,
     });
 
     try {

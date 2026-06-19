@@ -29,6 +29,8 @@ interface MessageListProps {
   /** Parent tracks whether auto-scroll should fire on new messages */
   onNearBottom: (near: boolean) => void;
   onShowDelivery?: (messageId: string) => void;
+  onReply: (message: MessageResponse) => void;
+  onEdit: (message: MessageResponse) => void;
 }
 
 export default function MessageList({
@@ -42,6 +44,8 @@ export default function MessageList({
   pageSize,
   onLoadMore,
   onDelete,
+  onReply,
+  onEdit,
   scrollToBottomRef,
   onNearBottom,
   onShowDelivery,
@@ -158,10 +162,12 @@ export default function MessageList({
           <div className="flex items-center justify-center py-2 min-h-[32px]">
             {loadingMore ? (
               <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 size={14} className="animate-spin" />Đang tải tin nhắn cũ...
+                <Loader2 size={14} className="animate-spin" />
+                Đang tải tin nhắn cũ...
               </span>
             ) : !hasMore && messages.length >= pageSize ? (
-              <p className="text-xs text-muted-foreground/60">Đây là tin nhắn đầu tiên trong cuộc trò chuyện
+              <p className="text-xs text-muted-foreground/60">
+                Đây là tin nhắn đầu tiên trong cuộc trò chuyện
               </p>
             ) : null}
           </div>
@@ -175,6 +181,8 @@ export default function MessageList({
               nextMsg={messages[i + 1]}
               currentUserId={currentUserId}
               onDelete={onDelete}
+              onReply={onReply}
+              onEdit={onEdit}
               onShowDelivery={onShowDelivery}
             />
           ))}
@@ -193,5 +201,3 @@ export default function MessageList({
     </div>
   );
 }
-
-

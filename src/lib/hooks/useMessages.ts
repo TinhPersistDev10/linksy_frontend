@@ -3,7 +3,14 @@
 
 import { useState, useCallback, useRef } from "react";
 import { messagesApi } from "@/lib/api/messages";
-import type { MessageResponse } from "../types/message";
+import type {
+  AllMessagesReadEvent,
+  MessageDeliveredEvent,
+  MessageDeletedEvent,
+  MessageEditedEvent,
+  MessageReadEvent,
+  MessageResponse,
+} from "../types/message";
 
 export const PAGE_SIZE = 30;
 
@@ -59,34 +66,115 @@ export function useMessages(chatroomId: string | undefined) {
 
   const receiveMessage = useCallback((msg: MessageResponse) => {
     setMessages((prev) => {
-      // Remove optimistic duplicates when server confirms our own message
+      // Xóa optimistic message khi server xác nhận message của chính user.
       const base = msg.isOwn
-        ? prev.filter((m) => !m.messageId.startsWith("temp-"))
+        ? prev.filter((message) => !message.messageId.startsWith("temp-"))
         : prev;
-      if (base.some((m) => m.messageId === msg.messageId)) return base;
+
+      // SignalR có thể gửi lại cùng event khi reconnect.
+      // Kiểm tra trước để không tăng replyCount nhiều lần.
+      if (base.some((message) => message.messageId === msg.messageId)) {
+        return base;
+      }
       return [...base, msg];
     });
+
     shouldScrollToBottomRef.current = true;
   }, []);
 
-  const onMessageDeleted = useCallback(
-    ({ messageId }: { messageId: string }) => {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.messageId === messageId
-            ? { ...m, isDeleted: true, messageText: "Tin nhắn đã bị xóa" }
-            : m,
+  const onMessageDeleted = useCallback((event: MessageDeletedEvent) => {
+    setMessages((previous) => {
+      return previous.map((message) => {
+        if (message.messageId === event.messageId) {
+          return {
+            ...message,
+            isDeleted: true,
+            deletedAt: event.deletedAt,
+            messageText: "Tin nhắn đã bị xóa",
+          };
+        }
+
+        if (message.parentMessage?.messageId === event.messageId) {
+          return {
+            ...message,
+            parentMessage: {
+              ...message.parentMessage,
+              isDeleted: true,
+              deletedAt: event.deletedAt,
+              messageText: "Tin nhắn đã bị xóa",
+            },
+          };
+        }
+        return message;
+      });
+    });
+  }, []);
+
+  const onMessageEdited = useCallback((event: MessageEditedEvent) => {
+    setMessages((previous) =>
+      previous.map((message) => {
+        if (message.messageId === event.messageId) {
+          return {
+            ...message,
+            messageText: event.messageText,
+            isEdited: event.isEdited,
+            editedAt: event.editedAt,
+          };
+        }
+
+        if (message.parentMessage?.messageId === event.messageId) {
+          return {
+            ...message,
+            parentMessage: {
+              ...message.parentMessage,
+              messageText: event.messageText,
+              isEdited: event.isEdited,
+              editedAt: event.editedAt,
+            },
+          };
+        }
+
+        return message;
+      }),
+    );
+  }, []);
+
+  const applyDeliverySummary = useCallback(
+    (summary: MessageReadEvent["message"]) => {
+      setMessages((previous) =>
+        previous.map((message) =>
+          message.messageId === summary.messageId
+            ? { ...message, ...summary }
+            : message,
         ),
       );
     },
     [],
   );
 
-  const onMessageEdited = useCallback((updated: MessageResponse) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.messageId === updated.messageId ? { ...m, ...updated } : m,
-      ),
+  const onMessageRead = useCallback(
+    (event: MessageReadEvent) => {
+      applyDeliverySummary(event.message);
+    },
+    [applyDeliverySummary],
+  );
+
+  const onMessageDelivered = useCallback(
+    (event: MessageDeliveredEvent) => {
+      applyDeliverySummary(event.message);
+    },
+    [applyDeliverySummary],
+  );
+
+  const onAllMessagesRead = useCallback((event: AllMessagesReadEvent) => {
+    const summaries = new Map(
+      event.messages.map((summary) => [summary.messageId, summary]),
+    );
+    setMessages((previous) =>
+      previous.map((message) => {
+        const summary = summaries.get(message.messageId);
+        return summary ? { ...message, ...summary } : message;
+      }),
     );
   }, []);
 
@@ -120,9 +208,11 @@ export function useMessages(chatroomId: string | undefined) {
     receiveMessage,
     onMessageDeleted,
     onMessageEdited,
+    onMessageRead,
+    onMessageDelivered,
+    onAllMessagesRead,
     appendOptimistic,
     replaceOptimistic,
     removeOptimistic,
   };
 }
-

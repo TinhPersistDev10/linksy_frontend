@@ -10,7 +10,6 @@ export interface MessageResponse {
   messageText: string;
   parentMessageId: string | null;
   parentMessage: MessageResponse | null;
-  replyCount: number;
   isEdited: boolean;
   isDeleted: boolean;
   isOwn: boolean;
@@ -19,6 +18,9 @@ export interface MessageResponse {
   deletedAt: string | null;
   attachments: unknown | null;
   deliveryStatus?: "sent" | "delivered" | "read" | string;
+  recipientCount: number;
+  deliveredCount: number;
+  readCount: number;
 }
 
 export interface GetMessagesData {
@@ -61,4 +63,50 @@ export interface MessageDeliveryStatusResponse {
   deliveredCount: number;
   readCount: number;
   deliveries: MessageDeliveryResponse[];
+}
+
+//event
+export interface MessageEditedEvent {
+  messageId: string;
+  chatroomId: string;
+  messageText: string;
+  isEdited: boolean;
+  editedAt: string | null;
+  editedBy: string;
+}
+
+export interface MessageDeletedEvent {
+  messageId: string;
+  chatroomId: string;
+  deletedBy: string;
+  deletedAt: string;
+}
+
+export interface MessageDeliverySummaryEvent {
+  messageId: string;
+  recipientCount: number;
+  deliveredCount: number;
+  readCount: number;
+  deliveryStatus: "sent" | "delivered" | "read" | string;
+}
+
+export interface MessageReadEvent {
+  chatroomId: string;
+  readBy: string;
+  readAt: string;
+  message: MessageDeliverySummaryEvent;
+}
+
+export interface MessageDeliveredEvent {
+  chatroomId: string;
+  deliveredBy: string;
+  deliveredAt: string;
+  message: MessageDeliverySummaryEvent;
+}
+
+export interface AllMessagesReadEvent {
+  chatroomId: string;
+  readBy: string;
+  readAt: string;
+  messages: MessageDeliverySummaryEvent[];
 }

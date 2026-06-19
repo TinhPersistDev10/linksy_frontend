@@ -1,3 +1,4 @@
+import { string } from "zod";
 import type { ApiResponse } from "../types/common";
 import type {
   EditMessageRequest,
@@ -85,5 +86,12 @@ export const messagesApi = {
     );
 
     return res.data.data;
+  },
+  getReplies: async (messageId: string): Promise<MessageResponse[]> => {
+    const response = await apiClient.get<ApiResponse<MessageResponse[]>>(
+      `/messages/${messageId}/replies`,
+    );
+
+    return response.data.data;
   },
 };

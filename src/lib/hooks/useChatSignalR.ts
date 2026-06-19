@@ -4,6 +4,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Message } from "@/lib/types/chatroom";
 import { getApiOrigin } from "@/lib/utils/apiUrl";
+import type {
+  AllMessagesReadEvent,
+  MessageDeliveredEvent,
+  MessageDeletedEvent,
+  MessageEditedEvent,
+  MessageReadEvent,
+} from "../types/message";
 
 const BASE_URL = getApiOrigin();
 
@@ -13,10 +20,17 @@ const MAX_MANUAL_RETRIES = 5;
 
 interface UseChatSignalROptions {
   chatroomId: string | null;
-  onReceiveMessage:    (msg: Message) => void;
-  onMessageDeleted:    (data: { messageId: string }) => void;
-  onMessageEdited:     (msg: Message) => void;
-  onUserTyping:        (data: { userId: string; username: string; chatroomId: string }) => void;
+  onReceiveMessage: (msg: Message) => void;
+  onMessageDeleted: (event: MessageDeletedEvent) => void;
+  onMessageEdited: (event: MessageEditedEvent) => void;
+  onMessageRead: (event: MessageReadEvent) => void;
+  onMessageDelivered: (event: MessageDeliveredEvent) => void;
+  onAllMessagesRead: (event: AllMessagesReadEvent) => void;
+  onUserTyping: (data: {
+    userId: string;
+    username: string;
+    chatroomId: string;
+  }) => void;
   onUserStoppedTyping: (data: { userId: string }) => void;
 }
 
@@ -25,27 +39,50 @@ export function useChatSignalR({
   onReceiveMessage,
   onMessageDeleted,
   onMessageEdited,
+  onMessageRead,
+  onMessageDelivered,
+  onAllMessagesRead,
   onUserTyping,
   onUserStoppedTyping,
 }: UseChatSignalROptions) {
-  const [isConnected, setIsConnected]   = useState(false);
-  const [isMounted,   setIsMounted]     = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const connectionRef    = useRef<any>(null);
-  const currentRoomRef   = useRef<string | null>(null);
-  const retryCountRef    = useRef(0);
-  const retryTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const destroyedRef     = useRef(false);
+  const connectionRef = useRef<any>(null);
+  const currentRoomRef = useRef<string | null>(null);
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const destroyedRef = useRef(false);
 
   // Keep latest callbacks in a ref — avoids stale closures without re-registering handlers
-  const cbRef = useRef({ onReceiveMessage, onMessageDeleted, onMessageEdited, onUserTyping, onUserStoppedTyping });
-  cbRef.current = { onReceiveMessage, onMessageDeleted, onMessageEdited, onUserTyping, onUserStoppedTyping };
+  const cbRef = useRef({
+    onReceiveMessage,
+    onMessageDeleted,
+    onMessageEdited,
+    onMessageRead,
+    onMessageDelivered,
+    onAllMessagesRead,
+    onUserTyping,
+    onUserStoppedTyping,
+  });
+  cbRef.current = {
+    onReceiveMessage,
+    onMessageDeleted,
+    onMessageEdited,
+    onMessageRead,
+    onMessageDelivered,
+    onAllMessagesRead,
+    onUserTyping,
+    onUserStoppedTyping,
+  };
 
   // ── Mount guard (prevents SSR import of signalR) ──────────────────────────
   useEffect(() => {
     setIsMounted(true);
-    return () => { destroyedRef.current = true; };
+    return () => {
+      destroyedRef.current = true;
+    };
   }, []);
 
   // ── Build & start connection ───────────────────────────────────────────────
@@ -72,16 +109,37 @@ export function useChatSignalR({
         .build();
 
       // ── Register event handlers (use cbRef to always call latest version) ──
-      connection.on("ReceiveMessage",    (msg: Message)  => cbRef.current.onReceiveMessage(msg));
+      connection.on("ReceiveMessage", (msg: Message) =>
+        cbRef.current.onReceiveMessage(msg),
+      );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      connection.on("MessageDeleted",    (data: any)     => cbRef.current.onMessageDeleted(data));
-      connection.on("MessageEdited",     (msg: Message)  => cbRef.current.onMessageEdited(msg));
+      connection.on("MessageDeleted", (event: MessageDeletedEvent) =>
+        cbRef.current.onMessageDeleted(event),
+      );
+      connection.on("MessageEdited", (event: MessageEditedEvent) =>
+        cbRef.current.onMessageEdited(event),
+      );
+      connection.on("MessageRead", (event: MessageReadEvent) =>
+        cbRef.current.onMessageRead(event),
+      );
+      connection.on("MessageDelivered", (event: MessageDeliveredEvent) =>
+        cbRef.current.onMessageDelivered(event),
+      );
+      connection.on("AllMessagesRead", (event: AllMessagesReadEvent) =>
+        cbRef.current.onAllMessagesRead(event),
+      );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      connection.on("UserTyping",        (data: any)     => cbRef.current.onUserTyping(data));
+      connection.on("UserTyping", (data: any) =>
+        cbRef.current.onUserTyping(data),
+      );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      connection.on("UserStoppedTyping", (data: any)     => cbRef.current.onUserStoppedTyping(data));
+      connection.on("UserStoppedTyping", (data: any) =>
+        cbRef.current.onUserStoppedTyping(data),
+      );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      connection.on("Error",             (err: any)      => console.error("[SignalR] Server error:", err?.message));
+      connection.on("Error", (err: any) =>
+        console.error("[SignalR] Server error:", err?.message),
+      );
 
       connection.onreconnecting(() => {
         if (!destroyedRef.current) setIsConnected(false);
@@ -93,7 +151,9 @@ export function useChatSignalR({
         retryCountRef.current = 0;
         // Re-join current room after reconnect
         if (currentRoomRef.current) {
-          try { await connection.invoke("JoinChatroom", currentRoomRef.current); } catch {}
+          try {
+            await connection.invoke("JoinChatroom", currentRoomRef.current);
+          } catch {}
         }
       });
 
@@ -109,13 +169,19 @@ export function useChatSignalR({
       // ── Attempt to start ──────────────────────────────────────────────────
       try {
         await connection.start();
-        if (destroyedRef.current) { connection.stop(); return; }
+        if (destroyedRef.current) {
+          connection.stop();
+          return;
+        }
         setIsConnected(true);
         retryCountRef.current = 0;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         if (destroyedRef.current) return;
-        console.warn(`[SignalR] Connect failed (attempt ${retryCountRef.current + 1}):`, err?.message);
+        console.warn(
+          `[SignalR] Connect failed (attempt ${retryCountRef.current + 1}):`,
+          err?.message,
+        );
         scheduleManualRetry();
       }
     };
@@ -128,7 +194,9 @@ export function useChatSignalR({
       }
       const delay = RETRY_DELAYS[retryCountRef.current] ?? 30000;
       retryCountRef.current += 1;
-      console.info(`[SignalR] Retrying in ${delay}ms (attempt ${retryCountRef.current})...`);
+      console.info(
+        `[SignalR] Retrying in ${delay}ms (attempt ${retryCountRef.current})...`,
+      );
       retryTimerRef.current = setTimeout(() => {
         if (!destroyedRef.current) startConnection();
       }, delay);
@@ -154,7 +222,9 @@ export function useChatSignalR({
     const manage = async () => {
       // Leave previous room
       if (currentRoomRef.current && currentRoomRef.current !== chatroomId) {
-        try { await conn.invoke("LeaveChatroom", currentRoomRef.current); } catch {}
+        try {
+          await conn.invoke("LeaveChatroom", currentRoomRef.current);
+        } catch {}
       }
       // Join new room
       if (chatroomId) {
@@ -178,7 +248,7 @@ export function useChatSignalR({
       const conn = connectionRef.current;
       if (!conn) throw new Error("SignalR not connected");
       await conn.invoke("SendMessage", {
-        ChatroomId:  chatroomId,
+        ChatroomId: chatroomId,
         MessageText: text,
         MessageType: type,
       });
@@ -187,22 +257,59 @@ export function useChatSignalR({
   );
 
   const sendTyping = useCallback(async (chatroomId: string) => {
-    try { await connectionRef.current?.invoke("StartTyping", chatroomId); } catch {}
+    try {
+      await connectionRef.current?.invoke("StartTyping", chatroomId);
+    } catch {}
   }, []);
 
   const stopTyping = useCallback(async (chatroomId: string) => {
-    try { await connectionRef.current?.invoke("StopTyping", chatroomId); } catch {}
+    try {
+      await connectionRef.current?.invoke("StopTyping", chatroomId);
+    } catch {}
   }, []);
 
-  const deleteMessage = useCallback(async (chatroomId: string, messageId: string) => {
-    try { await connectionRef.current?.invoke("DeleteMessage", chatroomId, messageId); } catch {}
+  const deleteMessage = useCallback(async (messageId: string) => {
+    const connection = connectionRef.current;
+    if (!connection) throw new Error("SignalR not connected");
+    await connection.invoke("DeleteMessage", messageId);
   }, []);
+  const editMessage = useCallback(
+    async (messageId: string, newText: string) => {
+      const connection = connectionRef.current;
 
+      if (!connection) {
+        throw new Error("SignalR not connected");
+      }
+
+      await connection.invoke("EditMessage", messageId, newText);
+    },
+    [],
+  );
+
+  const replyToMessage = useCallback(
+    async (chatroomId: string, parentMessageId: string, replyText: string) => {
+      const connection = connectionRef.current;
+
+      if (!connection) {
+        throw new Error("SignalR not connected");
+      }
+
+      await connection.invoke(
+        "ReplyToMessage",
+        chatroomId,
+        parentMessageId,
+        replyText,
+      );
+    },
+    [],
+  );
   return {
     isConnected: isMounted && isConnected,
     sendMessage,
     sendTyping,
     stopTyping,
     deleteMessage,
+    editMessage,
+    replyToMessage,
   };
 }
