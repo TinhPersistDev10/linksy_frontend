@@ -33,7 +33,9 @@ export default function ChatWindowLayout({
   onChatroomUpdated,
 }: ChatWindowLayoutProps) {
   const { user } = useAuth();
-  const [activeChatroom, setActiveChatroom] = useState<ChatroomResponse | null>(chatroom);
+  const [activeChatroom, setActiveChatroom] = useState<ChatroomResponse | null>(
+    chatroom,
+  );
 
   useEffect(() => {
     setActiveChatroom(chatroom);
@@ -46,12 +48,18 @@ export default function ChatWindowLayout({
 
   const currentChatroom = activeChatroom ?? chatroom;
   const chatroomId = currentChatroom?.chatroomId;
-  const otherMember = currentChatroom?.members?.find((m) => m.userId !== user?.userId);
+  const otherMember = currentChatroom?.members?.find(
+    (m) => m.userId !== user?.userId,
+  );
 
   // Scroll control (ref-based to avoid re-renders)
   const scrollToBottomRef = useRef<(() => void) | null>(null);
   const nearBottomRef = useRef(true);
   const markReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [replyTo, setReplyTo] = useState<MessageResponse | null>(null);
+  const [editingMessage, setEditingMessage] = useState<MessageResponse | null>(
+    null,
+  );
   const [messageSearch, setMessageSearch] = useState("");
   const [searchResults, setSearchResults] = useState<MessageResponse[]>([]);
   const [searching, setSearching] = useState(false);
@@ -62,6 +70,7 @@ export default function ChatWindowLayout({
   const [deliveryStatus, setDeliveryStatus] =
     useState<MessageDeliveryStatusResponse | null>(null);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
+  const [composerSubmitting, setComposerSubmitting] = useState(false);
   const onUserTyping = useCallback(
     ({
       userId,
@@ -98,6 +107,9 @@ export default function ChatWindowLayout({
     receiveMessage,
     onMessageDeleted,
     onMessageEdited,
+    onMessageRead,
+    onMessageDelivered,
+    onAllMessagesRead,
     appendOptimistic,
     replaceOptimistic,
     removeOptimistic,
@@ -134,11 +146,13 @@ export default function ChatWindowLayout({
 
       receiveMessage(normalizedMessage);
 
-      if (
-        normalizedMessage.chatroomId === chatroomId &&
-        normalizedMessage.senderId !== user.userId
-      ) {
-        scheduleMarkCurrentChatAsRead();
+      if (normalizedMessage.senderId !== user.userId) {
+        void messagesApi.markDelivered(normalizedMessage.messageId).catch((error) => {
+          console.error("Mark delivered failed:", error);
+        });
+        if (normalizedMessage.chatroomId === chatroomId) {
+          scheduleMarkCurrentChatAsRead();
+        }
       }
     },
     [receiveMessage, user?.userId, chatroomId, scheduleMarkCurrentChatAsRead],
@@ -151,11 +165,16 @@ export default function ChatWindowLayout({
     sendTyping: signalRTyping,
     stopTyping: signalRStopTyping,
     deleteMessage: signalRDelete,
+    editMessage: signalREdit,
+    replyToMessage: signalRReply,
   } = useChatSignalR({
     chatroomId: chatroomId ?? null,
     onReceiveMessage: handleReceiveMessage,
     onMessageDeleted,
     onMessageEdited,
+    onMessageRead,
+    onMessageDelivered,
+    onAllMessagesRead,
     onUserTyping,
     onUserStoppedTyping,
   });
@@ -221,11 +240,10 @@ export default function ChatWindowLayout({
   };
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (messageId: string) => {
-    if (!chatroomId) return;
     try {
-      await signalRDelete(chatroomId, messageId);
-    } catch (e) {
-      console.error("Delete error:", e);
+      await signalRDelete(messageId);
+    } catch (error) {
+      console.error("Delete message failed:", error);
     }
   };
 
@@ -240,10 +258,37 @@ export default function ChatWindowLayout({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSubmit();
     }
   };
+  const handleSubmit = async () => {
+    const content = input.trim();
+    if (!content || !chatroomId || composerSubmitting) return;
 
+    setComposerSubmitting(true);
+
+    try {
+      if (editingMessage) {
+        await signalREdit(editingMessage.messageId, content);
+        setEditingMessage(null);
+        setInput("");
+        return;
+      }
+
+      if (replyTo) {
+        await signalRReply(chatroomId, replyTo.messageId, content);
+        setReplyTo(null);
+        setInput("");
+        return;
+      }
+
+      await handleSend();
+    } catch (error) {
+      console.error("Submit message failed:", error);
+    } finally {
+      setComposerSubmitting(false);
+    }
+  };
   // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!chatroomId) return;
@@ -253,6 +298,9 @@ export default function ChatWindowLayout({
     setSearchResults([]);
     setDeliveryOpen(false);
     setDeliveryStatus(null);
+    setReplyTo(null);
+    setEditingMessage(null);
+    setInput("");
 
     messagesApi
       .markAllRead(chatroomId)
@@ -311,110 +359,129 @@ export default function ChatWindowLayout({
   return (
     <div className="flex h-full max-h-full min-h-0 w-full flex-1 overflow-hidden bg-background">
       <div className="relative flex h-full max-h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <ChatHeader
-        chatroom={currentChatroom}
-        otherMember={otherMember}
-        isConnected={isConnected}
-        onBack={onBack}
-      />
-      <div className="shrink-0 border-b bg-background px-4 py-2">
-        <div className="flex gap-2">
-          <input
-            value={messageSearch}
-            onChange={(e) => setMessageSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSearchMessages();
-            }}
-            placeholder="Tìm tin nhắn..."
-            className="h-8 flex-1 rounded-md border px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400/30"
-          />
-          <button
-            type="button"
-            onClick={handleSearchMessages}
-            className="h-8 rounded-md bg-sky-500 px-3 text-sm text-white disabled:opacity-60"
-            disabled={searching}
-          >
-            Tìm
-          </button>
-        </div>
-
-        {searchResults.length > 0 && (
-          <div className="mt-2 max-h-36 overflow-y-auto rounded-md border bg-background">
-            {searchResults.map((msg) => (
-              <button
-                key={msg.messageId}
-                type="button"
-                onClick={() => handleJumpToMessage(msg.messageId)}
-                className="block w-full border-b px-3 py-2 text-left text-xs hover:bg-muted"
-              >
-                <span className="font-medium">{msg.senderFullname}: </span>
-                <span>{msg.messageText}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <MessageList
-          messages={messages}
-          currentUserId={user?.userId ?? ""}
+        <ChatHeader
+          chatroom={currentChatroom}
           otherMember={otherMember}
-          typingUsers={typingUsers}
-          loadingInitial={loadingInitial}
-          loadingMore={loadingMore}
-          hasMore={hasMore}
-          pageSize={PAGE_SIZE}
-          onLoadMore={loadMore}
-          onDelete={handleDelete}
-          scrollToBottomRef={scrollToBottomRef}
-          onNearBottom={(near) => {
-            nearBottomRef.current = near;
-          }}
-          onShowDelivery={handleShowDelivery}
+          isConnected={isConnected}
+          onBack={onBack}
         />
-      </div>
-      <MessageInput
-        value={input}
-        sending={sending}
-        onChange={handleInputChange}
-        onKeyDown={handleKeyDown}
-        onSend={handleSend}
-      />
-      {deliveryOpen && deliveryStatus && (
-        <div className="absolute bottom-16 right-4 z-30 w-72 rounded-md border bg-background p-3 shadow-lg">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium">Trạng thái tin nhắn</p>
+        <div className="shrink-0 border-b bg-background px-4 py-2">
+          <div className="flex gap-2">
+            <input
+              value={messageSearch}
+              onChange={(e) => setMessageSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSearchMessages();
+              }}
+              placeholder="Tìm tin nhắn..."
+              className="h-8 flex-1 rounded-md border px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400/30"
+            />
             <button
               type="button"
-              onClick={() => setDeliveryOpen(false)}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={handleSearchMessages}
+              className="h-8 rounded-md bg-sky-500 px-3 text-sm text-white disabled:opacity-60"
+              disabled={searching}
             >
-              Đóng
+              Tìm
             </button>
           </div>
 
-          <div className="mb-2 text-xs text-muted-foreground">
-            Đã nhận: {deliveryStatus.deliveredCount} · Đã đọc:{" "}
-            {deliveryStatus.readCount}
-          </div>
-
-          <div className="space-y-2">
-            {deliveryStatus.deliveries.map((item) => (
-              <div
-                key={item.deliveryId}
-                className="flex items-center justify-between gap-2"
-              >
-                <span className="truncate text-sm">{item.username}</span>
-                <span className="text-xs text-muted-foreground">
-                  {item.status}
-                </span>
-              </div>
-            ))}
-          </div>
+          {searchResults.length > 0 && (
+            <div className="mt-2 max-h-36 overflow-y-auto rounded-md border bg-background">
+              {searchResults.map((msg) => (
+                <button
+                  key={msg.messageId}
+                  type="button"
+                  onClick={() => handleJumpToMessage(msg.messageId)}
+                  className="block w-full border-b px-3 py-2 text-left text-xs hover:bg-muted"
+                >
+                  <span className="font-medium">{msg.senderFullname}: </span>
+                  <span>{msg.messageText}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <MessageList
+            messages={messages}
+            currentUserId={user?.userId ?? ""}
+            otherMember={otherMember}
+            typingUsers={typingUsers}
+            loadingInitial={loadingInitial}
+            loadingMore={loadingMore}
+            hasMore={hasMore}
+            pageSize={PAGE_SIZE}
+            onLoadMore={loadMore}
+            onDelete={handleDelete}
+            scrollToBottomRef={scrollToBottomRef}
+            onNearBottom={(near) => {
+              nearBottomRef.current = near;
+            }}
+            onShowDelivery={handleShowDelivery}
+            onReply={(message) => {
+              setReplyTo(message);
+              setEditingMessage(null);
+            }}
+            onEdit={(message) => {
+              setEditingMessage(message);
+              setReplyTo(null);
+              setInput(message.messageText);
+            }}
+          />
+        </div>
+        <MessageInput
+          value={input}
+          sending={sending || composerSubmitting}
+          replyTo={replyTo}
+          editingMessage={editingMessage}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onSend={() => void handleSubmit()}
+          onCancelMode={() => {
+            setReplyTo(null);
+            setEditingMessage(null);
+            setInput("");
+          }}
+        />
+        {deliveryOpen && deliveryStatus && (
+          <div className="absolute bottom-16 right-4 z-30 w-72 rounded-md border bg-background p-3 shadow-lg">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium">Trạng thái tin nhắn</p>
+              <button
+                type="button"
+                onClick={() => setDeliveryOpen(false)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Đóng
+              </button>
+            </div>
+
+            <div className="mb-2 text-xs text-muted-foreground">
+              Đã nhận: {deliveryStatus.deliveredCount} · Đã đọc:{" "}
+              {deliveryStatus.readCount}
+            </div>
+
+            <div className="space-y-2">
+              {deliveryStatus.deliveries.map((item) => (
+                <div
+                  key={item.deliveryId}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="truncate text-sm">{item.username}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {item.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-      <ConversationInfoPanel chatroom={currentChatroom} otherMember={otherMember} />
+      <ConversationInfoPanel
+        chatroom={currentChatroom}
+        otherMember={otherMember}
+      />
     </div>
   );
 }
