@@ -18,6 +18,7 @@ interface UseChatSignalROptions {
   onMessageEdited:     (msg: Message) => void;
   onUserTyping:        (data: { userId: string; username: string; chatroomId: string }) => void;
   onUserStoppedTyping: (data: { userId: string }) => void;
+  onMembershipChanged: (data: { chatroomId: string }) => void;
 }
 
 export function useChatSignalR({
@@ -27,6 +28,7 @@ export function useChatSignalR({
   onMessageEdited,
   onUserTyping,
   onUserStoppedTyping,
+  onMembershipChanged,
 }: UseChatSignalROptions) {
   const [isConnected, setIsConnected]   = useState(false);
   const [isMounted,   setIsMounted]     = useState(false);
@@ -39,8 +41,8 @@ export function useChatSignalR({
   const destroyedRef     = useRef(false);
 
   // Keep latest callbacks in a ref — avoids stale closures without re-registering handlers
-  const cbRef = useRef({ onReceiveMessage, onMessageDeleted, onMessageEdited, onUserTyping, onUserStoppedTyping });
-  cbRef.current = { onReceiveMessage, onMessageDeleted, onMessageEdited, onUserTyping, onUserStoppedTyping };
+  const cbRef = useRef({ onReceiveMessage, onMessageDeleted, onMessageEdited, onUserTyping, onUserStoppedTyping, onMembershipChanged });
+  cbRef.current = { onReceiveMessage, onMessageDeleted, onMessageEdited, onUserTyping, onUserStoppedTyping, onMembershipChanged };
 
   // ── Mount guard (prevents SSR import of signalR) ──────────────────────────
   useEffect(() => {
@@ -80,6 +82,9 @@ export function useChatSignalR({
       connection.on("UserTyping",        (data: any)     => cbRef.current.onUserTyping(data));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("UserStoppedTyping", (data: any)     => cbRef.current.onUserStoppedTyping(data));
+      connection.on("MembersAdded",      (data: { chatroomId: string }) => cbRef.current.onMembershipChanged(data));
+      connection.on("MemberRemoved",     (data: { chatroomId: string }) => cbRef.current.onMembershipChanged(data));
+      connection.on("MemberLeft",        (data: { chatroomId: string }) => cbRef.current.onMembershipChanged(data));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("Error",             (err: any)      => console.error("[SignalR] Server error:", err?.message));
 

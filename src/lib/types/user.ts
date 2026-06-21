@@ -11,7 +11,13 @@ export interface User {
   createdAt: string;
   lastLoginAt: string;
 }
-
+export interface UserLookup {
+  userId: string;
+  username: string;
+  fullname: string;
+  avatar: string;
+  bio: string;
+}
 export interface UpdateProfileRequest {
   fullname?: string;
   username?: string;

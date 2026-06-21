@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   MessageCircle,
   Users,
@@ -32,6 +33,15 @@ import type { ChatroomResponse } from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
 import NotificationList from "../notification/NotificationList";
 import { useSidebarRealtime } from "@/lib/hooks/useSidebarRealtime";
+import {
+  useChatroomsQuery,
+  useUnreadNotificationCountQuery,
+} from "@/lib/hooks/useServerStateQueries";
+import {
+  chatroomQueryKeys,
+  notificationQueryKeys,
+} from "@/lib/queries/queryKeys";
+import type { NotificationResponse } from "@/lib/types/notification";
 
 export type SocialView =
   | "messages"
@@ -44,6 +54,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onOpenSocialView?: (view: SocialView) => void;
   selectedChatroomId?: string;
   refreshTrigger?: number;
+  onRemovedFromGroup?: (chatroomId: string) => void;
 }
 
 type NavTab = "messages" | "friends" | "groups" | "notifications";
@@ -107,17 +118,134 @@ export function AppSidebar({
   selectedChatroomId,
   refreshTrigger: externalRefreshTrigger = 0,
   onOpenSocialView,
+  onRemovedFromGroup,
   ...props
 }: AppSidebarProps) {
   const { user, logout } = useAuth();
+  const queryClient = useQueryClient();
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [startChatOpen, setStartChatOpen] = React.useState(false);
   const [refreshTrigger, setRefreshTrigger] = React.useState(0);
   const [activeTab, setActiveTab] = React.useState<NavTab>("messages");
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [messageUnreadCount, setMessageUnreadCount] = React.useState(0);
-  const [notificationUnreadCount, setNotificationUnreadCount] =
-    React.useState(0);
+  const { data: chatrooms = [] } = useChatroomsQuery(user?.userId);
+  const { data: notificationUnreadCount = 0 } =
+    useUnreadNotificationCountQuery(user?.userId);
+  const receivedNotificationIdsRef = React.useRef(new Set<string>());
+  const previousExternalRefreshRef = React.useRef(externalRefreshTrigger);
+
+  const messageUnreadCount = React.useMemo(
+    () => chatrooms.reduce((total, room) => {
+      if (room.chatroomId === selectedChatroomId) return total;
+      return total + (room.unreadCount ?? 0);
+    }, 0),
+    [chatrooms, selectedChatroomId],
+  );
+
+  const handleNewNotification = React.useCallback(
+    (notification: NotificationResponse) => {
+      if (!user?.userId) return;
+      if (receivedNotificationIdsRef.current.has(notification.notificationId)) {
+        return;
+      }
+      receivedNotificationIdsRef.current.add(notification.notificationId);
+
+      const listKey = notificationQueryKeys.list(user.userId, 1, 20);
+      const countKey = notificationQueryKeys.unreadCount(user.userId);
+      const cachedNotifications =
+        queryClient.getQueryData<NotificationResponse[]>(listKey);
+      const alreadyCached = cachedNotifications?.some(
+        (item) => item.notificationId === notification.notificationId,
+      );
+
+      if (!notification.isRead && !alreadyCached) {
+        const cachedCount = queryClient.getQueryData<number>(
+          countKey,
+        );
+        if (typeof cachedCount === "number") {
+          queryClient.setQueryData(
+            countKey,
+            cachedCount + 1,
+          );
+        } else {
+          void queryClient.invalidateQueries({
+            queryKey: countKey,
+          });
+        }
+      }
+
+      if (cachedNotifications) {
+        queryClient.setQueryData<NotificationResponse[]>(
+          listKey,
+          [
+            notification,
+            ...cachedNotifications.filter(
+              (item) => item.notificationId !== notification.notificationId,
+            ),
+          ].slice(0, 20),
+        );
+      }
+    },
+    [queryClient, user?.userId],
+  );
+
+  const handleNotificationReconnect = React.useCallback(() => {
+    if (!user?.userId) return;
+    receivedNotificationIdsRef.current.clear();
+    void Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: notificationQueryKeys.unreadCount(user.userId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: notificationQueryKeys.list(user.userId, 1, 20),
+      }),
+    ]);
+  }, [queryClient, user?.userId]);
+
+  const handleNewMessage = React.useCallback(() => {
+    if (!user?.userId) return;
+    void queryClient.invalidateQueries({
+      queryKey: chatroomQueryKeys.list(user.userId),
+    });
+  }, [queryClient, user?.userId]);
+
+  const handleAddedToGroup = React.useCallback(
+    (chatroom: ChatroomResponse) => {
+      if (!user?.userId) return;
+      queryClient.setQueryData<ChatroomResponse[]>(
+        chatroomQueryKeys.list(user.userId),
+        (current = []) => [
+          chatroom,
+          ...current.filter((item) => item.chatroomId !== chatroom.chatroomId),
+        ],
+      );
+    },
+    [queryClient, user?.userId],
+  );
+
+  const handleRemovedFromGroup = React.useCallback(
+    (chatroomId: string) => {
+      if (!user?.userId) return;
+      queryClient.setQueryData<ChatroomResponse[]>(
+        chatroomQueryKeys.list(user.userId),
+        (current = []) => current.filter(
+          (chatroom) => chatroom.chatroomId !== chatroomId,
+        ),
+      );
+      onRemovedFromGroup?.(chatroomId);
+    },
+    [onRemovedFromGroup, queryClient, user?.userId],
+  );
+
+  React.useEffect(() => {
+    if (previousExternalRefreshRef.current === externalRefreshTrigger) return;
+    previousExternalRefreshRef.current = externalRefreshTrigger;
+    if (!user?.userId) return;
+    void queryClient.invalidateQueries({
+      queryKey: chatroomQueryKeys.list(user.userId),
+    });
+  }, [externalRefreshTrigger, queryClient, user?.userId]);
+
   const [friendView, setFriendView] = React.useState<"friends" | "requests">(
     "friends",
   );
@@ -127,9 +255,11 @@ export function AppSidebar({
 
   useSidebarRealtime({
     enabled: Boolean(user),
-    onNewMessage: () => {
-      setRefreshTrigger((prev) => prev + 1);
-    },
+    onNewMessage: handleNewMessage,
+    onNewNotification: handleNewNotification,
+    onReconnect: handleNotificationReconnect,
+    onAddedToGroup: handleAddedToGroup,
+    onRemovedFromGroup: handleRemovedFromGroup,
   });
 
   const openSocialView = (view: SocialView) => {
@@ -298,9 +428,8 @@ export function AppSidebar({
               <DirectMessageList
                 onSelectChat={onSelectChat || (() => {})}
                 selectedChatroomId={selectedChatroomId}
-                refreshTrigger={refreshTrigger + externalRefreshTrigger}
+                refreshTrigger={refreshTrigger}
                 searchQuery={searchQuery}
-                onUnreadTotalChange={setMessageUnreadCount}
               />
             )}
 
@@ -349,7 +478,6 @@ export function AppSidebar({
 
             {activeTab === "notifications" && (
               <NotificationList
-                onUnreadCountChange={setNotificationUnreadCount}
                 onOpenFriendRequests={() => {
                   setFriendView("requests");
                   setActiveTab("friends");

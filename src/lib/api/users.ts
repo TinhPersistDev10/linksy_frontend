@@ -1,5 +1,10 @@
 import apiClient from "./axios";
-import type { ChangePasswordRequest, UpdateProfileRequest, User } from "../types/user";
+import type {
+  ChangePasswordRequest,
+  UserLookup,
+  UpdateProfileRequest,
+  User,
+} from "../types/user";
 
 interface ApiEnvelope<T> {
   success: boolean;
@@ -32,13 +37,11 @@ export const usersApi = {
     const formData = new FormData();
     formData.append("avatar", file);
 
-    const res = await apiClient.post<ApiEnvelope<AvatarResponse> | AvatarResponse>(
-      "/users/avatar",
-      formData,
-      {
-        headers: { "Content-Type": "multipart/form-data" },
-      },
-    );
+    const res = await apiClient.post<
+      ApiEnvelope<AvatarResponse> | AvatarResponse
+    >("/users/avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
 
     return unwrap<AvatarResponse>(res.data);
   },
@@ -49,5 +52,12 @@ export const usersApi = {
 
   changePassword: async (data: ChangePasswordRequest): Promise<void> => {
     await apiClient.post("/auth/change-password", data);
+  },
+  searchUsers: async (query: string, limit = 20): Promise<UserLookup[]> => {
+    const keyword = query.trim();
+    const res = await apiClient.get("/users/search", {
+      params: { query: keyword, limit },
+    });
+    return res.data.data ?? [];
   },
 };

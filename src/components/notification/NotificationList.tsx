@@ -1,15 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Bell, CalendarClock, CheckCheck, Loader2, Trash2, UserPlus, UsersRound } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Bell,
+  CalendarClock,
+  CheckCheck,
+  Loader2,
+  Trash2,
+  UserPlus,
+  UsersRound,
+} from "lucide-react";
 import { notificationsApi } from "@/lib/api/notifications";
+import { useAuth } from "@/lib/hooks/useAuth";
+import {
+  useNotificationsQuery,
+  useUnreadNotificationCountQuery,
+} from "@/lib/hooks/useServerStateQueries";
+import { notificationQueryKeys } from "@/lib/queries/queryKeys";
 import type { NotificationResponse } from "@/lib/types/notification";
 
 type NotificationFilter = "all" | "unread" | "read";
 
 interface NotificationListProps {
-  onUnreadCountChange?: (count: number) => void;
   onOpenFriendRequests?: () => void;
+  onOpenGroupInvitations?: () => void;
 }
 
 function notificationBody(item: NotificationResponse) {
@@ -37,10 +52,17 @@ function formatTime(value: string) {
 
 function NotificationIcon({ item }: { item: NotificationResponse }) {
   if (item.imageUrl) {
-    return <img src={item.imageUrl} alt="" className="h-9 w-9 rounded-full object-cover" />;
+    return (
+      <img
+        src={item.imageUrl}
+        alt=""
+        className="h-9 w-9 rounded-full object-cover"
+      />
+    );
   }
 
-  const iconClass = "h-9 w-9 shrink-0 rounded-full flex items-center justify-center";
+  const iconClass =
+    "h-9 w-9 shrink-0 rounded-full flex items-center justify-center";
 
   if (item.notificationType === "friend_request") {
     return (
@@ -66,30 +88,18 @@ function NotificationIcon({ item }: { item: NotificationResponse }) {
 }
 
 export default function NotificationList({
-  onUnreadCountChange,
   onOpenFriendRequests,
 }: NotificationListProps) {
-  const [items, setItems] = useState<NotificationResponse[]>([]);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const {
+    data: items = [],
+    isLoading: loading,
+    isError,
+  } = useNotificationsQuery(user?.userId, 1, 20);
+  const { data: globalUnreadCount = 0 } =
+    useUnreadNotificationCountQuery(user?.userId);
   const [filter, setFilter] = useState<NotificationFilter>("all");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await notificationsApi.getNotifications(1, 20);
-        const notifications = Array.isArray(data) ? data : data.notifications;
-        const visibleNotifications = (notifications ?? []).filter(
-          (item) => item.notificationType !== "new_message",
-        );
-
-        setItems(visibleNotifications);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, []);
 
   const unreadCount = useMemo(
     () => items.filter((item) => !item.isRead).length,
@@ -104,48 +114,119 @@ export default function NotificationList({
     return items;
   }, [filter, items]);
 
-  useEffect(() => {
-    onUnreadCountChange?.(unreadCount);
-  }, [onUnreadCountChange, unreadCount]);
-
   const markRead = async (notificationId: string) => {
+    if (!user?.userId) return;
+    const listKey = notificationQueryKeys.list(user.userId, 1, 20);
+    const countKey = notificationQueryKeys.unreadCount(user.userId);
+    const previousItems = items;
+    const previousCount = queryClient.getQueryData<number>(
+      countKey,
+    );
+    const target = items.find((item) => item.notificationId === notificationId);
     const now = new Date().toISOString();
-    setItems((current) =>
-      current.map((item) =>
+    queryClient.setQueryData<NotificationResponse[]>(
+      listKey,
+      (current = []) => current.map((item) =>
         item.notificationId === notificationId
           ? { ...item, isRead: true, readAt: item.readAt ?? now }
           : item,
       ),
     );
 
+    if (target && !target.isRead) {
+      queryClient.setQueryData<number>(
+        countKey,
+        (current = 0) => Math.max(0, current - 1),
+      );
+    }
+
     try {
       await notificationsApi.markAsRead(notificationId);
-    } catch {
-      // Keep optimistic state; next reload will sync with backend if request failed.
+      await queryClient.invalidateQueries({ queryKey: countKey });
+    } catch (error) {
+      console.error("Failed to mark notification as read", error);
+      queryClient.setQueryData(
+        listKey,
+        previousItems,
+      );
+      queryClient.setQueryData(
+        countKey,
+        previousCount,
+      );
     }
   };
 
   const markAllRead = async () => {
-    const now = new Date().toISOString();
-    setItems((current) =>
-      current.map((item) => ({ ...item, isRead: true, readAt: item.readAt ?? now })),
+    if (!user?.userId) return;
+    const listKey = notificationQueryKeys.list(user.userId, 1, 20);
+    const countKey = notificationQueryKeys.unreadCount(user.userId);
+    const previousItems = items;
+    const previousCount = queryClient.getQueryData<number>(
+      countKey,
     );
+    const now = new Date().toISOString();
+    queryClient.setQueryData<NotificationResponse[]>(
+      listKey,
+      (current = []) => current.map((item) => ({
+          ...item,
+          isRead: true,
+          readAt: item.readAt ?? now,
+        })),
+    );
+    queryClient.setQueryData(countKey, 0);
 
     try {
       await notificationsApi.markAllAsRead();
-    } catch {
-      // Keep optimistic state; next reload will sync with backend if request failed.
+      await queryClient.invalidateQueries({ queryKey: countKey });
+    } catch (error) {
+      console.error("Failed to mark all notifications as read:", error);
+      queryClient.setQueryData(
+        listKey,
+        previousItems,
+      );
+      queryClient.setQueryData(
+        countKey,
+        previousCount,
+      );
     }
   };
 
   const deleteNotification = async (notificationId: string) => {
-    const previous = items;
-    setItems((current) => current.filter((item) => item.notificationId !== notificationId));
+    if (!user?.userId) return;
+    const listKey = notificationQueryKeys.list(user.userId, 1, 20);
+    const countKey = notificationQueryKeys.unreadCount(user.userId);
+    const previousItems = items;
+    const previousCount = queryClient.getQueryData<number>(
+      countKey,
+    );
+    const target = items.find((item) => item.notificationId === notificationId);
+    queryClient.setQueryData<NotificationResponse[]>(
+      listKey,
+      (current = []) => current.filter(
+        (item) => item.notificationId !== notificationId,
+      ),
+    );
+
+    if (target && !target.isRead) {
+      queryClient.setQueryData<number>(
+        countKey,
+        (current = 0) => Math.max(0, current - 1),
+      );
+    }
 
     try {
       await notificationsApi.deleteNotification(notificationId);
-    } catch {
-      setItems(previous);
+      await queryClient.invalidateQueries({ queryKey: countKey });
+    } catch (error) {
+      console.error("Failed to delete notification:", error);
+      queryClient.setQueryData(
+        listKey,
+        previousItems,
+      );
+      queryClient.setQueryData(
+        countKey,
+        previousCount,
+      );
     }
   };
 
@@ -165,6 +246,14 @@ export default function NotificationList({
     );
   }
 
+  if (isError) {
+    return (
+      <div className="px-3 py-8 text-center text-xs text-red-500">
+        KhÃ´ng thá»ƒ táº£i thÃ´ng bÃ¡o.
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 gap-2 text-center px-2">
@@ -174,7 +263,11 @@ export default function NotificationList({
     );
   }
 
-  const filterItems: { id: NotificationFilter; label: string; count: number }[] = [
+  const filterItems: {
+    id: NotificationFilter;
+    label: string;
+    count: number;
+  }[] = [
     { id: "all", label: "Tất cả", count: items.length },
     { id: "unread", label: "Chưa đọc", count: unreadCount },
     { id: "read", label: "Đã đọc", count: readCount },
@@ -186,7 +279,7 @@ export default function NotificationList({
         <p className="text-xs font-semibold text-sidebar-foreground/80">
           {items.length} thông báo
         </p>
-        {unreadCount > 0 && (
+        {globalUnreadCount > 0 && (
           <button
             type="button"
             onClick={markAllRead}
@@ -233,7 +326,9 @@ export default function NotificationList({
               type="button"
               onClick={() => handleOpenNotification(item)}
               className={`group w-full rounded-xl border px-3 py-3 text-left transition hover:border-sky-100 hover:bg-sky-50/70 ${
-                item.isRead ? "border-transparent bg-white opacity-80" : "border-sky-100 bg-sky-50/40"
+                item.isRead
+                  ? "border-transparent bg-white opacity-80"
+                  : "border-sky-100 bg-sky-50/40"
               }`}
             >
               <div className="flex gap-3">
@@ -261,9 +356,13 @@ export default function NotificationList({
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                     <CalendarClock size={12} />
                     <span>{item.isRead ? "Đã đọc" : "Chưa đọc"}</span>
-                    {clickable && <span className="text-sky-600">Mở lời mời</span>}
+                    {clickable && (
+                      <span className="text-sky-600">Mở lời mời</span>
+                    )}
                     {!item.isRead && (
-                      <span className="text-sky-600">Click để đánh dấu đã đọc</span>
+                      <span className="text-sky-600">
+                        Click để đánh dấu đã đọc
+                      </span>
                     )}
                   </div>
                 </div>

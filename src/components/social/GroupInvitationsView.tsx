@@ -3,10 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ClipboardList, Loader2, ShieldBan, UsersRound } from "lucide-react";
 import { blockedUsersApi } from "@/lib/api/blocked-users";
-import {
-  groupInvitationsApi,
-  type GroupInvitationResponse,
-} from "@/lib/api/group-invitations";
+import { groupInvitationsApi } from "@/lib/api/group-invitations";
+import type { GroupInvitationResponse } from "@/lib/types/group-intivitation";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "";
