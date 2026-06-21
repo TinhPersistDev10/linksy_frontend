@@ -1,5 +1,14 @@
 // src/components/chat/window/MessageItem.tsx
-import { Check, CheckCheck, Eye, Trash2 } from "lucide-react";
+import {
+  Check,
+  CheckCheck,
+  Copy,
+  Eye,
+  MoreHorizontal,
+  Pencil,
+  Reply,
+  Trash2,
+} from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import ChatAvatar from "./ChatAvatar";
 import {
@@ -8,6 +17,13 @@ import {
   isSameDay,
 } from "@/lib/utils/chatFormatters";
 import type { MessageResponse } from "@/lib/types/message";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 interface MessageItemProps {
   msg: MessageResponse;
@@ -15,11 +31,22 @@ interface MessageItemProps {
   nextMsg?: MessageResponse;
   currentUserId: string;
   onDelete: (messageId: string) => void;
+  onReply: (message: MessageResponse) => void;
+  onEdit: (message: MessageResponse) => void;
   onShowDelivery?: (messageId: string) => void;
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
   if (isTemp) return "Đang gửi";
+
+  if (msg.recipientCount > 1) {
+    if (msg.readCount > 0) {
+      return "Đã xem " + msg.readCount + "/" + msg.recipientCount;
+    }
+    if (msg.deliveredCount > 0) {
+      return "Đã nhận " + msg.deliveredCount + "/" + msg.recipientCount;
+    }
+  }
 
   switch (msg.deliveryStatus) {
     case "read":
@@ -44,6 +71,8 @@ export default function MessageItem({
   nextMsg,
   currentUserId,
   onDelete,
+  onReply,
+  onEdit,
   onShowDelivery,
 }: MessageItemProps) {
   const isOwn = msg.isOwn || msg.senderId === currentUserId;
@@ -74,6 +103,12 @@ export default function MessageItem({
   const isGrouped = !showDateDivider && prevMsg?.senderId === msg.senderId;
   const showAvatar = !isOwn && (!nextMsg || nextMsg.senderId !== msg.senderId);
   const deliveryLabel = getDeliveryLabel(msg, isTemp);
+  const deliveryIconStatus =
+    msg.readCount > 0
+      ? "read"
+      : msg.deliveredCount > 0
+        ? "delivered"
+        : msg.deliveryStatus;
 
   return (
     <div data-msg-id={msg.messageId}>
@@ -121,16 +156,102 @@ export default function MessageItem({
                 isTemp && "opacity-60",
               )}
             >
-              {msg.messageText}
-
-              {isOwn && !msg.isDeleted && !isTemp && (
-                <button
-                  type="button"
-                  onClick={() => onDelete(msg.messageId)}
-                  className="absolute -left-7 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-muted text-muted-foreground opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 group-hover/message:opacity-100"
+              {msg.parentMessage && (
+                <div
+                  className={cn(
+                    "mb-1.5 rounded-md border-l-2 px-2 py-1 text-xs",
+                    isOwn
+                      ? "border-white/70 bg-white/10"
+                      : "border-sky-500 bg-background/70",
+                  )}
                 >
-                  <Trash2 size={11} />
-                </button>
+                  <p className="truncate font-medium">
+                    {msg.parentMessage.senderFullname}
+                  </p>
+
+                  <p className="line-clamp-1 opacity-80">
+                    {msg.parentMessage.messageText}
+                  </p>
+                </div>
+              )}
+
+              <span>{msg.messageText}</span>
+              {!isTemp && !msg.isDeleted && (
+                <div
+                  className={cn(
+                    "absolute top-1/2 z-10 -translate-y-1/2",
+                    isOwn ? "right-full mr-1" : "left-full ml-1",
+                  )}
+                >
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        title="Tùy chọn tin nhắn"
+                        aria-label="Tùy chọn tin nhắn"
+                        className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded-full",
+                          "bg-background text-muted-foreground shadow-sm",
+                          "opacity-0 transition-opacity",
+                          "hover:bg-muted hover:text-foreground",
+                          "focus-visible:opacity-100 focus-visible:outline-none",
+                          "group-hover/message:opacity-100",
+                          "data-[state=open]:opacity-100",
+                        )}
+                      >
+                        <MoreHorizontal size={15} />
+                      </button>
+                    </DropdownMenuTrigger>
+
+                    <DropdownMenuContent
+                      side={isOwn ? "left" : "right"}
+                      align="center"
+                      className="w-44"
+                    >
+                      <DropdownMenuItem onSelect={() => onReply(msg)}>
+                        <Reply />
+                        Trả lời
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          void navigator.clipboard.writeText(msg.messageText);
+                        }}
+                      >
+                        <Copy />
+                        Sao chép
+                      </DropdownMenuItem>
+
+                      {isOwn && (
+                        <>
+                          <DropdownMenuItem onSelect={() => onEdit(msg)}>
+                            <Pencil />
+                            Chỉnh sửa
+                          </DropdownMenuItem>
+
+                          {onShowDelivery && (
+                            <DropdownMenuItem
+                              onSelect={() => onShowDelivery(msg.messageId)}
+                            >
+                              <Eye />
+                              Xem trạng thái
+                            </DropdownMenuItem>
+                          )}
+
+                          <DropdownMenuSeparator />
+
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onSelect={() => onDelete(msg.messageId)}
+                          >
+                            <Trash2 />
+                            Xóa tin nhắn
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               )}
             </div>
 
@@ -144,7 +265,7 @@ export default function MessageItem({
               {msg.isEdited && <span>· đã chỉnh sửa</span>}
               {isOwn && (
                 <span className="inline-flex items-center gap-1 pl-2">
-                  <DeliveryIcon status={msg.deliveryStatus} />
+                  <DeliveryIcon status={deliveryIconStatus} />
                   {deliveryLabel}
                 </span>
               )}
