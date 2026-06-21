@@ -121,6 +121,7 @@ export default function MessageList({
   useEffect(() => {
     messages.forEach((msg) => {
       if (
+        msg.messageType === "system" ||
         msg.senderId === currentUserId ||
         msg.messageId.startsWith("temp-") ||
         deliveredRef.current.has(msg.messageId)

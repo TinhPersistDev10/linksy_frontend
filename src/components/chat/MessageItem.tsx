@@ -79,6 +79,27 @@ export default function MessageItem({
   const isTemp = msg.messageId.startsWith("temp-");
 
   const showDateDivider = !prevMsg || !isSameDay(prevMsg.sentAt, msg.sentAt);
+  if (msg.messageType === "system") {
+    return (
+      <div data-msg-id={msg.messageId}>
+        {showDateDivider && (
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="px-2 text-xs text-muted-foreground">
+              {formatDateDivider(msg.sentAt)}
+            </span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        )}
+        <div className="my-3 flex justify-center px-4">
+          <span className="rounded-full bg-muted px-3 py-1 text-center text-xs text-muted-foreground">
+            {msg.messageText}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   const isGrouped = !showDateDivider && prevMsg?.senderId === msg.senderId;
   const showAvatar = !isOwn && (!nextMsg || nextMsg.senderId !== msg.senderId);
   const deliveryLabel = getDeliveryLabel(msg, isTemp);

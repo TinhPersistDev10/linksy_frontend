@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Send } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ChatroomResponse } from "@/lib/types/chatroom";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useChatSignalR } from "@/lib/hooks/useChatSignalR";
@@ -14,6 +15,8 @@ import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import ConversationInfoPanel from "./ConversationInfoPanel";
 import { messagesApi } from "@/lib/api/messages";
+import { chatroomsApi } from "@/lib/api/chatrooms";
+import { chatroomQueryKeys } from "@/lib/queries/queryKeys";
 import type {
   MessageDeliveryStatusResponse,
   MessageResponse,
@@ -33,18 +36,17 @@ export default function ChatWindowLayout({
   onChatroomUpdated,
 }: ChatWindowLayoutProps) {
   const { user } = useAuth();
-  const [activeChatroom, setActiveChatroom] = useState<ChatroomResponse | null>(
-    chatroom,
-  );
+  const queryClient = useQueryClient();
+  const [activeChatroom, setActiveChatroom] = useState<ChatroomResponse | null>(chatroom);
 
   useEffect(() => {
     setActiveChatroom(chatroom);
   }, [chatroom]);
 
-  const handleChatroomChange = (updatedChatroom: ChatroomResponse) => {
+  const handleChatroomChange = useCallback((updatedChatroom: ChatroomResponse) => {
     setActiveChatroom(updatedChatroom);
     onChatroomUpdated?.(updatedChatroom);
-  };
+  }, [onChatroomUpdated]);
 
   const currentChatroom = activeChatroom ?? chatroom;
   const chatroomId = currentChatroom?.chatroomId;
@@ -56,6 +58,7 @@ export default function ChatWindowLayout({
   const scrollToBottomRef = useRef<(() => void) | null>(null);
   const nearBottomRef = useRef(true);
   const markReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onReadChatroomRef = useRef(onReadChatroom);
   const [replyTo, setReplyTo] = useState<MessageResponse | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessageResponse | null>(
     null,
@@ -70,6 +73,11 @@ export default function ChatWindowLayout({
   const [deliveryStatus, setDeliveryStatus] =
     useState<MessageDeliveryStatusResponse | null>(null);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
+
+  useEffect(() => {
+    onReadChatroomRef.current = onReadChatroom;
+  }, [onReadChatroom]);
+
   const [composerSubmitting, setComposerSubmitting] = useState(false);
   const onUserTyping = useCallback(
     ({
@@ -114,6 +122,20 @@ export default function ChatWindowLayout({
     replaceOptimistic,
     removeOptimistic,
   } = useMessages(chatroomId);
+  const markChatroomReadInCache = useCallback(() => {
+    if (!chatroomId || !user?.userId) return;
+
+    queryClient.setQueryData<ChatroomResponse[]>(
+      chatroomQueryKeys.list(user.userId),
+      (current = []) =>
+        current.map((room) =>
+          room.chatroomId === chatroomId
+            ? { ...room, unreadCount: 0 }
+            : room,
+        ),
+    );
+  }, [chatroomId, queryClient, user?.userId]);
+
   const scheduleMarkCurrentChatAsRead = useCallback(() => {
     if (!chatroomId) return;
 
@@ -125,13 +147,14 @@ export default function ChatWindowLayout({
       messagesApi
         .markAllRead(chatroomId)
         .then(() => {
-          onReadChatroom?.();
+          markChatroomReadInCache();
+          onReadChatroomRef.current?.();
         })
         .catch((error) => {
           console.error("Mark all read failed:", error);
         });
     }, 300);
-  }, [chatroomId, onReadChatroom]);
+  }, [chatroomId, markChatroomReadInCache]);
   const handleReceiveMessage = useCallback(
     (msg: MessageResponse) => {
       if (!user?.userId) {
@@ -158,6 +181,31 @@ export default function ChatWindowLayout({
     [receiveMessage, user?.userId, chatroomId, scheduleMarkCurrentChatAsRead],
   );
 
+  const handleMembershipChanged = useCallback(
+    async ({ chatroomId: changedChatroomId }: { chatroomId: string }) => {
+      if (!chatroomId || changedChatroomId !== chatroomId) return;
+
+      try {
+        const updatedChatroom = await chatroomsApi.getChatroom(chatroomId);
+        handleChatroomChange(updatedChatroom);
+
+        if (user?.userId) {
+          queryClient.setQueryData<ChatroomResponse[]>(
+            chatroomQueryKeys.list(user.userId),
+            (current = []) => current.map((item) =>
+              item.chatroomId === updatedChatroom.chatroomId
+                ? updatedChatroom
+                : item,
+            ),
+          );
+        }
+      } catch (error) {
+        console.error("Failed to refresh group membership:", error);
+      }
+    },
+    [chatroomId, handleChatroomChange, queryClient, user?.userId],
+  );
+
   // ── SignalR ───────────────────────────────────────────────────────────────
   const {
     isConnected,
@@ -177,6 +225,7 @@ export default function ChatWindowLayout({
     onAllMessagesRead,
     onUserTyping,
     onUserStoppedTyping,
+    onMembershipChanged: handleMembershipChanged,
   });
 
   // ── Send + typing ─────────────────────────────────────────────────────────
@@ -305,14 +354,19 @@ export default function ChatWindowLayout({
     messagesApi
       .markAllRead(chatroomId)
       .then(() => {
-        onReadChatroom?.();
+        markChatroomReadInCache();
+        onReadChatroomRef.current?.();
       })
       .catch((error) => {
         console.error("Mark all read failed:", error);
       });
 
     loadInitial();
-  }, [chatroomId, currentChatroom?.lastMessage?.messageId]);
+  }, [
+    chatroomId,
+    loadInitial,
+    markChatroomReadInCache,
+  ]);
   useEffect(() => {
     return () => {
       if (markReadTimerRef.current) {
@@ -481,6 +535,8 @@ export default function ChatWindowLayout({
       <ConversationInfoPanel
         chatroom={currentChatroom}
         otherMember={otherMember}
+        onChatroomChange={handleChatroomChange}
+        onLeaveChatroom={onBack}
       />
     </div>
   );

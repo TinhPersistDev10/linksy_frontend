@@ -1,6 +1,9 @@
 import apiClient from "./axios";
 import type { ApiResponse } from "../types/common";
-import type { GetNotificationsData, NotificationResponse } from "../types/notification";
+import type {
+  GetNotificationsData,
+  NotificationResponse,
+} from "../types/notification";
 
 export const notificationsApi = {
   getNotifications: async (
@@ -30,5 +33,16 @@ export const notificationsApi = {
 
   deleteAllNotifications: async (): Promise<void> => {
     await apiClient.delete("/notifications");
+  },
+  getUnreadCount: async (): Promise<number> => {
+    const res =
+      await apiClient.get<ApiResponse<{ unreadCount: number }>>("/notifications/unread-count");
+    const unreadCount = Number(res.data.data?.unreadCount);
+
+    if (!Number.isFinite(unreadCount) || unreadCount < 0) {
+      throw new Error("Invalid unread notification count response");
+    }
+
+    return unreadCount;
   },
 };

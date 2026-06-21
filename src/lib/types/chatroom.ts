@@ -58,5 +58,5 @@ export type ChatroomMember = ChatroomMemberResponse;
 export type Message = MessageResponse;
 
 export type { ChatroomMemberResponse, ChatroomMemberDetailResponse, MemberInfoResponse } from "./chatroom-member";
-export type { Friend, FriendRequest, SearchUserResult } from "./friend";
+export type { Friend, FriendRequest, SearchUserResult as SearchUserResult } from "./friend";
 

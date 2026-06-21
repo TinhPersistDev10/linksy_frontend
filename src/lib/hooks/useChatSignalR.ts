@@ -32,6 +32,7 @@ interface UseChatSignalROptions {
     chatroomId: string;
   }) => void;
   onUserStoppedTyping: (data: { userId: string }) => void;
+  onMembershipChanged: (data: { chatroomId: string }) => void;
 }
 
 export function useChatSignalR({
@@ -44,6 +45,7 @@ export function useChatSignalR({
   onAllMessagesRead,
   onUserTyping,
   onUserStoppedTyping,
+  onMembershipChanged,
 }: UseChatSignalROptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -65,6 +67,7 @@ export function useChatSignalR({
     onAllMessagesRead,
     onUserTyping,
     onUserStoppedTyping,
+    onMembershipChanged,
   });
   cbRef.current = {
     onReceiveMessage,
@@ -75,6 +78,7 @@ export function useChatSignalR({
     onAllMessagesRead,
     onUserTyping,
     onUserStoppedTyping,
+    onMembershipChanged,
   };
 
   // ── Mount guard (prevents SSR import of signalR) ──────────────────────────
@@ -135,6 +139,17 @@ export function useChatSignalR({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("UserStoppedTyping", (data: any) =>
         cbRef.current.onUserStoppedTyping(data),
+      );
+      connection.on("MembersAdded", (data: { chatroomId: string }) =>
+        cbRef.current.onMembershipChanged(data),
+      );
+
+      connection.on("MemberRemoved", (data: { chatroomId: string }) =>
+        cbRef.current.onMembershipChanged(data),
+      );
+
+      connection.on("MemberLeft", (data: { chatroomId: string }) =>
+        cbRef.current.onMembershipChanged(data),
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("Error", (err: any) =>

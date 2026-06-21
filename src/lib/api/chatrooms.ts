@@ -1,6 +1,6 @@
 // src/lib/api/chatrooms.ts
 import apiClient from './axios';
-import type { ChatroomResponse, CreateGroupChatroomRequest } from '../types/chatroom';
+import type { ChatroomResponse, CreateGroupChatroomRequest, UpdateChatroomRequest } from '../types/chatroom';
 import { MessageResponse, SendMessageRequest } from '../types/message';
 
 interface AvatarResponse {
@@ -81,6 +81,22 @@ export const chatroomsApi = {
 
   leaveChatroom: async (chatroomId: string): Promise<void> => {
     await apiClient.post(`/chatrooms/${chatroomId}/leave`);
+  },
+
+  updateChatroom: async (
+    chatroomId: string,
+    data: UpdateChatroomRequest,
+  ): Promise<ChatroomResponse> => {
+    const res = await apiClient.put(`/chatrooms/${chatroomId}`, data);
+    return res.data.chatroom ?? res.data;
+  },
+
+  addMembers: async (chatroomId: string, memberIds: string[]): Promise<void> => {
+    await apiClient.post(`/chatrooms/${chatroomId}/members`, { memberIds });
+  },
+
+  removeMember: async (chatroomId: string, userId: string): Promise<void> => {
+    await apiClient.delete(`/chatrooms/${chatroomId}/members/${userId}`);
   },
 
   updateGroupAvatar: async (chatroomId: string, file: File): Promise<AvatarResponse> => {

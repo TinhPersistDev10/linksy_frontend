@@ -38,6 +38,11 @@ export default function Page() {
         onSelectChat={openChatroom}
         selectedChatroomId={selectedChatroom?.chatroomId}
         refreshTrigger={sidebarRefresh}
+        onRemovedFromGroup={(chatroomId) => {
+          if (selectedChatroom?.chatroomId === chatroomId) {
+            setSelectedChatroom(null);
+          }
+        }}
         onOpenSocialView={(view) => {
           setSocialView(view);
           if (view !== "messages") {

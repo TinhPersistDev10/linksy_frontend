@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
   Ban,
@@ -17,6 +18,8 @@ import { blockedUsersApi } from "@/lib/api/blocked-users";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import { messagesApi } from "@/lib/api/messages";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { useChatroomsQuery } from "@/lib/hooks/useServerStateQueries";
+import { chatroomQueryKeys } from "@/lib/queries/queryKeys";
 import type { ChatroomMemberResponse, ChatroomResponse } from "@/lib/types/chatroom";
 import { getApiOrigin } from "@/lib/utils/apiUrl";
 import { cn } from "@/lib/utils/cn";
@@ -26,7 +29,6 @@ interface DirectMessageListProps {
   selectedChatroomId?: string;
   refreshTrigger?: number;
   searchQuery?: string;
-  onUnreadTotalChange?: (count: number) => void;
 }
 
 function Avatar({ src, name, size = 8 }: { src?: string | null; name: string; size?: number }) {
@@ -97,6 +99,7 @@ function getAvatar(chatroom: ChatroomResponse, otherMember: ChatroomMemberRespon
 
 function getLastMessagePreview(chatroom: ChatroomResponse, currentUserId?: string) {
   const lastMsg = chatroom.lastMessage;
+  if (lastMsg?.messageType === "system") return lastMsg.messageText;
   if (!lastMsg) return "Bắt đầu cuộc trò chuyện";
   if (lastMsg.isDeleted) return "Tin nhắn đã bị xóa";
 
@@ -111,39 +114,25 @@ export default function DirectMessageList({
   selectedChatroomId,
   refreshTrigger,
   searchQuery = "",
-  onUnreadTotalChange,
 }: DirectMessageListProps) {
   const { user } = useAuth();
-  const [chatrooms, setChatrooms] = useState<ChatroomResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: chatrooms = [], isLoading: loading } =
+    useChatroomsQuery(user?.userId);
+  const chatroomListKey = useMemo(
+    () => chatroomQueryKeys.list(user?.userId ?? "anonymous"),
+    [user?.userId],
+  );
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const previousRefreshTrigger = useRef(refreshTrigger);
 
   useEffect(() => {
-    loadChatrooms();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshTrigger]);
-
-  const loadChatrooms = async () => {
-    try {
-      if (chatrooms.length === 0) setLoading(true);
-      const data = await chatroomsApi.getChatrooms();
-      setChatrooms(data.filter((chatroom) => chatroom.isActive !== false));
-    } catch (error) {
-      console.error("Error loading chatrooms:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const total = chatrooms.reduce((sum, chatroom) => {
-      if (chatroom.chatroomId === selectedChatroomId) return sum;
-      return sum + (chatroom.unreadCount ?? 0);
-    }, 0);
-
-    onUnreadTotalChange?.(total);
-  }, [chatrooms, selectedChatroomId, onUnreadTotalChange]);
+    if (previousRefreshTrigger.current === refreshTrigger) return;
+    previousRefreshTrigger.current = refreshTrigger;
+    if (!user?.userId) return;
+    void queryClient.invalidateQueries({ queryKey: chatroomListKey });
+  }, [chatroomListKey, queryClient, refreshTrigger, user?.userId]);
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return chatrooms;
@@ -179,8 +168,11 @@ export default function DirectMessageList({
   const handleMarkRead = async (chatroomId: string) => {
     await runAction(`read-${chatroomId}`, async () => {
       await messagesApi.markAllRead(chatroomId);
-      setChatrooms((prev) =>
-        prev.map((item) => (item.chatroomId === chatroomId ? { ...item, unreadCount: 0 } : item)),
+      queryClient.setQueryData<ChatroomResponse[]>(
+        chatroomListKey,
+        (current = []) => current.map((item) =>
+          item.chatroomId === chatroomId ? { ...item, unreadCount: 0 } : item,
+        ),
       );
     });
   };
@@ -188,7 +180,10 @@ export default function DirectMessageList({
   const handleArchive = async (chatroomId: string) => {
     await runAction(`archive-${chatroomId}`, async () => {
       await chatroomsApi.archiveChatroom(chatroomId, true);
-      setChatrooms((prev) => prev.filter((item) => item.chatroomId !== chatroomId));
+      queryClient.setQueryData<ChatroomResponse[]>(
+        chatroomListKey,
+        (current = []) => current.filter((item) => item.chatroomId !== chatroomId),
+      );
     });
   };
 
@@ -197,7 +192,10 @@ export default function DirectMessageList({
 
     await runAction(`leave-${chatroomId}`, async () => {
       await chatroomsApi.leaveChatroom(chatroomId);
-      setChatrooms((prev) => prev.filter((item) => item.chatroomId !== chatroomId));
+      queryClient.setQueryData<ChatroomResponse[]>(
+        chatroomListKey,
+        (current = []) => current.filter((item) => item.chatroomId !== chatroomId),
+      );
     });
   };
 
@@ -208,7 +206,12 @@ export default function DirectMessageList({
 
     await runAction(`block-${chatroom.chatroomId}`, async () => {
       await blockedUsersApi.blockUser(other.userId);
-      setChatrooms((prev) => prev.filter((item) => item.chatroomId !== chatroom.chatroomId));
+      queryClient.setQueryData<ChatroomResponse[]>(
+        chatroomListKey,
+        (current = []) => current.filter(
+          (item) => item.chatroomId !== chatroom.chatroomId,
+        ),
+      );
     });
   };
 
