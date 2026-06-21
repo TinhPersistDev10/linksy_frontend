@@ -26,6 +26,10 @@ export default function MessageInput({
   editingMessage,
   onCancelMode,
 }: MessageInputProps) {
+  const showUnderDevelopment = () => {
+    window.alert("Chức năng hiện đang phát triển");
+  };
+
   return (
     <div className="shrink-0 border-t bg-background px-4 py-3">
       {(replyTo || editingMessage) && (
@@ -55,6 +59,8 @@ export default function MessageInput({
 
       <div className="flex items-center gap-2 rounded-2xl border bg-muted/50 px-3 py-2">
         <Button
+          type="button"
+          onClick={showUnderDevelopment}
           variant="ghost"
           size="icon"
           className="mb-0.5 p-1 text-muted-foreground transition-colors hover:text-foreground"
@@ -79,6 +85,8 @@ export default function MessageInput({
         />
 
         <Button
+          type="button"
+          onClick={showUnderDevelopment}
           variant="ghost"
           size="icon"
           className="mb-0.5 h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
