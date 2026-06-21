@@ -40,6 +40,9 @@ export default function ChatHeader({
   onBack,
 }: ChatHeaderProps) {
   const [profileOpen, setProfileOpen] = useState(false);
+  const showUnderDevelopment = () => {
+    window.alert("Chức năng hiện đang phát triển");
+  };
   const isGroup = chatroom.roomType === "group";
   const displayName = isGroup
     ? chatroom.roomName || "Nhóm chưa đặt tên"
@@ -92,6 +95,7 @@ export default function ChatHeader({
             <button
               key={index}
               type="button"
+              onClick={showUnderDevelopment}
               className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent"
             >
               <Icon size={16} />
