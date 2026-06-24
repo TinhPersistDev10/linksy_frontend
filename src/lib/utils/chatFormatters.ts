@@ -1,30 +1,30 @@
-// src/components/chat/utils/chatFormatters.ts
+import {
+  formatDateKey,
+  formatLongDate,
+  formatTime,
+  isToday,
+  isYesterday,
+} from "./datetime";
 
 export function formatMessageTime(dateStr: string): string {
-  if (!dateStr) return "";
-  return new Date(dateStr).toLocaleTimeString("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatTime(dateStr);
 }
 
 export function isSameDay(a: string, b: string): boolean {
-  return new Date(a).toDateString() === new Date(b).toDateString();
+  return formatDateKey(a) === formatDateKey(b);
 }
 
 export function formatDateDivider(dateStr: string): string {
-  const date = new Date(dateStr);
-  const diffDays = Math.floor((Date.now() - date.getTime()) / 86_400_000);
-  if (diffDays === 0) return "Hôm nay";
-  if (diffDays === 1) return "Hôm qua";
-  return date.toLocaleDateString("vi-VN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  if (isToday(dateStr)) return "Hôm nay";
+  if (isYesterday(dateStr)) return "Hôm qua";
+
+  return formatLongDate(dateStr);
 }
 
-export function buildAvatarUrl(src: string | undefined, baseUrl: string): string | undefined {
+export function buildAvatarUrl(
+  src: string | undefined,
+  baseUrl: string,
+): string | undefined {
   if (!src?.trim()) return undefined;
   return src.startsWith("http") ? src : `${baseUrl}${src}`;
 }
