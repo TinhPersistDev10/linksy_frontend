@@ -20,9 +20,13 @@ import { messagesApi } from "@/lib/api/messages";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useChatroomsQuery } from "@/lib/hooks/useServerStateQueries";
 import { chatroomQueryKeys } from "@/lib/queries/queryKeys";
-import type { ChatroomMemberResponse, ChatroomResponse } from "@/lib/types/chatroom";
+import type {
+  ChatroomMemberResponse,
+  ChatroomResponse,
+} from "@/lib/types/chatroom";
 import { getApiOrigin } from "@/lib/utils/apiUrl";
 import { cn } from "@/lib/utils/cn";
+import { formatConversationTime } from "@/lib/utils/datetime";
 
 interface DirectMessageListProps {
   onSelectChat: (chatroom: ChatroomResponse) => void;
@@ -31,7 +35,15 @@ interface DirectMessageListProps {
   searchQuery?: string;
 }
 
-function Avatar({ src, name, size = 8 }: { src?: string | null; name: string; size?: number }) {
+function Avatar({
+  src,
+  name,
+  size = 8,
+}: {
+  src?: string | null;
+  name: string;
+  size?: number;
+}) {
   const initials =
     name
       ?.split(" ")
@@ -41,7 +53,11 @@ function Avatar({ src, name, size = 8 }: { src?: string | null; name: string; si
       .toUpperCase()
       .slice(0, 2) || "?";
   const BASE_URL = getApiOrigin();
-  const avatarSrc = src ? (src.startsWith("http") ? src : `${BASE_URL}${src}`) : undefined;
+  const avatarSrc = src
+    ? src.startsWith("http")
+      ? src
+      : `${BASE_URL}${src}`
+    : undefined;
 
   return (
     <div
@@ -65,21 +81,6 @@ function Avatar({ src, name, size = 8 }: { src?: string | null; name: string; si
     </div>
   );
 }
-
-function formatTime(dateStr: string): string {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) {
-    return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-  }
-  if (days === 1) return "Hôm qua";
-  if (days < 7) return date.toLocaleDateString("vi-VN", { weekday: "short" });
-  return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
-}
-
 function isGroupChat(chatroom: ChatroomResponse) {
   return chatroom.roomType === "group";
 }
@@ -88,16 +89,25 @@ function getOtherMember(chatroom: ChatroomResponse, currentUserId?: string) {
   return chatroom.members?.find((member) => member.userId !== currentUserId);
 }
 
-function getDisplayName(chatroom: ChatroomResponse, otherMember: ChatroomMemberResponse | undefined) {
+function getDisplayName(
+  chatroom: ChatroomResponse,
+  otherMember: ChatroomMemberResponse | undefined,
+) {
   if (isGroupChat(chatroom)) return chatroom.roomName || "Nhóm chưa đặt tên";
   return otherMember?.fullname || chatroom.roomName || "Chưa đặt tên";
 }
 
-function getAvatar(chatroom: ChatroomResponse, otherMember: ChatroomMemberResponse | undefined) {
+function getAvatar(
+  chatroom: ChatroomResponse,
+  otherMember: ChatroomMemberResponse | undefined,
+) {
   return isGroupChat(chatroom) ? chatroom.avatar : otherMember?.avatar;
 }
 
-function getLastMessagePreview(chatroom: ChatroomResponse, currentUserId?: string) {
+function getLastMessagePreview(
+  chatroom: ChatroomResponse,
+  currentUserId?: string,
+) {
   const lastMsg = chatroom.lastMessage;
   if (lastMsg?.messageType === "system") return lastMsg.messageText;
   if (!lastMsg) return "Bắt đầu cuộc trò chuyện";
@@ -105,7 +115,8 @@ function getLastMessagePreview(chatroom: ChatroomResponse, currentUserId?: strin
 
   const text = lastMsg.messageText || "Tin nhắn";
   if (lastMsg.senderId === currentUserId) return `Bạn: ${text}`;
-  if (isGroupChat(chatroom)) return `${lastMsg.senderFullname || lastMsg.senderUsername}: ${text}`;
+  if (isGroupChat(chatroom))
+    return `${lastMsg.senderFullname || lastMsg.senderUsername}: ${text}`;
   return text;
 }
 
@@ -117,8 +128,9 @@ export default function DirectMessageList({
 }: DirectMessageListProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { data: chatrooms = [], isLoading: loading } =
-    useChatroomsQuery(user?.userId);
+  const { data: chatrooms = [], isLoading: loading } = useChatroomsQuery(
+    user?.userId,
+  );
   const chatroomListKey = useMemo(
     () => chatroomQueryKeys.list(user?.userId ?? "anonymous"),
     [user?.userId],
@@ -170,9 +182,10 @@ export default function DirectMessageList({
       await messagesApi.markAllRead(chatroomId);
       queryClient.setQueryData<ChatroomResponse[]>(
         chatroomListKey,
-        (current = []) => current.map((item) =>
-          item.chatroomId === chatroomId ? { ...item, unreadCount: 0 } : item,
-        ),
+        (current = []) =>
+          current.map((item) =>
+            item.chatroomId === chatroomId ? { ...item, unreadCount: 0 } : item,
+          ),
       );
     });
   };
@@ -182,7 +195,8 @@ export default function DirectMessageList({
       await chatroomsApi.archiveChatroom(chatroomId, true);
       queryClient.setQueryData<ChatroomResponse[]>(
         chatroomListKey,
-        (current = []) => current.filter((item) => item.chatroomId !== chatroomId),
+        (current = []) =>
+          current.filter((item) => item.chatroomId !== chatroomId),
       );
     });
   };
@@ -194,7 +208,8 @@ export default function DirectMessageList({
       await chatroomsApi.leaveChatroom(chatroomId);
       queryClient.setQueryData<ChatroomResponse[]>(
         chatroomListKey,
-        (current = []) => current.filter((item) => item.chatroomId !== chatroomId),
+        (current = []) =>
+          current.filter((item) => item.chatroomId !== chatroomId),
       );
     });
   };
@@ -208,9 +223,8 @@ export default function DirectMessageList({
       await blockedUsersApi.blockUser(other.userId);
       queryClient.setQueryData<ChatroomResponse[]>(
         chatroomListKey,
-        (current = []) => current.filter(
-          (item) => item.chatroomId !== chatroom.chatroomId,
-        ),
+        (current = []) =>
+          current.filter((item) => item.chatroomId !== chatroom.chatroomId),
       );
     });
   };
@@ -219,7 +233,10 @@ export default function DirectMessageList({
     return (
       <div className="space-y-2 px-1">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="flex animate-pulse items-center gap-2 rounded-lg p-2">
+          <div
+            key={i}
+            className="flex animate-pulse items-center gap-2 rounded-lg p-2"
+          >
             <div className="h-8 w-8 rounded-full bg-muted" />
             <div className="flex-1 space-y-1">
               <div className="h-3 w-2/3 rounded bg-muted" />
@@ -235,7 +252,9 @@ export default function DirectMessageList({
     return (
       <div className="flex flex-col items-center justify-center gap-2 px-2 py-8 text-center">
         <MessageCircle size={20} className="text-muted-foreground/50" />
-        <p className="text-xs text-muted-foreground">Chưa có cuộc hội thoại nào</p>
+        <p className="text-xs text-muted-foreground">
+          Chưa có cuộc hội thoại nào
+        </p>
       </div>
     );
   }
@@ -286,17 +305,24 @@ export default function DirectMessageList({
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-1">
-                  <span className={cn("truncate text-sm", unreadCount > 0 ? "font-semibold" : "font-medium")}>
+                  <span
+                    className={cn(
+                      "truncate text-sm",
+                      unreadCount > 0 ? "font-semibold" : "font-medium",
+                    )}
+                  >
                     {displayName}
                   </span>
                   {chatroom.lastActivityAt && (
                     <span className="shrink-0 text-[10px] text-muted-foreground group-hover:opacity-0">
-                      {formatTime(chatroom.lastActivityAt)}
+                      {formatConversationTime(chatroom.lastActivityAt)}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center justify-between gap-1">
-                  <span className="truncate text-xs text-muted-foreground">{preview}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {preview}
+                  </span>
                   {unreadCount > 0 && (
                     <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-sky-500 px-1 text-[10px] font-medium text-white group-hover:opacity-0">
                       {unreadCount > 99 ? "99+" : unreadCount}
@@ -337,13 +363,20 @@ export default function DirectMessageList({
                   />
                   <MenuItem
                     icon={Eye}
-                    label={group ? "Xem thông tin nhóm" : "Xem thông tin hội thoại"}
+                    label={
+                      group ? "Xem thông tin nhóm" : "Xem thông tin hội thoại"
+                    }
                     onClick={() => {
                       closeMenu();
                       onSelectChat(chatroom);
                     }}
                   />
-                  <MenuItem icon={BellOff} label="Tắt thông báo" disabled helper="Chưa có API" />
+                  <MenuItem
+                    icon={BellOff}
+                    label="Tắt thông báo"
+                    disabled
+                    helper="Chưa có API"
+                  />
                   <div className="my-1 border-t" />
                   <MenuItem
                     icon={Archive}
@@ -368,7 +401,12 @@ export default function DirectMessageList({
                       onClick={() => void handleBlock(chatroom)}
                     />
                   )}
-                  <MenuItem icon={TriangleAlert} label="Báo cáo" disabled helper="Chưa có API" />
+                  <MenuItem
+                    icon={TriangleAlert}
+                    label="Báo cáo"
+                    disabled
+                    helper="Chưa có API"
+                  />
                 </div>
               </>
             )}
@@ -403,14 +441,23 @@ function MenuItem({
       onClick={onClick}
       className={cn(
         "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
-        destructive ? "text-red-600 hover:bg-red-50" : "text-foreground hover:bg-muted",
-        (disabled || loading) && "cursor-not-allowed opacity-50 hover:bg-transparent",
+        destructive
+          ? "text-red-600 hover:bg-red-50"
+          : "text-foreground hover:bg-muted",
+        (disabled || loading) &&
+          "cursor-not-allowed opacity-50 hover:bg-transparent",
       )}
     >
       <Icon size={17} className="shrink-0" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate">{loading ? "Đang xử lý..." : label}</span>
-        {helper && <span className="block text-[10px] text-muted-foreground">{helper}</span>}
+        <span className="block truncate">
+          {loading ? "Đang xử lý..." : label}
+        </span>
+        {helper && (
+          <span className="block text-[10px] text-muted-foreground">
+            {helper}
+          </span>
+        )}
       </span>
     </button>
   );

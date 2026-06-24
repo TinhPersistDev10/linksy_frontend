@@ -19,6 +19,7 @@ import {
 } from "@/lib/hooks/useServerStateQueries";
 import { notificationQueryKeys } from "@/lib/queries/queryKeys";
 import type { NotificationResponse } from "@/lib/types/notification";
+import { formatRelativeTime } from "@/lib/utils/datetime";
 
 type NotificationFilter = "all" | "unread" | "read";
 
@@ -29,25 +30,6 @@ interface NotificationListProps {
 
 function notificationBody(item: NotificationResponse) {
   return item.body || item.content || "Không có nội dung chi tiết.";
-}
-
-function formatTime(value: string) {
-  const date = new Date(value);
-  const diffMs = Date.now() - date.getTime();
-  const diffMinutes = Math.floor(diffMs / 60000);
-
-  if (Number.isNaN(date.getTime())) return "";
-  if (diffMinutes < 1) return "Vừa xong";
-  if (diffMinutes < 60) return `${diffMinutes} phút trước`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} giờ trước`;
-
-  return date.toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
 }
 
 function NotificationIcon({ item }: { item: NotificationResponse }) {
@@ -345,7 +327,7 @@ export default function NotificationList({
                       {item.title}
                     </p>
                     <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {formatTime(item.createdAt)}
+                      {formatRelativeTime(item.createdAt)}
                     </span>
                   </div>
 
@@ -369,7 +351,7 @@ export default function NotificationList({
 
                 <button
                   type="button"
-                  title="X?a thông báo"
+                  title="Xóa thông báo"
                   onClick={(event) => {
                     event.stopPropagation();
                     void deleteNotification(item.notificationId);
