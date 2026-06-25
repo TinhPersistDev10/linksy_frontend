@@ -253,7 +253,7 @@ export default function ChatWindowLayout({
         chatroomId,
         messageSearch.trim(),
       );
-      setSearchResults(result.results);
+      setSearchResults(result?.results ?? []);
     } catch (error) {
       console.error("Search messages failed:", error);
     } finally {

@@ -15,8 +15,10 @@ export const notificationsApi = {
     >("/notifications", {
       params: { page, pageSize },
     });
-
-    return res.data.data;
+    if (!res.data.data) {
+      throw new Error(res.data.message || "Invalid API response");
+    }
+    return res.data.data ?? [];
   },
 
   markAsRead: async (notificationId: string): Promise<void> => {
@@ -35,8 +37,9 @@ export const notificationsApi = {
     await apiClient.delete("/notifications");
   },
   getUnreadCount: async (): Promise<number> => {
-    const res =
-      await apiClient.get<ApiResponse<{ unreadCount: number }>>("/notifications/unread-count");
+    const res = await apiClient.get<ApiResponse<{ unreadCount: number }>>(
+      "/notifications/unread-count",
+    );
     const unreadCount = Number(res.data.data?.unreadCount);
 
     if (!Number.isFinite(unreadCount) || unreadCount < 0) {

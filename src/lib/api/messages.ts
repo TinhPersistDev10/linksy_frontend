@@ -1,4 +1,3 @@
-import { string } from "zod";
 import type { ApiResponse } from "../types/common";
 import type {
   EditMessageRequest,
@@ -9,7 +8,13 @@ import type {
   SendMessageRequest,
 } from "../types/message";
 import apiClient from "./axios";
+function requireData<T>(response: ApiResponse<T>, fallbackMessage: string): T {
+  if (response.data === null || response.data === undefined) {
+    throw new Error(response.message || fallbackMessage);
+  }
 
+  return response.data;
+}
 export const messagesApi = {
   getMessages: async (
     chatroomId: string,
@@ -22,8 +27,10 @@ export const messagesApi = {
         params: { page, pageSize },
       },
     );
-
-    return res.data.data;
+    if (!res.data.data) {
+      throw new Error(res.data.message || "Invalid API response");
+    }
+    return requireData(res.data, "Không thể tải tin nhắn");
   },
 
   sendMessage: async (data: SendMessageRequest): Promise<MessageResponse> => {
@@ -31,8 +38,10 @@ export const messagesApi = {
       "/messages",
       data,
     );
-
-    return res.data.data;
+    if (!res.data.data) {
+      throw new Error(res.data.message || "Invalid API response");
+    }
+    return requireData(res.data, "Không thể gửi tin nhắn");
   },
 
   editMessage: async (
@@ -43,8 +52,10 @@ export const messagesApi = {
       `/messages/${messageId}`,
       data,
     );
-
-    return res.data.data;
+    if (!res.data.data) {
+      throw new Error(res.data.message || "Invalid API response");
+    }
+    return requireData(res.data, "Không thể chỉnh sửa tin nhắn");
   },
 
   deleteMessage: async (messageId: string): Promise<void> => {
@@ -75,8 +86,10 @@ export const messagesApi = {
         params: { keyword, limit },
       },
     );
-
-    return res.data.data;
+    if (!res.data.data) {
+      throw new Error(res.data.message || "Invalid API response");
+    }
+    return requireData(res.data, "Không thể tìm kiếm tin nhắn");
   },
   getDeliveryStatus: async (
     messageId: string,
@@ -84,14 +97,18 @@ export const messagesApi = {
     const res = await apiClient.get<ApiResponse<MessageDeliveryStatusResponse>>(
       `/messages/${messageId}/deliveries`,
     );
-
-    return res.data.data;
+    if (!res.data.data) {
+      throw new Error(res.data.message || "Invalid API response");
+    }
+    return requireData(res.data, "Không thể lấy trạng thái tin nhắn");
   },
   getReplies: async (messageId: string): Promise<MessageResponse[]> => {
-    const response = await apiClient.get<ApiResponse<MessageResponse[]>>(
+    const res = await apiClient.get<ApiResponse<MessageResponse[]>>(
       `/messages/${messageId}/replies`,
     );
-
-    return response.data.data;
+    if (!res.data.data) {
+      throw new Error(res.data.message || "Invalid API response");
+    }
+    return requireData(res.data, "Không thể tải phản hồi");
   },
 };
