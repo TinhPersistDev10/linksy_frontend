@@ -1,5 +1,3 @@
-// lib/api/auth.ts
-
 import apiClient from "./axios";
 import {
   LoginRequest,
@@ -10,6 +8,8 @@ import {
   VerifyEmailResponse,
   ResendOtpRequest,
   User,
+  ResetPasswordRequest,
+  ForgotPasswordRequest,
 } from "../types/auth";
 import { ApiResponse } from "../types/common";
 
@@ -49,16 +49,33 @@ export const authApi = {
   },
 
   // Lấy thông tin user hiện tại
-  getCurrentUser: async (): Promise<User> => {
-    const response = await apiClient.get<ApiResponse<User>>(
-      "/users/profile",
-    );
+  getCurrentUser: async (): Promise<User | null> => {
+    const response = await apiClient.get<ApiResponse<User>>("/users/profile");
     return response.data.data;
   },
 
   // Refresh token (tự động được gọi bởi axios interceptor)
   refreshToken: async (): Promise<{ success: boolean; message: string }> => {
     const response = await apiClient.post("/auth/refresh-token");
+    return response.data;
+  },
+
+  forgotPassword: async (
+    data: ForgotPasswordRequest,
+  ): Promise<ApiResponse<null>> => {
+    const response = await apiClient.post<ApiResponse<null>>(
+      "/auth/forgot-password",
+      data,
+    );
+    return response.data;
+  },
+  resetPassword: async (
+    data: ResetPasswordRequest,
+  ): Promise<ApiResponse<null>> => {
+    const response = await apiClient.post<ApiResponse<null>>(
+      "/auth/reset-password",
+      data,
+    );
     return response.data;
   },
 };

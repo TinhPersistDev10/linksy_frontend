@@ -1,5 +1,3 @@
-// components/auth/LoginForm.tsx
-
 "use client";
 
 import { useState } from "react";

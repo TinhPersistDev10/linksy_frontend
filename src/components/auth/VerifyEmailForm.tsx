@@ -1,5 +1,3 @@
-// components/auth/VerifyEmailForm.tsx
-
 "use client";
 
 import { useState, useEffect } from "react";

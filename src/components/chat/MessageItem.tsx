@@ -1,4 +1,3 @@
-// src/components/chat/window/MessageItem.tsx
 import {
   Check,
   CheckCheck,

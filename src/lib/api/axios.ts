@@ -1,4 +1,3 @@
-// src/lib/api/axios.ts
 import axios, { AxiosError } from 'axios';
 
 const apiClient = axios.create({

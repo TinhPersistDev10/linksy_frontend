@@ -1,4 +1,3 @@
-// src/components/chat/window/ChatAvatar.tsx
 import { cn } from "@/lib/utils/cn";
 import { buildAvatarUrl } from "@/lib/utils/chatFormatters";
 import { getApiOrigin } from "@/lib/utils/apiUrl";
