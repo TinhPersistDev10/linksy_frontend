@@ -1,5 +1,5 @@
 // src/lib/types/auth.ts
-import { User } from './user';
+import { User } from "./user";
 
 export type { User };
 
@@ -44,10 +44,20 @@ export interface VerifyEmailResponse {
 
 export interface ResendOtpRequest {
   email: string;
+  purpose?: "email_verification" | "password_reset";
 }
 
 export interface ApiError {
   success: false;
   message: string;
   errors?: Record<string, string[]>;
+}
+export interface ForgotPasswordRequest {
+  email: string;
+}
+export interface ResetPasswordRequest {
+  email: string;
+  otpCode: string;
+  newPassword: string;
+  confirmPassword: string;
 }

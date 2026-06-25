@@ -1,4 +1,3 @@
-// src/components/chat/ChatWindowLayout.tsx
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -254,7 +253,7 @@ export default function ChatWindowLayout({
         chatroomId,
         messageSearch.trim(),
       );
-      setSearchResults(result.results);
+      setSearchResults(result?.results ?? []);
     } catch (error) {
       console.error("Search messages failed:", error);
     } finally {
