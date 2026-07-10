@@ -36,16 +36,21 @@ export default function ChatWindowLayout({
 }: ChatWindowLayoutProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeChatroom, setActiveChatroom] = useState<ChatroomResponse | null>(chatroom);
+  const [activeChatroom, setActiveChatroom] = useState<ChatroomResponse | null>(
+    chatroom,
+  );
 
   useEffect(() => {
     setActiveChatroom(chatroom);
   }, [chatroom]);
 
-  const handleChatroomChange = useCallback((updatedChatroom: ChatroomResponse) => {
-    setActiveChatroom(updatedChatroom);
-    onChatroomUpdated?.(updatedChatroom);
-  }, [onChatroomUpdated]);
+  const handleChatroomChange = useCallback(
+    (updatedChatroom: ChatroomResponse) => {
+      setActiveChatroom(updatedChatroom);
+      onChatroomUpdated?.(updatedChatroom);
+    },
+    [onChatroomUpdated],
+  );
 
   const currentChatroom = activeChatroom ?? chatroom;
   const chatroomId = currentChatroom?.chatroomId;
@@ -128,9 +133,7 @@ export default function ChatWindowLayout({
       chatroomQueryKeys.list(user.userId),
       (current = []) =>
         current.map((room) =>
-          room.chatroomId === chatroomId
-            ? { ...room, unreadCount: 0 }
-            : room,
+          room.chatroomId === chatroomId ? { ...room, unreadCount: 0 } : room,
         ),
     );
   }, [chatroomId, queryClient, user?.userId]);
@@ -169,9 +172,11 @@ export default function ChatWindowLayout({
       receiveMessage(normalizedMessage);
 
       if (normalizedMessage.senderId !== user.userId) {
-        void messagesApi.markDelivered(normalizedMessage.messageId).catch((error) => {
-          console.error("Mark delivered failed:", error);
-        });
+        void messagesApi
+          .markDelivered(normalizedMessage.messageId)
+          .catch((error) => {
+            console.error("Mark delivered failed:", error);
+          });
         if (normalizedMessage.chatroomId === chatroomId) {
           scheduleMarkCurrentChatAsRead();
         }
@@ -191,11 +196,12 @@ export default function ChatWindowLayout({
         if (user?.userId) {
           queryClient.setQueryData<ChatroomResponse[]>(
             chatroomQueryKeys.list(user.userId),
-            (current = []) => current.map((item) =>
-              item.chatroomId === updatedChatroom.chatroomId
-                ? updatedChatroom
-                : item,
-            ),
+            (current = []) =>
+              current.map((item) =>
+                item.chatroomId === updatedChatroom.chatroomId
+                  ? updatedChatroom
+                  : item,
+              ),
           );
         }
       } catch (error) {
@@ -228,18 +234,26 @@ export default function ChatWindowLayout({
   });
 
   // ── Send + typing ─────────────────────────────────────────────────────────
-  const { input, setInput, sending, handleSend, notifyTyping } = useSendMessage(
-    {
-      chatroomId,
-      user,
-      appendOptimistic,
-      replaceOptimistic,
-      removeOptimistic,
-      signalRSend,
-      signalRTyping,
-      signalRStopTyping,
-    },
-  );
+  const {
+    input,
+    setInput,
+    sending,
+    handleSend,
+    notifyTyping,
+    selectedFiles,
+    addSelectedFiles,
+    removeSelectedFile,
+    clearSelectedFiles,
+  } = useSendMessage({
+    chatroomId,
+    user,
+    appendOptimistic,
+    replaceOptimistic,
+    removeOptimistic,
+    signalRSend,
+    signalRTyping,
+    signalRStopTyping,
+  });
 
   const handleSearchMessages = async () => {
     if (!chatroomId || !messageSearch.trim()) {
@@ -311,7 +325,12 @@ export default function ChatWindowLayout({
   };
   const handleSubmit = async () => {
     const content = input.trim();
-    if (!content || !chatroomId || composerSubmitting) return;
+    if (
+      (!content && selectedFiles.length === 0) ||
+      !chatroomId ||
+      composerSubmitting
+    )
+      return;
 
     setComposerSubmitting(true);
 
@@ -349,6 +368,7 @@ export default function ChatWindowLayout({
     setReplyTo(null);
     setEditingMessage(null);
     setInput("");
+    clearSelectedFiles();
 
     messagesApi
       .markAllRead(chatroomId)
@@ -361,11 +381,7 @@ export default function ChatWindowLayout({
       });
 
     loadInitial();
-  }, [
-    chatroomId,
-    loadInitial,
-    markChatroomReadInCache,
-  ]);
+  }, [chatroomId, loadInitial, markChatroomReadInCache, clearSelectedFiles, setInput]);
   useEffect(() => {
     return () => {
       if (markReadTimerRef.current) {
@@ -475,11 +491,13 @@ export default function ChatWindowLayout({
             onReply={(message) => {
               setReplyTo(message);
               setEditingMessage(null);
+              clearSelectedFiles();
             }}
             onEdit={(message) => {
               setEditingMessage(message);
               setReplyTo(null);
               setInput(message.messageText);
+              clearSelectedFiles();
             }}
           />
         </div>
@@ -488,6 +506,10 @@ export default function ChatWindowLayout({
           sending={sending || composerSubmitting}
           replyTo={replyTo}
           editingMessage={editingMessage}
+          selectedFiles={selectedFiles}
+          onFilesSelected={addSelectedFiles}
+          onRemoveFile={removeSelectedFile}
+          attachmentsDisabled={Boolean(replyTo || editingMessage)}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onSend={() => void handleSubmit()}
@@ -495,6 +517,7 @@ export default function ChatWindowLayout({
             setReplyTo(null);
             setEditingMessage(null);
             setInput("");
+            clearSelectedFiles();
           }}
         />
         {deliveryOpen && deliveryStatus && (

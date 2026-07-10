@@ -5,6 +5,7 @@ import type {
   MessageDeliveryStatusResponse,
   MessageResponse,
   SearchMessagesData,
+  SendMessageAttachmentRequest,
   SendMessageRequest,
 } from "../types/message";
 import apiClient from "./axios";
@@ -110,5 +111,27 @@ export const messagesApi = {
       throw new Error(res.data.message || "Invalid API response");
     }
     return requireData(res.data, "Không thể tải phản hồi");
+  },
+  uploadAttachment: async (
+    file: File,
+    chatroomId: string,
+    attachmentType: "image" | "video" | "file",
+  ): Promise<SendMessageAttachmentRequest> => {
+    const formData = new FormData();
+    formData.append("File", file);
+    formData.append("ChatroomId", chatroomId);
+    formData.append("AttachmentType", attachmentType);
+
+    const res = await apiClient.post<ApiResponse<SendMessageAttachmentRequest>>(
+      "/messages/attachments/upload",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      },
+    );
+
+    return requireData(res.data, "Không thể tải tệp đính kèm");
   },
 };
