@@ -5,6 +5,7 @@ import { useState, useRef, useCallback } from "react";
 import { messagesApi } from "@/lib/api/messages";
 import type { MessageResponse } from "@/lib/types/message";
 import type { User } from "@/lib/types/user";
+import getAttachmentType from "../utils/useSendMessage";
 
 const TYPING_DEBOUNCE_MS = 2000;
 
@@ -35,11 +36,22 @@ export function useSendMessage({
 }: Options) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+  const addSelectedFiles = useCallback((files: File[]) => {
+    setSelectedFiles((prev) => [...prev, ...files]);
+  }, []);
+
+  const removeSelectedFile = useCallback((index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const clearSelectedFiles = useCallback(() => {
+    setSelectedFiles([]);
+  }, []);
 
   const isTypingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Notify server that user is typing (debounced auto-stop)
   const notifyTyping = useCallback(
     async (value: string) => {
       if (!chatroomId) return;
@@ -68,12 +80,46 @@ export function useSendMessage({
 
   const handleSend = useCallback(async () => {
     const content = input.trim();
-    if (!content || !chatroomId || sending || !user) return;
+    const files = selectedFiles;
+
+    if ((!content && files.length === 0) || !chatroomId || sending || !user)
+      return;
 
     await stopTypingNow();
     setSending(true);
-    setInput("");
 
+    if (files.length > 0) {
+      try {
+        const uploadedAttachments = await Promise.all(
+          files.map((file) =>
+            messagesApi.uploadAttachment(
+              file,
+              chatroomId,
+              getAttachmentType(file),
+            ),
+          ),
+        );
+
+        const sent = await messagesApi.sendMessage({
+          chatroomId,
+          messageText: content,
+          messageType: uploadedAttachments[0]?.attachmentType ?? "file",
+          attachments: uploadedAttachments,
+        });
+
+        appendOptimistic(sent);
+        setInput("");
+        clearSelectedFiles();
+      } catch {
+        setInput(content);
+      } finally {
+        setSending(false);
+      }
+
+      return;
+    }
+
+    setInput("");
     const tempId = `temp-${Math.random().toString(36).slice(2)}`;
     appendOptimistic({
       messageId: tempId,
@@ -120,16 +166,27 @@ export function useSendMessage({
     }
   }, [
     input,
+    selectedFiles,
     chatroomId,
     sending,
     user,
     stopTypingNow,
     appendOptimistic,
-    signalRSend,
     replaceOptimistic,
     removeOptimistic,
+    clearSelectedFiles,
+    signalRSend,
   ]);
 
-  return { input, setInput, sending, handleSend, notifyTyping };
+  return {
+    input,
+    setInput,
+    sending,
+    handleSend,
+    notifyTyping,
+    selectedFiles,
+    addSelectedFiles,
+    removeSelectedFile,
+    clearSelectedFiles,
+  };
 }
-

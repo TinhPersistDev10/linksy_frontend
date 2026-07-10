@@ -64,6 +64,10 @@ function DeliveryIcon({ status }: { status?: string }) {
   return <Check size={13} />;
 }
 
+function getAttachmentUrl(attachment: NonNullable<MessageResponse["attachments"]>[number]) {
+  return attachment.cdnUrl ?? attachment.fileUrl ?? "";
+}
+
 export default function MessageItem({
   msg,
   prevMsg,
@@ -174,7 +178,86 @@ export default function MessageItem({
                 </div>
               )}
 
-              <span>{msg.messageText}</span>
+              {msg.attachments && msg.attachments.length > 0 && (
+                <div className="mb-1.5 space-y-1.5">
+                  {msg.attachments.map((attachment) => {
+                    const url = getAttachmentUrl(attachment);
+                    if (!url) return null;
+
+                    const key = attachment.attachmentId ?? url;
+                    const attachmentType =
+                      attachment.attachmentType ??
+                      attachment.fileType ??
+                      (attachment.mimeType?.startsWith("image/")
+                        ? "image"
+                        : attachment.mimeType?.startsWith("video/")
+                          ? "video"
+                          : attachment.mimeType?.startsWith("audio/")
+                            ? "audio"
+                            : "file");
+
+                    if (attachmentType === "image") {
+                      return (
+                        <a
+                          key={key}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={`Mở ${attachment.fileName}`}
+                          aria-label={`Mở ảnh ${attachment.fileName}`}
+                          className="block cursor-zoom-in"
+                        >
+                          <img
+                            src={url}
+                            alt={attachment.fileName}
+                            className="max-h-72 max-w-full rounded-lg object-cover"
+                          />
+                        </a>
+                      );
+                    }
+
+                    if (attachmentType === "video") {
+                      return (
+                        <video
+                          key={key}
+                          src={url}
+                          controls
+                          className="max-h-72 max-w-full rounded-lg"
+                        />
+                      );
+                    }
+
+                    if (attachmentType === "audio") {
+                      return (
+                        <audio
+                          key={key}
+                          src={url}
+                          controls
+                          className="max-w-full"
+                        />
+                      );
+                    }
+
+                    return (
+                      <a
+                        key={key}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        download={attachment.fileName}
+                        className={cn(
+                          "block max-w-72 truncate rounded-md border px-2 py-1 underline",
+                          isOwn ? "border-white/30" : "border-border",
+                        )}
+                      >
+                        {attachment.fileName}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+
+              {msg.messageText && <span>{msg.messageText}</span>}
               {!isTemp && !msg.isDeleted && (
                 <div
                   className={cn(

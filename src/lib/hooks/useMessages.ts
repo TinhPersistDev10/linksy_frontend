@@ -20,6 +20,8 @@ export function useMessages(chatroomId: string | undefined) {
   const [hasMore, setHasMore] = useState(true);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  //attachments
+  
 
   const shouldScrollToBottomRef = useRef(true);
 
@@ -180,7 +182,22 @@ export function useMessages(chatroomId: string | undefined) {
 
   // -- Optimistic helpers -----------------------------------------------------
   const appendOptimistic = useCallback((msg: MessageResponse) => {
-    setMessages((prev) => [...prev, msg]);
+    setMessages((prev) => {
+      const existingIndex = prev.findIndex(
+        (message) => message.messageId === msg.messageId,
+      );
+
+      // REST trả về và SignalR ReceiveMessage có thể đến theo thứ tự khác nhau.
+      // Giữ một bản ghi duy nhất theo messageId; nếu SignalR đã thêm trước thì
+      // dùng dữ liệu REST mới nhất thay vì thêm một bubble thứ hai.
+      if (existingIndex >= 0) {
+        return prev.map((message, index) =>
+          index === existingIndex ? { ...message, ...msg } : message,
+        );
+      }
+
+      return [...prev, msg];
+    });
     shouldScrollToBottomRef.current = true;
   }, []);
 

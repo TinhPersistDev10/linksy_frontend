@@ -16,7 +16,7 @@ export interface MessageResponse {
   sentAt: string;
   editedAt: string | null;
   deletedAt: string | null;
-  attachments: unknown | null;
+  attachments: MessageAttachment[] | null;
   deliveryStatus?: "sent" | "delivered" | "read" | string;
   recipientCount: number;
   deliveredCount: number;
@@ -35,6 +35,7 @@ export interface SendMessageRequest {
   messageText: string;
   messageType?: "text" | "image" | "file" | string;
   parentMessageId?: string | null;
+  attachments?: SendMessageAttachmentRequest[] | null;
 }
 
 export interface EditMessageRequest {
@@ -109,4 +110,33 @@ export interface AllMessagesReadEvent {
   readBy: string;
   readAt: string;
   messages: MessageDeliverySummaryEvent[];
+}
+
+export interface MessageAttachment {
+  attachmentId?: string;
+  fileName: string;
+  fileUrl?: string;
+  cdnUrl?: string;
+  fileType?: string;
+  attachmentType?: string;
+  fileSize: number;
+  mimeType?: string;
+  thumbnailUrl?: string | null;
+  width?: number | null;
+  height?: number | null;
+  duration?: number | null;
+  durationMs?: number | null;
+}
+
+export interface SendMessageAttachmentRequest {
+  attachmentType: "image" | "video" | "file" | "audio" | string;
+  fileName?: string | null;
+  cdnUrl: string;
+  filePath?: string | null;
+  fileSize?: number | null;
+  mimeType?: string | null;
+  thumbnailUrl?: string | null;
+  width?: number | null;
+  height?: number | null;
+  durationMs?: number | null;
 }

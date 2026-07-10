@@ -4,6 +4,7 @@ import type { MessageResponse } from "@/lib/types/message";
 import { cn } from "@/lib/utils/cn";
 import Button from "../ui/Button";
 import { Textarea } from "../ui/textarea";
+import { useRef } from "react";
 
 interface MessageInputProps {
   value: string;
@@ -14,6 +15,17 @@ interface MessageInputProps {
   replyTo?: MessageResponse | null;
   editingMessage?: MessageResponse | null;
   onCancelMode?: () => void;
+
+  selectedFiles?: File[];
+  onFilesSelected?: (files: File[]) => void;
+  onRemoveFile?: (index: number) => void;
+  attachmentsDisabled?: boolean;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export default function MessageInput({
@@ -25,9 +37,15 @@ export default function MessageInput({
   replyTo,
   editingMessage,
   onCancelMode,
+  selectedFiles = [],
+  onFilesSelected,
+  onRemoveFile,
+  attachmentsDisabled = false,
 }: MessageInputProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const canSend = value.trim().length > 0 || selectedFiles.length > 0;
   const showUnderDevelopment = () => {
-    window.alert("Chức năng hiện đang phát triển");
+    window.alert("Chuc nang hien dang phat trien");
   };
 
   return (
@@ -57,10 +75,50 @@ export default function MessageInput({
         </div>
       )}
 
+      {selectedFiles.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {selectedFiles.map((file, index) => (
+            <div
+              key={`${file.name}-${file.size}-${index}`}
+              className="flex max-w-64 items-center gap-2 rounded-md border bg-muted/50 px-2 py-1 text-xs"
+            >
+              <span className="min-w-0 flex-1 truncate">{file.name}</span>
+              <span className="shrink-0 text-muted-foreground">
+                {formatFileSize(file.size)}
+              </span>
+              <button
+                type="button"
+                onClick={() => onRemoveFile?.(index)}
+                title="Xoa tep"
+                aria-label="Xoa tep"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-2 rounded-2xl border bg-muted/50 px-3 py-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          hidden
+          disabled={attachmentsDisabled}
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            onFilesSelected?.(files);
+            e.currentTarget.value = "";
+          }}
+        />
         <Button
           type="button"
-          onClick={showUnderDevelopment}
+          onClick={() => {
+            if (!attachmentsDisabled) fileInputRef.current?.click();
+          }}
+          disabled={attachmentsDisabled}
           variant="ghost"
           size="icon"
           className="mb-0.5 p-1 text-muted-foreground transition-colors hover:text-foreground"
@@ -72,9 +130,7 @@ export default function MessageInput({
           value={value}
           onChange={onChange}
           onKeyDown={onKeyDown}
-          placeholder={
-            editingMessage ? "Chỉnh sửa tin nhắn..." : "Nhắn tin..."
-          }
+          placeholder={editingMessage ? "Chỉnh sửa tin nhắn..." : "Nhắn tin..."}
           rows={1}
           className={cn(
             "min-h-0 flex-1 resize-none border-0 bg-transparent py-0.5 text-sm shadow-none",
@@ -96,11 +152,11 @@ export default function MessageInput({
 
         <Button
           onClick={onSend}
-          disabled={!value.trim() || sending}
+          disabled={!canSend || sending}
           size="icon"
           className={cn(
             "mb-0.5 h-7 w-7 shrink-0 rounded-xl transition-all",
-            value.trim()
+            canSend
               ? "bg-blue-500 text-white hover:bg-blue-600"
               : "bg-transparent text-muted-foreground hover:bg-transparent",
           )}
