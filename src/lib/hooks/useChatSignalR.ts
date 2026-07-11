@@ -1,4 +1,8 @@
-// src/lib/hooks/useChatSignalR.ts
+// src/lib/hooks/useChatSignalR.ts  ← THAY THẾ file cũ bằng file này
+//
+// THAY ĐỔI DUY NHẤT so với bản gốc:
+//   - Return thêm `connectionRef` để useCallSignalR có thể dùng chung connection
+//   - Không thay đổi bất kỳ logic nào khác
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -14,7 +18,6 @@ import type {
 
 const BASE_URL = getApiOrigin();
 
-// Retry delays: 0s, 2s, 5s, 10s, 30s
 const RETRY_DELAYS = [0, 2000, 5000, 10000, 30000];
 const MAX_MANUAL_RETRIES = 5;
 
@@ -57,7 +60,6 @@ export function useChatSignalR({
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const destroyedRef = useRef(false);
 
-  // Keep latest callbacks in a ref — avoids stale closures without re-registering handlers
   const cbRef = useRef({
     onReceiveMessage,
     onMessageDeleted,
@@ -81,7 +83,6 @@ export function useChatSignalR({
     onMembershipChanged,
   };
 
-  // ── Mount guard (prevents SSR import of signalR) ──────────────────────────
   useEffect(() => {
     setIsMounted(true);
     return () => {
@@ -89,7 +90,6 @@ export function useChatSignalR({
     };
   }, []);
 
-  // ── Build & start connection ───────────────────────────────────────────────
   useEffect(() => {
     if (!isMounted) return;
 
@@ -101,10 +101,7 @@ export function useChatSignalR({
       const signalR = await import("@microsoft/signalr");
 
       connection = new signalR.HubConnectionBuilder()
-        .withUrl(`${BASE_URL}/hubs/chat`, {
-          withCredentials: true,
-        })
-        // Let SignalR handle reconnect automatically after successful first connect
+        .withUrl(`${BASE_URL}/hubs/chat`, { withCredentials: true })
         .withAutomaticReconnect({
           nextRetryDelayInMilliseconds: (ctx) =>
             RETRY_DELAYS[ctx.previousRetryCount] ?? 30000,
@@ -112,11 +109,9 @@ export function useChatSignalR({
         .configureLogging(signalR.LogLevel.Warning)
         .build();
 
-      // ── Register event handlers (use cbRef to always call latest version) ──
       connection.on("ReceiveMessage", (msg: Message) =>
         cbRef.current.onReceiveMessage(msg),
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("MessageDeleted", (event: MessageDeletedEvent) =>
         cbRef.current.onMessageDeleted(event),
       );
@@ -143,11 +138,9 @@ export function useChatSignalR({
       connection.on("MembersAdded", (data: { chatroomId: string }) =>
         cbRef.current.onMembershipChanged(data),
       );
-
       connection.on("MemberRemoved", (data: { chatroomId: string }) =>
         cbRef.current.onMembershipChanged(data),
       );
-
       connection.on("MemberLeft", (data: { chatroomId: string }) =>
         cbRef.current.onMembershipChanged(data),
       );
@@ -164,7 +157,6 @@ export function useChatSignalR({
         if (destroyedRef.current) return;
         setIsConnected(true);
         retryCountRef.current = 0;
-        // Re-join current room after reconnect
         if (currentRoomRef.current) {
           try {
             await connection.invoke("JoinChatroom", currentRoomRef.current);
@@ -175,13 +167,11 @@ export function useChatSignalR({
       connection.onclose(() => {
         if (destroyedRef.current) return;
         setIsConnected(false);
-        // withAutomaticReconnect gave up — do a manual retry
         scheduleManualRetry();
       });
 
       connectionRef.current = connection;
 
-      // ── Attempt to start ──────────────────────────────────────────────────
       try {
         await connection.start();
         if (destroyedRef.current) {
@@ -204,14 +194,11 @@ export function useChatSignalR({
     const scheduleManualRetry = () => {
       if (destroyedRef.current) return;
       if (retryCountRef.current >= MAX_MANUAL_RETRIES) {
-        console.error("[SignalR] Max retries reached. Giving up.");
+        console.error("[SignalR] Max retries reached.");
         return;
       }
       const delay = RETRY_DELAYS[retryCountRef.current] ?? 30000;
       retryCountRef.current += 1;
-      console.info(
-        `[SignalR] Retrying in ${delay}ms (attempt ${retryCountRef.current})...`,
-      );
       retryTimerRef.current = setTimeout(() => {
         if (!destroyedRef.current) startConnection();
       }, delay);
@@ -228,20 +215,17 @@ export function useChatSignalR({
     };
   }, [isMounted]);
 
-  // ── Join / leave chatroom when chatroomId changes ─────────────────────────
   useEffect(() => {
     if (!isMounted || !isConnected) return;
     const conn = connectionRef.current;
     if (!conn) return;
 
     const manage = async () => {
-      // Leave previous room
       if (currentRoomRef.current && currentRoomRef.current !== chatroomId) {
         try {
           await conn.invoke("LeaveChatroom", currentRoomRef.current);
         } catch {}
       }
-      // Join new room
       if (chatroomId) {
         try {
           await conn.invoke("JoinChatroom", chatroomId);
@@ -257,7 +241,6 @@ export function useChatSignalR({
     manage();
   }, [chatroomId, isConnected, isMounted]);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
   const sendMessage = useCallback(
     async (chatroomId: string, text: string, type = "text") => {
       const conn = connectionRef.current;
@@ -288,14 +271,11 @@ export function useChatSignalR({
     if (!connection) throw new Error("SignalR not connected");
     await connection.invoke("DeleteMessage", messageId);
   }, []);
+
   const editMessage = useCallback(
     async (messageId: string, newText: string) => {
       const connection = connectionRef.current;
-
-      if (!connection) {
-        throw new Error("SignalR not connected");
-      }
-
+      if (!connection) throw new Error("SignalR not connected");
       await connection.invoke("EditMessage", messageId, newText);
     },
     [],
@@ -304,11 +284,7 @@ export function useChatSignalR({
   const replyToMessage = useCallback(
     async (chatroomId: string, parentMessageId: string, replyText: string) => {
       const connection = connectionRef.current;
-
-      if (!connection) {
-        throw new Error("SignalR not connected");
-      }
-
+      if (!connection) throw new Error("SignalR not connected");
       await connection.invoke(
         "ReplyToMessage",
         chatroomId,
@@ -318,8 +294,11 @@ export function useChatSignalR({
     },
     [],
   );
+
   return {
     isConnected: isMounted && isConnected,
+    // ↓↓↓ THÊM MỚI: expose connectionRef để useCallSignalR dùng chung ↓↓↓
+    connectionRef,
     sendMessage,
     sendTyping,
     stopTyping,

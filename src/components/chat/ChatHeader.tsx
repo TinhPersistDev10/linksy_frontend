@@ -1,5 +1,15 @@
 "use client";
 
+/**
+ * ChatHeader.tsx  ← THAY THẾ file cũ
+ *
+ * THAY ĐỔI so với bản gốc:
+ *   - Nhận thêm props: onAudioCall, onVideoCall (optional)
+ *   - Nút Phone và Video gọi props đó thay vì showUnderDevelopment
+ *   - MoreVertical vẫn giữ showUnderDevelopment
+ *   - Không thay đổi bất kỳ UI/logic nào khác
+ */
+
 import { useState } from "react";
 import {
   ArrowLeft,
@@ -21,11 +31,13 @@ interface ChatHeaderProps {
   otherMember: ChatroomMemberResponse | undefined;
   isConnected: boolean;
   onBack?: () => void;
+  // ↓↓↓ THÊM MỚI ↓↓↓
+  onAudioCall?: () => void;
+  onVideoCall?: () => void;
 }
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Chưa có dữ liệu";
-
   return new Date(value).toLocaleDateString("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -38,11 +50,15 @@ export default function ChatHeader({
   otherMember,
   isConnected,
   onBack,
+  onAudioCall,
+  onVideoCall,
 }: ChatHeaderProps) {
   const [profileOpen, setProfileOpen] = useState(false);
+
   const showUnderDevelopment = () => {
     window.alert("Chức năng hiện đang phát triển");
   };
+
   const isGroup = chatroom.roomType === "group";
   const displayName = isGroup
     ? chatroom.roomName || "Nhóm chưa đặt tên"
@@ -54,11 +70,18 @@ export default function ChatHeader({
       ? "Đang hoạt động"
       : `@${otherMember?.username ?? ""}`;
 
+  // Nút Phone và Video chỉ có handler thật khi là chat 1-1
+  const handlePhone = isGroup || !onAudioCall ? showUnderDevelopment : onAudioCall;
+  const handleVideo = isGroup || !onVideoCall ? showUnderDevelopment : onVideoCall;
+
   return (
     <>
       <div className="flex shrink-0 items-center gap-3 border-b bg-background/80 px-4 py-3 backdrop-blur-sm">
         {onBack && (
-          <button onClick={onBack} className="rounded-lg p-1 hover:bg-accent md:hidden">
+          <button
+            onClick={onBack}
+            className="rounded-lg p-1 hover:bg-accent md:hidden"
+          >
             <ArrowLeft size={18} />
           </button>
         )}
@@ -69,16 +92,25 @@ export default function ChatHeader({
           onClick={() => setProfileOpen(true)}
           className={cn(
             "rounded-full outline-none transition-transform focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2",
-            !isGroup && otherMember ? "cursor-pointer hover:scale-105" : "cursor-default",
+            !isGroup && otherMember
+              ? "cursor-pointer hover:scale-105"
+              : "cursor-default",
           )}
-          title={!isGroup && otherMember ? "Xem thông tin người dùng" : undefined}
+          title={
+            !isGroup && otherMember ? "Xem thông tin người dùng" : undefined
+          }
         >
           <ChatAvatar src={avatar ?? undefined} name={displayName} />
         </button>
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{displayName}</p>
-          <p className={cn("text-xs text-muted-foreground", !isGroup && otherMember?.isOnline && "text-green-500")}>
+          <p
+            className={cn(
+              "text-xs text-muted-foreground",
+              !isGroup && otherMember?.isOnline && "text-green-500",
+            )}
+          >
             {subtitle}
           </p>
         </div>
@@ -91,16 +123,35 @@ export default function ChatHeader({
             )}
             title={isConnected ? "Realtime: Kết nối" : "Đang kết nối..."}
           />
-          {([Phone, Video, MoreVertical] as const).map((Icon, index) => (
-            <button
-              key={index}
-              type="button"
-              onClick={showUnderDevelopment}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent"
-            >
-              <Icon size={16} />
-            </button>
-          ))}
+
+          {/* Phone */}
+          <button
+            type="button"
+            onClick={handlePhone}
+            title={isGroup ? "Chức năng đang phát triển" : "Gọi thoại"}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent"
+          >
+            <Phone size={16} />
+          </button>
+
+          {/* Video */}
+          <button
+            type="button"
+            onClick={handleVideo}
+            title={isGroup ? "Chức năng đang phát triển" : "Gọi video"}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent"
+          >
+            <Video size={16} />
+          </button>
+
+          {/* More */}
+          <button
+            type="button"
+            onClick={showUnderDevelopment}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent"
+          >
+            <MoreVertical size={16} />
+          </button>
         </div>
       </div>
 
@@ -114,7 +165,9 @@ export default function ChatHeader({
             onClick={(event) => event.stopPropagation()}
           >
             <header className="flex h-12 items-center justify-between border-b border-slate-100 px-4">
-              <h3 className="font-semibold text-slate-900">Thông tin tài khoản</h3>
+              <h3 className="font-semibold text-slate-900">
+                Thông tin tài khoản
+              </h3>
               <button
                 type="button"
                 onClick={() => setProfileOpen(false)}
@@ -126,9 +179,17 @@ export default function ChatHeader({
 
             <div className="px-5 py-6">
               <div className="flex flex-col items-center text-center">
-                <ChatAvatar src={otherMember.avatar ?? undefined} name={displayName} size={20} />
-                <p className="mt-3 text-lg font-semibold text-slate-900">{displayName}</p>
-                <p className="text-sm text-slate-500">@{otherMember.username}</p>
+                <ChatAvatar
+                  src={otherMember.avatar ?? undefined}
+                  name={displayName}
+                  size={20}
+                />
+                <p className="mt-3 text-lg font-semibold text-slate-900">
+                  {displayName}
+                </p>
+                <p className="text-sm text-slate-500">
+                  @{otherMember.username}
+                </p>
                 <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
                   <span
                     className={cn(
@@ -142,7 +203,9 @@ export default function ChatHeader({
             </div>
 
             <div className="border-t border-slate-100 px-5 py-4">
-              <h4 className="mb-3 font-semibold text-slate-900">Thông tin cá nhân</h4>
+              <h4 className="mb-3 font-semibold text-slate-900">
+                Thông tin cá nhân
+              </h4>
               <div className="space-y-3 text-sm text-slate-600">
                 <div className="flex items-center gap-3">
                   <UserRound size={16} className="text-slate-400" />
