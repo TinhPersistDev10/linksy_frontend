@@ -94,7 +94,7 @@ interface CallLogDto {
 }
 
 /** InitiateCall → Clients.Caller.SendAsync("CallInitiated", CallLogDto) */
-interface CallInitiatedPayload extends CallLogDto {}
+type CallInitiatedPayload = CallLogDto;
 
 /** IncomingCall payload */
 interface IncomingCallPayload {
@@ -153,7 +153,7 @@ export interface UseCallSignalRReturn {
 
 export function useCallSignalR({
   connectionRef,
-  currentUserId,
+  currentUserId: _currentUserId,
   localVideoRef,
   remoteVideoRef,
   onCallEnded,
@@ -275,7 +275,11 @@ export function useCallSignalR({
 
         // ✅ Server gửi "CallInitiated" event, KHÔNG return qua invoke()
         const callLogId = await new Promise<string>((resolve, reject) => {
-          let timeoutId: ReturnType<typeof setTimeout>;
+          const timeoutId = setTimeout(() => {
+            callInitiatedResolveRef.current = null;
+            callInitiatedRejectRef.current = null;
+            reject(new Error("Timeout: server không phản hồi InitiateCall"));
+          }, 10_000);
 
           callInitiatedResolveRef.current = (id: string) => {
             clearTimeout(timeoutId);
@@ -285,12 +289,6 @@ export function useCallSignalR({
             clearTimeout(timeoutId);
             reject(err);
           };
-
-          timeoutId = setTimeout(() => {
-            callInitiatedResolveRef.current = null;
-            callInitiatedRejectRef.current = null;
-            reject(new Error("Timeout: server không phản hồi InitiateCall"));
-          }, 10_000);
 
           conn.invoke("InitiateCall", chatroomId, callType, sdpOffer).catch((err: unknown) => {
             clearTimeout(timeoutId);
