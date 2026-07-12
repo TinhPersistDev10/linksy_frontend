@@ -48,6 +48,10 @@ export class WebRtcManager {
     this.localStream?.getVideoTracks().forEach((t) => (t.enabled = enabled));
   }
 
+  addTrack(track: MediaStreamTrack, stream: MediaStream): void {
+    if (!this.pc) throw new Error("PeerConnection chưa được tạo");
+    this.pc.addTrack(track, stream);
+  }
   // ── PeerConnection ────────────────────────────────────────────────────────
 
   createPeerConnection(): RTCPeerConnection {

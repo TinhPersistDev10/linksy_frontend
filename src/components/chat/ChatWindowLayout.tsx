@@ -124,6 +124,7 @@ export default function ChatWindowLayout({
     (m) => m.userId !== user?.userId,
   );
 
+
   const scrollToBottomRef = useRef<(() => void) | null>(null);
   const nearBottomRef = useRef(true);
   const markReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -320,6 +321,13 @@ export default function ChatWindowLayout({
     remoteVideoRef,
     onCallEnded: handleCallEnded,
   });
+
+  // Resolve thông tin người dùng phía bên kia cuộc gọi từ callState.remoteUserId.
+  // Đặt SAU useCallSignalR vì cần callState đã được khởi tạo.
+  // KHÔNG dùng otherMember vì cuộc gọi có thể đến từ chatroom khác đang không hiển thị.
+  const remoteCallMember = currentChatroom?.members?.find(
+    (m) => m.userId === callState.remoteUserId,
+  );
 
   // ── Send + typing ──────────────────────────────────────────────────────────
   const {
@@ -651,16 +659,16 @@ export default function ChatWindowLayout({
       {/* ── Call UI ────────────────────────────────────────────────────────── */}
       <IncomingCallModal
         callState={callState}
-        callerName={otherMember?.fullname ?? "Người dùng"}
-        callerAvatar={otherMember?.avatar}
+        callerName={remoteCallMember?.fullname ?? "Người dùng"}
+        callerAvatar={remoteCallMember?.avatar ?? null}
         onAnswer={() => void answerCall()}
         onReject={() => void rejectCall()}
       />
 
       <ActiveCallScreen
         callState={callState}
-        remoteName={otherMember?.fullname ?? "Người dùng"}
-        remoteAvatar={otherMember?.avatar}
+        remoteName={remoteCallMember?.fullname ?? otherMember?.fullname ?? "Người dùng"}
+        remoteAvatar={remoteCallMember?.avatar ?? otherMember?.avatar ?? null}
         localVideoRef={localVideoRef}
         remoteVideoRef={remoteVideoRef}
         onToggleMic={toggleMic}
