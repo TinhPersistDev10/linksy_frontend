@@ -32,9 +32,48 @@ export class WebRtcManager {
   // ── Media ─────────────────────────────────────────────────────────────────
 
   async getLocalStream(callType: "audio" | "video"): Promise<MediaStream> {
+    if (callType !== "video") {
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+      return this.localStream;
+    }
+
+    // Thử lần 1: video + audio với constraint cụ thể
+    try {
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user",
+        },
+      });
+      return this.localStream;
+    } catch (err1) {
+      console.warn(
+        "[WebRTC] getUserMedia với constraint thất bại, thử fallback:",
+        err1,
+      );
+    }
+
+    // Thử lần 2: video boolean đơn giản nhất
+    try {
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      return this.localStream;
+    } catch (err2) {
+      console.warn(
+        "[WebRTC] getUserMedia video=true thất bại, thử chỉ audio:",
+        err2,
+      );
+    }
+
+    // Thử lần 3: audio only — vẫn cho phép gọi tiếp, chỉ mất video
     this.localStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
-      video: callType === "video",
     });
     return this.localStream;
   }
