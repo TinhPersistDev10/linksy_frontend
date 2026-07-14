@@ -75,7 +75,7 @@ function makeCallSystemMessage(
     senderNickname: null,
     senderAvatar: null,
     messageText: `${icon} ${directionLabel} — ${callLabel}${durationLabel}`,
-    messageType: "system",
+    messageType: "call",
     parentMessageId: null,
     sentAt: new Date().toISOString(),
     isOwn: false,
@@ -393,6 +393,14 @@ export default function ChatWindowLayout({
     }
   };
 
+  const handleCallAgain = useCallback(
+    (callType: "audio" | "video") => {
+      if (!currentChatroom || currentChatroom.roomType !== "direct") return;
+      void initiateCall(currentChatroom.chatroomId, callType);
+    },
+    [currentChatroom, initiateCall],
+  );
+
   const handleDelete = async (messageId: string) => {
     try {
       await signalRDelete(messageId);
@@ -602,6 +610,7 @@ export default function ChatWindowLayout({
                 setInput(message.messageText);
                 clearSelectedFiles();
               }}
+              onCallAgain={handleCallAgain}
             />
           </div>
 

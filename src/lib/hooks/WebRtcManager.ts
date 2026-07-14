@@ -22,6 +22,7 @@ export type OnConnectionStateFn = (state: RTCPeerConnectionState) => void;
 export class WebRtcManager {
   private pc: RTCPeerConnection | null = null;
   private localStream: MediaStream | null = null;
+  private remoteStream: MediaStream | null = null;
 
   constructor(
     private readonly onIceCandidate: OnIceCandidateFn,
@@ -78,6 +79,14 @@ export class WebRtcManager {
     return this.localStream;
   }
 
+  getCurrentLocalStream(): MediaStream | null {
+    return this.localStream;
+  }
+
+  getRemoteStream(): MediaStream | null {
+    return this.remoteStream;
+  }
+
   getLocalStreamOrThrow(): MediaStream {
     if (!this.localStream) throw new Error("Local stream chưa được khởi tạo.");
     return this.localStream;
@@ -106,8 +115,15 @@ export class WebRtcManager {
       if (candidate) this.onIceCandidate(JSON.stringify(candidate.toJSON()));
     };
 
-    this.pc.ontrack = ({ streams }) => {
-      if (streams[0]) this.onRemoteTrack(streams[0]);
+    this.pc.ontrack = ({ streams, track }) => {
+      if (streams[0]) {
+        this.remoteStream = streams[0];
+      } else {
+        if (!this.remoteStream) this.remoteStream = new MediaStream();
+        this.remoteStream.addTrack(track);
+      }
+
+      if (this.remoteStream) this.onRemoteTrack(this.remoteStream);
     };
 
     this.pc.onconnectionstatechange = () => {
@@ -173,6 +189,7 @@ export class WebRtcManager {
     this.pendingCandidates = [];
     this.localStream?.getTracks().forEach((t) => t.stop());
     this.localStream = null;
+    this.remoteStream = null;
     this.pc?.close();
     this.pc = null;
   }

@@ -137,6 +137,7 @@ export function useCallSignalR({
   const onCallEndedRef = useRef(onCallEnded);
   onCallEndedRef.current = onCallEnded;
   const isInitiatorRef = useRef(false);
+  const pendingOutgoingIceRef = useRef<string[]>([]);
 
   // Resolve/reject của Promise chờ "CallInitiated" event
   const callInitiatedResolveRef = useRef<((id: string) => void) | null>(null);
@@ -182,6 +183,7 @@ export function useCallSignalR({
     setCallState(INITIAL);
     stateRef.current = INITIAL;
     isInitiatorRef.current = false;
+    pendingOutgoingIceRef.current = [];
     callInitiatedRejectRef.current?.(new Error("Call ended before initiated"));
     callInitiatedResolveRef.current = null;
     callInitiatedRejectRef.current = null;
@@ -189,27 +191,71 @@ export function useCallSignalR({
 
   // ── createManager ─────────────────────────────────────────────────────────
 
+  const attachStreamToVideo = useCallback(
+    (video: HTMLVideoElement | null, stream: MediaStream | null) => {
+      if (!video || !stream) return;
+      if (video.srcObject !== stream) video.srcObject = stream;
+      const playPromise = video.play();
+      if (playPromise) {
+        playPromise.catch((err) => {
+          console.warn("[Call] video.play() failed:", err);
+        });
+      }
+    },
+    [],
+  );
+
+  const flushOutgoingIce = useCallback(async () => {
+    const conn = connectionRef.current;
+    const { callLogId, remoteUserId } = stateRef.current;
+    if (!conn || !callLogId || !remoteUserId) return;
+
+    const candidates = pendingOutgoingIceRef.current.splice(0);
+    for (const candidateJson of candidates) {
+      try {
+        await conn.invoke(
+          "SendIceCandidate",
+          callLogId,
+          remoteUserId,
+          candidateJson,
+        );
+      } catch (err) {
+        pendingOutgoingIceRef.current.unshift(candidateJson);
+        console.error("[Call] SendIceCandidate failed:", err);
+        break;
+      }
+    }
+  }, [connectionRef]);
+
+  const sendOrQueueIce = useCallback(
+    async (candidateJson: string) => {
+      const conn = connectionRef.current;
+      const { callLogId, remoteUserId } = stateRef.current;
+      if (!conn || !callLogId || !remoteUserId) {
+        pendingOutgoingIceRef.current.push(candidateJson);
+        return;
+      }
+
+      try {
+        await conn.invoke(
+          "SendIceCandidate",
+          callLogId,
+          remoteUserId,
+          candidateJson,
+        );
+      } catch (err) {
+        pendingOutgoingIceRef.current.push(candidateJson);
+        console.error("[Call] SendIceCandidate failed:", err);
+      }
+    },
+    [connectionRef],
+  );
+
   const createManager = useCallback((): WebRtcManager => {
     const manager = new WebRtcManager(
-      async (candidateJson) => {
-        const { callLogId, remoteUserId } = stateRef.current;
-        const conn = connectionRef.current;
-        if (!conn || !callLogId || !remoteUserId) return;
-        try {
-          await conn.invoke(
-            "SendIceCandidate",
-            callLogId,
-            remoteUserId,
-            candidateJson,
-          );
-        } catch (err) {
-          console.error("[Call] SendIceCandidate failed:", err);
-        }
-      },
+      sendOrQueueIce,
       (remoteStream) => {
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStream;
-        }
+        attachStreamToVideo(remoteVideoRef.current, remoteStream);
       },
       (connectionState) => {
         if (
@@ -223,7 +269,7 @@ export function useCallSignalR({
     );
     managerRef.current = manager;
     return manager;
-  }, [connectionRef, cleanup, remoteVideoRef]);
+  }, [attachStreamToVideo, cleanup, remoteVideoRef, sendOrQueueIce]);
 
   // ── activateCall ──────────────────────────────────────────────────────────
 
@@ -231,6 +277,24 @@ export function useCallSignalR({
     updateState({ status: "active", startedAt: new Date() });
     startTimer();
   }, [updateState, startTimer]);
+
+  const emitCallEnded = useCallback(
+    (callLogId: string) => {
+      const { chatroomId, callType, durationSec, startedAt } = stateRef.current;
+      if (!chatroomId || !callType) return;
+
+      onCallEndedRef.current?.({
+        callLogId,
+        chatroomId,
+        callType,
+        durationSec: startedAt
+          ? Math.floor((Date.now() - startedAt.getTime()) / 1000)
+          : durationSec,
+        wasInitiator: isInitiatorRef.current,
+      });
+    },
+    [],
+  );
 
   // ── initiateCall ──────────────────────────────────────────────────────────
 
@@ -246,8 +310,7 @@ export function useCallSignalR({
 
       try {
         const localStream = await manager.getLocalStream(callType);
-        if (localVideoRef.current)
-          localVideoRef.current.srcObject = localStream;
+        attachStreamToVideo(localVideoRef.current, localStream);
 
         manager.createPeerConnection();
         const sdpOffer = await manager.createOffer();
@@ -285,8 +348,10 @@ export function useCallSignalR({
           callType,
           chatroomId,
           isMicOn: true,
-          isCamOn: callType === "video",
+          isCamOn:
+            callType === "video" && localStream.getVideoTracks().length > 0,
         });
+        void flushOutgoingIce();
       } catch (err) {
         manager.destroy();
         managerRef.current = null;
@@ -296,7 +361,14 @@ export function useCallSignalR({
         throw new Error(msg ?? raw);
       }
     },
-    [connectionRef, createManager, localVideoRef, updateState],
+    [
+      attachStreamToVideo,
+      connectionRef,
+      createManager,
+      flushOutgoingIce,
+      localVideoRef,
+      updateState,
+    ],
   );
 
   // ── answerCall ────────────────────────────────────────────────────────────
@@ -312,7 +384,7 @@ export function useCallSignalR({
     try {
       // Lấy stream trước
       const localStream = await manager.getLocalStream(callType!);
-      if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+      attachStreamToVideo(localVideoRef.current, localStream);
 
       // Tạo PC sau khi có stream (createPeerConnection tự gắn tracks từ this.localStream)
       manager.createPeerConnection();
@@ -321,15 +393,25 @@ export function useCallSignalR({
       await conn.invoke("AnswerCall", callLogId, sdpAnswer);
       updateState({
         isMicOn: true,
-        isCamOn: callType === "video",
+        isCamOn:
+          callType === "video" && localStream.getVideoTracks().length > 0,
         _pendingSdpOffer: undefined,
       });
+      void flushOutgoingIce();
       activateCall();
     } catch (err) {
       console.error("[Call] AnswerCall failed:", err);
       cleanup();
     }
-  }, [connectionRef, cleanup, activateCall, localVideoRef, updateState]);
+  }, [
+    attachStreamToVideo,
+    connectionRef,
+    cleanup,
+    activateCall,
+    flushOutgoingIce,
+    localVideoRef,
+    updateState,
+  ]);
   // ── rejectCall ────────────────────────────────────────────────────────────
 
   const rejectCall = useCallback(async () => {
@@ -353,12 +435,13 @@ export function useCallSignalR({
     if (!conn || !callLogId) return;
     try {
       await conn.invoke("EndCall", callLogId);
+      emitCallEnded(callLogId);
     } catch (err) {
       console.error("[Call] EndCall failed:", err);
     } finally {
       cleanup();
     }
-  }, [connectionRef, cleanup]);
+  }, [connectionRef, cleanup, emitCallEnded]);
 
   // ── toggleMic / toggleCam ─────────────────────────────────────────────────
 
@@ -390,6 +473,7 @@ export function useCallSignalR({
       callInitiatedResolveRef.current?.(payload.id);
       callInitiatedResolveRef.current = null;
       callInitiatedRejectRef.current = null;
+      void flushOutgoingIce();
     };
 
     // IncomingCall
@@ -402,7 +486,7 @@ export function useCallSignalR({
       }
 
       // Chỉ lưu manager, CHƯA tạo PC và CHƯA lấy stream
-      const manager = createManager();
+      createManager();
       isInitiatorRef.current = false;
 
       updateState({
@@ -425,6 +509,7 @@ export function useCallSignalR({
       try {
         await manager.handleAnswer(payload.sdpAnswer);
         updateState({ remoteUserId: payload.answeredBy });
+        void flushOutgoingIce();
         activateCall(); // ✅ Caller active ngay
       } catch (err) {
         console.error("[Call] handleAnswer failed:", err);
@@ -508,7 +593,22 @@ export function useCallSignalR({
     activateCall, // ← giữ lại để tránh stale closure
     cleanup,
     createManager,
+    flushOutgoingIce,
     updateState,
+  ]);
+
+  useEffect(() => {
+    if (callState.status !== "calling" && callState.status !== "active") return;
+    const manager = managerRef.current;
+    if (!manager) return;
+
+    attachStreamToVideo(localVideoRef.current, manager.getCurrentLocalStream());
+    attachStreamToVideo(remoteVideoRef.current, manager.getRemoteStream());
+  }, [
+    attachStreamToVideo,
+    callState.status,
+    localVideoRef,
+    remoteVideoRef,
   ]);
 
   useEffect(() => () => cleanup(), [cleanup]);
