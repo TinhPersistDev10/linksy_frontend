@@ -383,6 +383,10 @@ export function useCallSignalR({
 
     // ✅ "CallInitiated" — server gửi CallLogDto thẳng (không wrap)
     const onCallInitiated = (payload: CallInitiatedPayload) => {
+      const remoteMember = payload.participants.find(
+        (p) => p.userId != _currentUserId,
+      );
+      if (remoteMember) updateState({ remoteUserId: remoteMember.userId });
       callInitiatedResolveRef.current?.(payload.id);
       callInitiatedResolveRef.current = null;
       callInitiatedRejectRef.current = null;
