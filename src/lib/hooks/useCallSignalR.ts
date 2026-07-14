@@ -480,23 +480,23 @@ export function useCallSignalR({
       }
     };
 
-    conn.on("CallInitiated", onCallInitiated);
-    conn.on("IncomingCall", onIncomingCall);
-    conn.on("CallAnswered", onCallAnswered);
-    conn.on("CallRejected", onCallRejected);
-    conn.on("CallEnded", onCallEnded);
-    conn.on("IceCandidate", onIceCandidate);
+    conn.on("callInitiated", onCallInitiated);
+    conn.on("incomingCall", onIncomingCall);
+    conn.on("callAnswered", onCallAnswered);
+    conn.on("callRejected", onCallRejected);
+    conn.on("callEnded", onCallEnded);
+    conn.on("callFailed", onCallFailed);
     conn.on("iceCandidate", onIceCandidate);
-    conn.on("CallFailed", onCallFailed);
+
     return () => {
-      conn.off("CallInitiated", onCallInitiated);
-      conn.off("IncomingCall", onIncomingCall);
-      conn.off("CallAnswered", onCallAnswered);
-      conn.off("CallRejected", onCallRejected);
-      conn.off("CallEnded", onCallEnded);
-      conn.off("IceCandidate", onIceCandidate);
+      // Cleanup
+      conn.off("callInitiated", onCallInitiated);
+      conn.off("incomingCall", onIncomingCall);
+      conn.off("callAnswered", onCallAnswered);
+      conn.off("callRejected", onCallRejected);
+      conn.off("callEnded", onCallEnded);
+      conn.off("callFailed", onCallFailed);
       conn.off("iceCandidate", onIceCandidate);
-      conn.off("CallFailed", onCallFailed);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
