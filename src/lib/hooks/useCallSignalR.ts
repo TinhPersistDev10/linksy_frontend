@@ -486,6 +486,7 @@ export function useCallSignalR({
     conn.on("CallRejected", onCallRejected);
     conn.on("CallEnded", onCallEnded);
     conn.on("IceCandidate", onIceCandidate);
+    conn.on("iceCandidate", onIceCandidate);
     conn.on("CallFailed", onCallFailed);
     return () => {
       conn.off("CallInitiated", onCallInitiated);
@@ -494,6 +495,7 @@ export function useCallSignalR({
       conn.off("CallRejected", onCallRejected);
       conn.off("CallEnded", onCallEnded);
       conn.off("IceCandidate", onIceCandidate);
+      conn.off("iceCandidate", onIceCandidate);
       conn.off("CallFailed", onCallFailed);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
