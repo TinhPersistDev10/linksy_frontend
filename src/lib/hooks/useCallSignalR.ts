@@ -1,29 +1,5 @@
 "use client";
 
-/**
- * useCallSignalR
- *
- * SỬA LỖI so với bản trước — khớp đúng với ChatHub.cs hiện tại:
- *
- *  1. InitiateCall: server KHÔNG return callLogId qua invoke() mà gửi event
- *     "CallInitiated" riêng → lắng nghe event đó để lấy callLogId.
- *
- *  2. CallAnswered payload: server gửi { Call: { id, ... }, AnsweredBy, SdpAnswer }
- *     → đọc payload.call.id (camelCase sau JSON serialize) thay vì payload.callLogId.
- *
- *  3. CallRejected payload: server gửi { Call: { id }, RejectedBy }
- *     → đọc payload.call.id.
- *
- *  4. CallEnded payload: server gửi { Call: { id, durationSec }, EndedBy }
- *     → đọc payload.call.id và payload.call.durationSec.
- *
- *  5. Caller kẹt "calling": activateCall() gọi ngay trong onCallAnswered
- *     sau handleAnswer() — không chờ WebRTC onConnectionState.
- *
- *  6. Tin nhắn cuộc gọi: callback onCallEnded để ChatWindowLayout inject
- *     system message vào chatroom.
- */
-
 import {
   useCallback,
   useEffect,
@@ -32,17 +8,11 @@ import {
   type RefObject,
 } from "react";
 import { WebRtcManager } from "./WebRtcManager";
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type CallType = "audio" | "video";
 
-export type CallStatus =
-  | "idle"
-  | "calling"
-  | "incoming"
-  | "active"
-  | "ended";
+export type CallStatus = "idle" | "calling" | "incoming" | "active" | "ended";
 
 export interface CallState {
   status: CallStatus;
@@ -79,7 +49,6 @@ const INITIAL: CallState = {
 
 // ── Payloads từ server — khớp với ChatHub.cs ─────────────────────────────────
 
-/** CallLogDto shape (camelCase sau JSON serialize của C#) */
 interface CallLogDto {
   id: string;
   chatroomId: string;
@@ -135,6 +104,7 @@ interface IceCandidatePayload {
 interface UseCallSignalROptions {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   connectionRef: RefObject<any>;
+  isConnected: boolean;
   currentUserId: string;
   localVideoRef: RefObject<HTMLVideoElement | null>;
   remoteVideoRef: RefObject<HTMLVideoElement | null>;
@@ -153,6 +123,7 @@ export interface UseCallSignalRReturn {
 
 export function useCallSignalR({
   connectionRef,
+  isConnected,
   currentUserId: _currentUserId,
   localVideoRef,
   remoteVideoRef,
@@ -225,7 +196,12 @@ export function useCallSignalR({
         const conn = connectionRef.current;
         if (!conn || !callLogId || !remoteUserId) return;
         try {
-          await conn.invoke("SendIceCandidate", callLogId, remoteUserId, candidateJson);
+          await conn.invoke(
+            "SendIceCandidate",
+            callLogId,
+            remoteUserId,
+            candidateJson,
+          );
         } catch (err) {
           console.error("[Call] SendIceCandidate failed:", err);
         }
@@ -237,7 +213,8 @@ export function useCallSignalR({
       },
       (connectionState) => {
         if (
-          (connectionState === "failed" || connectionState === "disconnected") &&
+          (connectionState === "failed" ||
+            connectionState === "disconnected") &&
           stateRef.current.status === "active"
         ) {
           cleanup();
@@ -261,14 +238,16 @@ export function useCallSignalR({
     async (chatroomId: string, callType: CallType) => {
       const conn = connectionRef.current;
       if (!conn) throw new Error("SignalR chưa kết nối.");
-      if (stateRef.current.status !== "idle") throw new Error("Đang có cuộc gọi khác.");
+      if (stateRef.current.status !== "idle")
+        throw new Error("Đang có cuộc gọi khác.");
 
       const manager = createManager();
       isInitiatorRef.current = true;
 
       try {
         const localStream = await manager.getLocalStream(callType);
-        if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+        if (localVideoRef.current)
+          localVideoRef.current.srcObject = localStream;
 
         manager.createPeerConnection();
         const sdpOffer = await manager.createOffer();
@@ -290,12 +269,14 @@ export function useCallSignalR({
             reject(err);
           };
 
-          conn.invoke("InitiateCall", chatroomId, callType, sdpOffer).catch((err: unknown) => {
-            clearTimeout(timeoutId);
-            callInitiatedResolveRef.current = null;
-            callInitiatedRejectRef.current = null;
-            reject(err);
-          });
+          conn
+            .invoke("InitiateCall", chatroomId, callType, sdpOffer)
+            .catch((err: unknown) => {
+              clearTimeout(timeoutId);
+              callInitiatedResolveRef.current = null;
+              callInitiatedRejectRef.current = null;
+              reject(err);
+            });
         });
 
         updateState({
@@ -329,6 +310,13 @@ export function useCallSignalR({
     if (!manager || !_pendingSdpOffer) return;
 
     try {
+      // Lấy stream trước
+      const localStream = await manager.getLocalStream(callType!);
+      if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+
+      // Tạo PC sau khi có stream (createPeerConnection tự gắn tracks từ this.localStream)
+      manager.createPeerConnection();
+
       const sdpAnswer = await manager.handleOffer(_pendingSdpOffer);
       await conn.invoke("AnswerCall", callLogId, sdpAnswer);
       updateState({
@@ -341,8 +329,7 @@ export function useCallSignalR({
       console.error("[Call] AnswerCall failed:", err);
       cleanup();
     }
-  }, [connectionRef, cleanup, activateCall, updateState]);
-
+  }, [connectionRef, cleanup, activateCall, localVideoRef, updateState]);
   // ── rejectCall ────────────────────────────────────────────────────────────
 
   const rejectCall = useCallback(async () => {
@@ -390,6 +377,7 @@ export function useCallSignalR({
   // ── SignalR event listeners ───────────────────────────────────────────────
 
   useEffect(() => {
+    if (!isConnected) return;
     const conn = connectionRef.current;
     if (!conn) return;
 
@@ -403,23 +391,15 @@ export function useCallSignalR({
     // IncomingCall
     const onIncomingCall = async (payload: IncomingCallPayload) => {
       if (stateRef.current.status !== "idle") {
-        try { await conn.invoke("RejectCall", payload.callLogId); } catch {}
+        try {
+          await conn.invoke("RejectCall", payload.callLogId);
+        } catch {}
         return;
       }
 
+      // Chỉ lưu manager, CHƯA tạo PC và CHƯA lấy stream
       const manager = createManager();
       isInitiatorRef.current = false;
-
-      try {
-        const localStream = await manager.getLocalStream(payload.callType);
-        if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
-        manager.createPeerConnection();
-      } catch (err) {
-        console.error("[Call] Prepare media for incoming call failed:", err);
-        manager.destroy();
-        managerRef.current = null;
-        return;
-      }
 
       updateState({
         status: "incoming",
@@ -463,7 +443,9 @@ export function useCallSignalR({
       const { chatroomId, callType, durationSec, startedAt } = stateRef.current;
       const finalDuration =
         payload.call.durationSec ??
-        (startedAt ? Math.floor((Date.now() - startedAt.getTime()) / 1000) : durationSec);
+        (startedAt
+          ? Math.floor((Date.now() - startedAt.getTime()) / 1000)
+          : durationSec);
 
       if (chatroomId && callType) {
         onCallEndedRef.current?.({
@@ -475,6 +457,14 @@ export function useCallSignalR({
         });
       }
 
+      cleanup();
+    };
+    //call failed
+    const onCallFailed = (payload: { callLogId: string; reason: string }) => {
+      const currentCallLogId = stateRef.current.callLogId;
+      if (currentCallLogId !== null && currentCallLogId !== payload.callLogId)
+        return;
+      console.warn("[Call], CallFailed: ", payload.reason);
       cleanup();
     };
 
@@ -496,7 +486,7 @@ export function useCallSignalR({
     conn.on("CallRejected", onCallRejected);
     conn.on("CallEnded", onCallEnded);
     conn.on("IceCandidate", onIceCandidate);
-
+    conn.on("CallFailed", onCallFailed);
     return () => {
       conn.off("CallInitiated", onCallInitiated);
       conn.off("IncomingCall", onIncomingCall);
@@ -504,9 +494,16 @@ export function useCallSignalR({
       conn.off("CallRejected", onCallRejected);
       conn.off("CallEnded", onCallEnded);
       conn.off("IceCandidate", onIceCandidate);
+      conn.off("CallFailed", onCallFailed);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectionRef.current, activateCall, cleanup, createManager, localVideoRef, updateState]);
+  }, [
+    isConnected, // ← trigger chính: chờ connection sẵn sàng
+    activateCall, // ← giữ lại để tránh stale closure
+    cleanup,
+    createManager,
+    updateState,
+  ]);
 
   useEffect(() => () => cleanup(), [cleanup]);
 

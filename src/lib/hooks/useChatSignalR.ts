@@ -297,7 +297,6 @@ export function useChatSignalR({
 
   return {
     isConnected: isMounted && isConnected,
-    // ↓↓↓ THÊM MỚI: expose connectionRef để useCallSignalR dùng chung ↓↓↓
     connectionRef,
     sendMessage,
     sendTyping,

@@ -315,11 +315,19 @@ export default function ChatWindowLayout({
     toggleCam,
   } = useCallSignalR({
     connectionRef,
+    isConnected,
     currentUserId: user?.userId ?? "",
     localVideoRef,
     remoteVideoRef,
     onCallEnded: handleCallEnded,
   });
+
+  // Resolve thông tin người dùng phía bên kia cuộc gọi từ callState.remoteUserId.
+  // Đặt SAU useCallSignalR vì cần callState đã được khởi tạo.
+  // KHÔNG dùng otherMember vì cuộc gọi có thể đến từ chatroom khác đang không hiển thị.
+  const remoteCallMember = currentChatroom?.members?.find(
+    (m) => m.userId === callState.remoteUserId,
+  );
 
   // ── Send + typing ──────────────────────────────────────────────────────────
   const {
@@ -459,7 +467,13 @@ export default function ChatWindowLayout({
       .catch((error) => console.error("Mark all read failed:", error));
 
     loadInitial();
-  }, [chatroomId, loadInitial, markChatroomReadInCache, clearSelectedFiles, setInput]);
+  }, [
+    chatroomId,
+    loadInitial,
+    markChatroomReadInCache,
+    clearSelectedFiles,
+    setInput,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -468,7 +482,11 @@ export default function ChatWindowLayout({
   }, []);
 
   useEffect(() => {
-    if (shouldScrollToBottomRef.current && !loadingInitial && messages.length > 0) {
+    if (
+      shouldScrollToBottomRef.current &&
+      !loadingInitial &&
+      messages.length > 0
+    ) {
       scrollToBottomRef.current?.();
       shouldScrollToBottomRef.current = false;
     }
@@ -651,16 +669,18 @@ export default function ChatWindowLayout({
       {/* ── Call UI ────────────────────────────────────────────────────────── */}
       <IncomingCallModal
         callState={callState}
-        callerName={otherMember?.fullname ?? "Người dùng"}
-        callerAvatar={otherMember?.avatar}
+        callerName={remoteCallMember?.fullname ?? "Người dùng"}
+        callerAvatar={remoteCallMember?.avatar ?? null}
         onAnswer={() => void answerCall()}
         onReject={() => void rejectCall()}
       />
 
       <ActiveCallScreen
         callState={callState}
-        remoteName={otherMember?.fullname ?? "Người dùng"}
-        remoteAvatar={otherMember?.avatar}
+        remoteName={
+          remoteCallMember?.fullname ?? otherMember?.fullname ?? "Người dùng"
+        }
+        remoteAvatar={remoteCallMember?.avatar ?? otherMember?.avatar ?? null}
         localVideoRef={localVideoRef}
         remoteVideoRef={remoteVideoRef}
         onToggleMic={toggleMic}
