@@ -124,7 +124,6 @@ export default function ChatWindowLayout({
     (m) => m.userId !== user?.userId,
   );
 
-
   const scrollToBottomRef = useRef<(() => void) | null>(null);
   const nearBottomRef = useRef(true);
   const markReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -316,6 +315,7 @@ export default function ChatWindowLayout({
     toggleCam,
   } = useCallSignalR({
     connectionRef,
+    isConnected,
     currentUserId: user?.userId ?? "",
     localVideoRef,
     remoteVideoRef,
@@ -467,7 +467,13 @@ export default function ChatWindowLayout({
       .catch((error) => console.error("Mark all read failed:", error));
 
     loadInitial();
-  }, [chatroomId, loadInitial, markChatroomReadInCache, clearSelectedFiles, setInput]);
+  }, [
+    chatroomId,
+    loadInitial,
+    markChatroomReadInCache,
+    clearSelectedFiles,
+    setInput,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -476,7 +482,11 @@ export default function ChatWindowLayout({
   }, []);
 
   useEffect(() => {
-    if (shouldScrollToBottomRef.current && !loadingInitial && messages.length > 0) {
+    if (
+      shouldScrollToBottomRef.current &&
+      !loadingInitial &&
+      messages.length > 0
+    ) {
       scrollToBottomRef.current?.();
       shouldScrollToBottomRef.current = false;
     }
@@ -667,7 +677,9 @@ export default function ChatWindowLayout({
 
       <ActiveCallScreen
         callState={callState}
-        remoteName={remoteCallMember?.fullname ?? otherMember?.fullname ?? "Người dùng"}
+        remoteName={
+          remoteCallMember?.fullname ?? otherMember?.fullname ?? "Người dùng"
+        }
         remoteAvatar={remoteCallMember?.avatar ?? otherMember?.avatar ?? null}
         localVideoRef={localVideoRef}
         remoteVideoRef={remoteVideoRef}

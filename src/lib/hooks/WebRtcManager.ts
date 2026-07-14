@@ -8,7 +8,11 @@
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
+  {
+    urls: "turn:your-turn-server.com:3478",
+    username: "user",
+    credential: "pass",
+  },
 ];
 
 export type OnIceCandidateFn = (candidateJson: string) => void;
@@ -52,6 +56,8 @@ export class WebRtcManager {
     if (!this.pc) throw new Error("PeerConnection chưa được tạo");
     this.pc.addTrack(track, stream);
   }
+
+  private pendingCandidates: string[] = [];
   // ── PeerConnection ────────────────────────────────────────────────────────
 
   createPeerConnection(): RTCPeerConnection {
@@ -90,7 +96,12 @@ export class WebRtcManager {
   /** Callee: nhận offer → tạo answer → set cả hai, trả về SDP answer string */
   async handleOffer(sdpOffer: string): Promise<string> {
     if (!this.pc) throw new Error("PeerConnection chưa được tạo.");
+
     await this.pc.setRemoteDescription({ type: "offer", sdp: sdpOffer });
+    for (const c of this.pendingCandidates)
+      await this.pc.addIceCandidate(new RTCIceCandidate(JSON.parse(c)));
+    this.pendingCandidates = [];
+
     const answer = await this.pc.createAnswer();
     await this.pc.setLocalDescription(answer);
     return answer.sdp!;
@@ -100,11 +111,18 @@ export class WebRtcManager {
   async handleAnswer(sdpAnswer: string): Promise<void> {
     if (!this.pc) throw new Error("PeerConnection chưa được tạo.");
     await this.pc.setRemoteDescription({ type: "answer", sdp: sdpAnswer });
+    for (const c of this.pendingCandidates)
+      await this.pc.addIceCandidate(new RTCIceCandidate(JSON.parse(c)));
+    this.pendingCandidates = [];
   }
 
   /** Cả hai: nhận ICE candidate từ đối phương */
   async addIceCandidate(candidateJson: string): Promise<void> {
     if (!this.pc) return;
+    if (!this.pc.remoteDescription) {
+      this.pendingCandidates.push(candidateJson);
+      return;
+    }
     await this.pc.addIceCandidate(
       new RTCIceCandidate(JSON.parse(candidateJson)),
     );
@@ -113,6 +131,7 @@ export class WebRtcManager {
   // ── Cleanup ───────────────────────────────────────────────────────────────
 
   destroy() {
+    this.pendingCandidates = [];
     this.localStream?.getTracks().forEach((t) => t.stop());
     this.localStream = null;
     this.pc?.close();

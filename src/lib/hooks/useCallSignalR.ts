@@ -104,6 +104,7 @@ interface IceCandidatePayload {
 interface UseCallSignalROptions {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   connectionRef: RefObject<any>;
+  isConnected: boolean;
   currentUserId: string;
   localVideoRef: RefObject<HTMLVideoElement | null>;
   remoteVideoRef: RefObject<HTMLVideoElement | null>;
@@ -122,6 +123,7 @@ export interface UseCallSignalRReturn {
 
 export function useCallSignalR({
   connectionRef,
+  isConnected,
   currentUserId: _currentUserId,
   localVideoRef,
   remoteVideoRef,
@@ -375,6 +377,7 @@ export function useCallSignalR({
   // ── SignalR event listeners ───────────────────────────────────────────────
 
   useEffect(() => {
+    if (!isConnected) return;
     const conn = connectionRef.current;
     if (!conn) return;
 
@@ -458,7 +461,9 @@ export function useCallSignalR({
     };
     //call failed
     const onCallFailed = (payload: { callLogId: string; reason: string }) => {
-      if (stateRef.current.callLogId !== payload.callLogId) return;
+      const currentCallLogId = stateRef.current.callLogId;
+      if (currentCallLogId !== null && currentCallLogId !== payload.callLogId)
+        return;
       console.warn("[Call], CallFailed: ", payload.reason);
       cleanup();
     };
@@ -493,11 +498,10 @@ export function useCallSignalR({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    connectionRef.current,
-    activateCall,
+    isConnected, // ← trigger chính: chờ connection sẵn sàng
+    activateCall, // ← giữ lại để tránh stale closure
     cleanup,
     createManager,
-    localVideoRef,
     updateState,
   ]);
 
