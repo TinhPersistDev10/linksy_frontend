@@ -30,6 +30,7 @@ interface MessageListProps {
   onShowDelivery?: (messageId: string) => void;
   onReply: (message: MessageResponse) => void;
   onEdit: (message: MessageResponse) => void;
+  onCallAgain?: (callType: "audio" | "video") => void;
 }
 
 export default function MessageList({
@@ -45,6 +46,7 @@ export default function MessageList({
   onDelete,
   onReply,
   onEdit,
+  onCallAgain,
   scrollToBottomRef,
   onNearBottom,
   onShowDelivery,
@@ -184,6 +186,7 @@ export default function MessageList({
               onReply={onReply}
               onEdit={onEdit}
               onShowDelivery={onShowDelivery}
+              onCallAgain={onCallAgain}
             />
           ))}
 

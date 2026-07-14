@@ -5,8 +5,11 @@ import {
   Eye,
   MoreHorizontal,
   Pencil,
+  Phone,
+  PhoneCall,
   Reply,
   Trash2,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import ChatAvatar from "./ChatAvatar";
@@ -33,6 +36,7 @@ interface MessageItemProps {
   onReply: (message: MessageResponse) => void;
   onEdit: (message: MessageResponse) => void;
   onShowDelivery?: (messageId: string) => void;
+  onCallAgain?: (callType: "audio" | "video") => void;
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
@@ -68,6 +72,40 @@ function getAttachmentUrl(attachment: NonNullable<MessageResponse["attachments"]
   return attachment.cdnUrl ?? attachment.fileUrl ?? "";
 }
 
+function getCallInfo(msg: MessageResponse) {
+  const text = msg.messageText ?? "";
+  const lower = text.toLowerCase();
+  const isCall =
+    msg.messageType === "call" ||
+    msg.messageType === "call_log" ||
+    msg.messageId.startsWith("call-log-") ||
+    (msg.messageType === "system" &&
+      (lower.includes("cuộc gọi") || lower.includes("gọi thoại")));
+
+  if (!isCall) return null;
+
+  const callType: "audio" | "video" =
+    lower.includes("video") || msg.messageType === "video_call"
+      ? "video"
+      : "audio";
+  const direction = lower.includes("đến") ? "incoming" : "outgoing";
+  const label =
+    callType === "video"
+      ? direction === "incoming"
+        ? "Cuộc gọi video đến"
+        : "Cuộc gọi video đi"
+      : direction === "incoming"
+        ? "Cuộc gọi thoại đến"
+        : "Cuộc gọi thoại đi";
+  const duration =
+    text
+      .split(/[·—-]/)
+      .map((part) => part.trim())
+      .find((part) => /giây|phút|không có ai trả lời/i.test(part)) ?? "";
+
+  return { callType, direction, label, duration };
+}
+
 export default function MessageItem({
   msg,
   prevMsg,
@@ -77,11 +115,77 @@ export default function MessageItem({
   onReply,
   onEdit,
   onShowDelivery,
+  onCallAgain,
 }: MessageItemProps) {
   const isOwn = msg.isOwn || msg.senderId === currentUserId;
   const isTemp = msg.messageId.startsWith("temp-");
 
   const showDateDivider = !prevMsg || !isSameDay(prevMsg.sentAt, msg.sentAt);
+  const callInfo = getCallInfo(msg);
+  if (callInfo) {
+    const Icon = callInfo.callType === "video" ? Video : Phone;
+    return (
+      <div data-msg-id={msg.messageId}>
+        {showDateDivider && (
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="px-2 text-xs text-muted-foreground">
+              {formatDateDivider(msg.sentAt)}
+            </span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        )}
+
+        <div
+          className={cn(
+            "group/message flex items-end gap-2",
+            isOwn ? "flex-row-reverse" : "flex-row",
+            "mt-3",
+          )}
+        >
+          <div className="h-7 w-7 shrink-0">
+            {!isOwn && (
+              <ChatAvatar
+                src={msg.senderAvatar ?? undefined}
+                name={msg.senderFullname}
+                size={7}
+              />
+            )}
+          </div>
+
+          <div
+            className={cn(
+              "w-48 overflow-hidden rounded-lg border text-sm shadow-sm",
+              isOwn
+                ? "border-blue-200 bg-blue-50 text-slate-800"
+                : "border-border bg-background",
+            )}
+          >
+            <div className="px-3.5 pb-2.5 pt-3">
+              <p className="font-semibold text-slate-800">{callInfo.label}</p>
+              <div className="mt-2 flex items-center gap-2 text-muted-foreground">
+                <Icon size={17} className="shrink-0" />
+                <span className="min-w-0 truncate">
+                  {callInfo.duration || "Không có ai trả lời"}
+                </span>
+              </div>
+            </div>
+            <div className="border-t border-border/80">
+              <button
+                type="button"
+                onClick={() => onCallAgain?.(callInfo.callType)}
+                className="flex h-10 w-full items-center justify-center gap-2 font-medium text-blue-600 transition-colors hover:bg-blue-50"
+              >
+                <PhoneCall size={16} />
+                Gọi lại
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (msg.messageType === "system") {
     return (
       <div data-msg-id={msg.messageId}>
