@@ -25,10 +25,27 @@ const processQueue = (error: AxiosError | null) => {
   });
   failedQueue = [];
 };
+/** Routes guests may visit without being forced to /login after a failed session check. */
+const PUBLIC_PATH_PREFIXES = [
+  '/',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/verify-email',
+];
+
+const isPublicPath = (pathname: string) =>
+  PUBLIC_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || (prefix !== '/' && pathname.startsWith(`${prefix}/`)),
+  );
+
 const redirectToLogin = () => {
-  if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-    window.location.href = '/login';
-  }
+  if (typeof window === 'undefined') return;
+  const { pathname } = window.location;
+  // Keep guests on the landing page / auth pages instead of bouncing them to /login.
+  if (isPublicPath(pathname)) return;
+  if (pathname.includes('/login')) return;
+  window.location.href = '/login';
 };
 apiClient.interceptors.response.use(
   (response) => response,

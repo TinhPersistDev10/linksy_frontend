@@ -140,7 +140,7 @@ export default function MessageList({
   return (
     <div
       ref={containerRef}
-      className="h-full min-h-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-1"
+      className="h-full min-h-0 space-y-1 overflow-y-auto overscroll-contain px-2 py-3 sm:px-4 sm:py-4"
     >
       {loadingInitial ? (
         <div className="flex items-center justify-center h-full">

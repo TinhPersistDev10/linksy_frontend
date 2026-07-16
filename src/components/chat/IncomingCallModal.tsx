@@ -17,6 +17,7 @@ interface IncomingCallModalProps {
   callState: CallState;
   callerName: string;
   callerAvatar?: string | null;
+  groupName?: string | null;
   onAnswer: () => void;
   onReject: () => void;
 }
@@ -25,6 +26,7 @@ export default function IncomingCallModal({
   callState,
   callerName,
   callerAvatar,
+  groupName,
   onAnswer,
   onReject,
 }: IncomingCallModalProps) {
@@ -64,6 +66,7 @@ export default function IncomingCallModal({
   if (callState.status !== "incoming") return null;
 
   const isVideo = callState.callType === "video";
+  const isGroup = callState.isGroup;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -76,9 +79,20 @@ export default function IncomingCallModal({
         {/* Info */}
         <div className="text-center">
           <p className="text-xs text-zinc-400 uppercase tracking-wider mb-1">
-            {isVideo ? "Cuộc gọi video đến" : "Cuộc gọi thoại đến"}
+            {isGroup
+              ? isVideo
+                ? "Cuộc gọi video nhóm"
+                : "Cuộc gọi thoại nhóm"
+              : isVideo
+                ? "Cuộc gọi video đến"
+                : "Cuộc gọi thoại đến"}
           </p>
           <p className="text-xl font-semibold">{callerName}</p>
+          {isGroup && (
+            <p className="mt-1 text-sm text-zinc-300">
+              đã bắt đầu cuộc gọi nhóm {groupName || "này"}
+            </p>
+          )}
         </div>
 
         {/* Buttons */}

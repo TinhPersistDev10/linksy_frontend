@@ -120,7 +120,7 @@ export default function GroupsDirectoryView({ onSelectChat }: GroupsDirectoryVie
           </button>
         </div>
 
-        <div className="rounded-md border border-slate-200 bg-white p-4">
+        <div className="rounded-md border border-slate-200 bg-white p-2 sm:p-4">
           {filtered.length === 0 ? (
             <p className="py-10 text-center text-sm text-slate-400">
               Không có nhóm nào
@@ -131,14 +131,16 @@ export default function GroupsDirectoryView({ onSelectChat }: GroupsDirectoryVie
                 key={group.chatroomId}
                 type="button"
                 onClick={() => onSelectChat?.(group)}
-                className="flex h-20 w-full items-center justify-between rounded-md px-3 text-left hover:bg-slate-50"
+                className="flex min-h-20 w-full items-center justify-between gap-3 rounded-md px-2 py-3 text-left hover:bg-slate-50 sm:px-3"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <GroupAvatar group={group} />
-                  <div>
-                    <p className="flex items-center gap-2 font-semibold">
+                  <div className="min-w-0">
+                    <p className="flex min-w-0 items-center gap-2 font-semibold">
                       <UsersRound size={15} className="text-slate-400" />
-                      {group.roomName || "Nhóm chưa đặt tên"}
+                      <span className="truncate">
+                        {group.roomName || "Nhóm chưa đặt tên"}
+                      </span>
                     </p>
                     <p className="mt-1 text-sm text-slate-400">
                       {group.members?.length ?? 0} thành viên

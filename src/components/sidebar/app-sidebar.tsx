@@ -55,6 +55,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   selectedChatroomId?: string;
   refreshTrigger?: number;
   onRemovedFromGroup?: (chatroomId: string) => void;
+  mobileHidden?: boolean;
 }
 
 type NavTab = "messages" | "friends" | "groups" | "notifications";
@@ -119,6 +120,7 @@ export function AppSidebar({
   refreshTrigger: externalRefreshTrigger = 0,
   onOpenSocialView,
   onRemovedFromGroup,
+  mobileHidden = false,
   ...props
 }: AppSidebarProps) {
   const { user, logout } = useAuth();
@@ -301,7 +303,12 @@ export function AppSidebar({
 
   return (
     <>
-      <div className="flex h-svh min-h-0 overflow-hidden">
+      <div
+        className={cn(
+          "h-svh min-h-0 overflow-hidden",
+          mobileHidden ? "hidden md:flex" : "flex",
+        )}
+      >
         <div className="hidden md:flex flex-col items-center w-14 shrink-0 bg-sidebar border-r border-sidebar-border py-3 gap-1 z-20">
           <div className="w-8 h-8 rounded-xl bg-sky-500 flex items-center justify-center mb-3 shrink-0">
             <MessageCircle size={16} className="text-white" />
@@ -392,7 +399,7 @@ export function AppSidebar({
 
         <Sidebar
           collapsible="none"
-          className="w-72 shrink-0 border-r border-sidebar-border flex flex-col h-full min-h-0"
+          className="w-screen shrink-0 border-r border-sidebar-border flex flex-col h-full min-h-0 sm:w-80 md:w-72"
           {...props}
         >
           <SidebarHeader className="px-4 py-3 border-b border-sidebar-border">
@@ -420,6 +427,38 @@ export function AppSidebar({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full h-8 pl-8 pr-3 rounded-lg bg-muted/60 border border-transparent text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 placeholder:text-muted-foreground/60 transition-all"
               />
+            </div>
+
+            <div className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-muted/50 p-1 md:hidden">
+              {navItems.map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => handleTabChange(id)}
+                  title={label}
+                  aria-label={label}
+                  className={cn(
+                    "relative flex h-9 items-center justify-center rounded-lg text-sidebar-foreground/70 transition-colors",
+                    activeTab === id
+                      ? "bg-background text-sky-600 shadow-sm"
+                      : "hover:bg-background/70",
+                  )}
+                >
+                  <Icon size={17} />
+                  {id === "messages" && messageUnreadCount > 0 && (
+                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                      {messageUnreadCount > 99 ? "99+" : messageUnreadCount}
+                    </span>
+                  )}
+                  {id === "notifications" && notificationUnreadCount > 0 && (
+                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                      {notificationUnreadCount > 99
+                        ? "99+"
+                        : notificationUnreadCount}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
           </SidebarHeader>
 

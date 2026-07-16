@@ -135,8 +135,7 @@ export default function CreateNewChat({
         onClick={onClose}
       />
       <div
-        className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-        w-full max-w-md bg-background border rounded-2xl shadow-2xl overflow-hidden"
+        className="fixed inset-x-3 top-1/2 z-50 max-h-[85svh] -translate-y-1/2 overflow-hidden rounded-2xl border bg-background shadow-2xl sm:left-1/2 sm:w-full sm:max-w-md sm:-translate-x-1/2"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b">
@@ -179,7 +178,7 @@ export default function CreateNewChat({
         )}
 
         {/* List */}
-        <div className="p-4 pt-2 min-h-[200px] max-h-[400px] overflow-y-auto space-y-1">
+        <div className="min-h-[200px] max-h-[60svh] space-y-1 overflow-y-auto p-3 pt-2 sm:p-4 sm:pt-2">
           {loading ? (
             <div className="flex items-center justify-center py-10">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />

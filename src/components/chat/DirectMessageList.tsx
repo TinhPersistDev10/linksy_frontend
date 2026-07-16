@@ -27,6 +27,7 @@ import type {
 import { getApiOrigin } from "@/lib/utils/apiUrl";
 import { cn } from "@/lib/utils/cn";
 import { formatConversationTime } from "@/lib/utils/datetime";
+import { formatCallLogPreview, parseCallLogPayload } from "@/lib/types/call";
 
 interface DirectMessageListProps {
   onSelectChat: (chatroom: ChatroomResponse) => void;
@@ -113,8 +114,15 @@ function getLastMessagePreview(
   if (!lastMsg) return "Bắt đầu cuộc trò chuyện";
   if (lastMsg.isDeleted) return "Tin nhắn đã bị xóa";
 
-  const text = lastMsg.messageText || "Tin nhắn";
-  if (lastMsg.senderId === currentUserId) return `Bạn: ${text}`;
+  const isOwn = lastMsg.senderId === currentUserId;
+
+  let text = lastMsg.messageText || "Tin nhắn";
+  if (lastMsg.messageType === "call_log") {
+    const payload = parseCallLogPayload(lastMsg.messageText ?? "");
+    text = payload ? formatCallLogPreview(payload, isOwn) : "Cuộc gọi";
+  }
+
+  if (isOwn) return `Bạn: ${text}`;
   if (isGroupChat(chatroom))
     return `${lastMsg.senderFullname || lastMsg.senderUsername}: ${text}`;
   return text;

@@ -1,6 +1,12 @@
 "use client";
 
-import { Users, UserRoundPlus, UserPlus, UsersRound } from "lucide-react";
+import {
+  ArrowLeft,
+  Users,
+  UserRoundPlus,
+  UserPlus,
+  UsersRound,
+} from "lucide-react";
 import FriendsDirectoryView from "./FriendsDirectoryView";
 import FriendRequestsView from "./FriendRequestsView";
 import GroupsDirectoryView from "./GroupsDirectoryView";
@@ -10,6 +16,7 @@ import type { ChatroomResponse } from "@/lib/types/chatroom";
 
 interface SocialWorkspaceProps {
   view: SocialView;
+  onBack?: () => void;
   onSelectChat?: (chatroom: ChatroomResponse) => void;
 }
 
@@ -35,7 +42,11 @@ const viewMeta: Record<Exclude<SocialView, "messages">, {
   },
 };
 
-export default function SocialWorkspace({ view, onSelectChat }: SocialWorkspaceProps) {
+export default function SocialWorkspace({
+  view,
+  onBack,
+  onSelectChat,
+}: SocialWorkspaceProps) {
   if (view === "messages") return null;
 
   const meta = viewMeta[view];
@@ -43,12 +54,24 @@ export default function SocialWorkspace({ view, onSelectChat }: SocialWorkspaceP
 
   return (
     <section className="flex min-h-0 flex-1 flex-col bg-white text-slate-900">
-      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-6">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3 sm:h-16 sm:px-6">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 md:hidden"
+            aria-label="Quay lại"
+          >
+            <ArrowLeft size={18} />
+          </button>
+        )}
         <Icon size={22} />
-        <h1 className="text-base font-semibold">{meta.title}</h1>
+        <h1 className="min-w-0 truncate text-base font-semibold">
+          {meta.title}
+        </h1>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-y-auto p-6">
+      <main className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-6">
         {view === "friends-directory" && (
           <FriendsDirectoryView onSelectChat={onSelectChat} />
         )}

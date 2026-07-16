@@ -6,14 +6,50 @@
  * Đặt file tại: src/lib/hooks/WebRtcManager.ts
  */
 
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  {
-    urls: "turn:your-turn-server.com:3478",
-    username: "user",
-    credential: "pass",
-  },
+const DEFAULT_STUN_URLS = [
+  "stun:stun.l.google.com:19302",
+  "stun:stun1.l.google.com:19302",
+  "stun:stun2.l.google.com:19302",
 ];
+
+/**
+ * ICE servers are read from env so a real TURN server can be plugged in
+ * without a code change. Without TURN, calls only work when both peers can
+ * reach each other with STUN alone (typically same network/NAT) — this is
+ * the most common reason two peers on different networks connect but never
+ * see each other's media.
+ */
+export function buildIceServers(): RTCIceServer[] {
+  const stunUrls = (process.env.NEXT_PUBLIC_STUN_URLS?.trim() || "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+  const servers: RTCIceServer[] = [
+    { urls: stunUrls.length > 0 ? stunUrls : DEFAULT_STUN_URLS },
+  ];
+
+  const turnUrl = process.env.NEXT_PUBLIC_TURN_URL?.trim();
+  const turnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME?.trim();
+  const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL?.trim();
+
+  if (turnUrl) {
+    servers.push({
+      urls: turnUrl,
+      username: turnUsername,
+      credential: turnCredential,
+    });
+  } else if (typeof window !== "undefined") {
+    console.warn(
+      "[WebRTC] No NEXT_PUBLIC_TURN_URL configured — calls between peers on " +
+        "different networks/NATs may connect but show no audio/video because " +
+        "STUN alone cannot relay media through symmetric NATs or restrictive " +
+        "firewalls.",
+    );
+  }
+
+  return servers;
+}
 
 export type OnIceCandidateFn = (candidateJson: string) => void;
 export type OnRemoteTrackFn = (stream: MediaStream) => void;
@@ -40,16 +76,22 @@ export class WebRtcManager {
       return this.localStream;
     }
 
-    // Thử lần 1: video + audio với constraint cụ thể
+    // Thử lần 1: video + audio với constraint cụ thể.
+    // facingMode dùng { ideal } (không phải giá trị "exact" trần) vì nhiều
+    // webcam laptop/PC không khai báo facingMode — nếu coi đây là bắt buộc,
+    // getUserMedia sẽ ném OverconstrainedError trên desktop trong khi máy
+    // di động (luôn có facingMode "user"/"environment") vẫn xin quyền bình
+    // thường, đúng như triệu chứng "desktop không ra hình, mobile ra hình".
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: "user",
+          facingMode: { ideal: "user" },
         },
       });
+      this.logStreamTracks("getUserMedia(constraint)");
       return this.localStream;
     } catch (err1) {
       console.warn(
@@ -64,6 +106,7 @@ export class WebRtcManager {
         audio: true,
         video: true,
       });
+      this.logStreamTracks("getUserMedia(video:true)");
       return this.localStream;
     } catch (err2) {
       console.warn(
@@ -76,7 +119,17 @@ export class WebRtcManager {
     this.localStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
     });
+    this.logStreamTracks("getUserMedia(audio only fallback)");
     return this.localStream;
+  }
+
+  private logStreamTracks(context: string): void {
+    const tracks = this.localStream?.getTracks() ?? [];
+    console.info(
+      `[WebRTC] ${context} → tracks: ${tracks
+        .map((t) => `${t.kind}(enabled=${t.enabled},readyState=${t.readyState})`)
+        .join(", ") || "none"}`,
+    );
   }
 
   getCurrentLocalStream(): MediaStream | null {
@@ -109,13 +162,17 @@ export class WebRtcManager {
   // ── PeerConnection ────────────────────────────────────────────────────────
 
   createPeerConnection(): RTCPeerConnection {
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    this.pc = new RTCPeerConnection({ iceServers: buildIceServers() });
 
     this.pc.onicecandidate = ({ candidate }) => {
       if (candidate) this.onIceCandidate(JSON.stringify(candidate.toJSON()));
     };
 
     this.pc.ontrack = ({ streams, track }) => {
+      console.info(
+        `[WebRTC] ontrack: kind=${track.kind} readyState=${track.readyState} streamTracks=${streams[0]?.getTracks().length ?? 0}`,
+      );
+
       if (streams[0]) {
         this.remoteStream = streams[0];
       } else {
@@ -127,13 +184,28 @@ export class WebRtcManager {
     };
 
     this.pc.onconnectionstatechange = () => {
-      if (this.pc) this.onConnectionState(this.pc.connectionState);
+      if (!this.pc) return;
+      console.info(`[WebRTC] connectionState=${this.pc.connectionState}`);
+      this.onConnectionState(this.pc.connectionState);
     };
 
-    // Gắn local tracks vào peer connection
-    this.localStream
-      ?.getTracks()
-      .forEach((track) => this.pc!.addTrack(track, this.localStream!));
+    this.pc.oniceconnectionstatechange = () => {
+      if (this.pc) console.info(`[WebRTC] iceConnectionState=${this.pc.iceConnectionState}`);
+    };
+
+    // Gắn local tracks vào peer connection — log rõ track camera/mic có
+    // thật sự được thêm vào PC hay không (nguyên nhân phổ biến khiến bên
+    // kia không thấy hình: track bị "ended"/"muted" ngay từ máy gửi).
+    const localTracks = this.localStream?.getTracks() ?? [];
+    if (localTracks.length === 0) {
+      console.warn("[WebRTC] createPeerConnection: no local tracks to attach.");
+    }
+    localTracks.forEach((track) => {
+      console.info(
+        `[WebRTC] addTrack: kind=${track.kind} enabled=${track.enabled} readyState=${track.readyState}`,
+      );
+      this.pc!.addTrack(track, this.localStream!);
+    });
 
     return this.pc;
   }

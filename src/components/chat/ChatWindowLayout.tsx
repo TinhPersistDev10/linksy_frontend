@@ -3,20 +3,19 @@
 /**
  * ChatWindowLayout.tsx
  *
- * THAY ĐỔI so với bản trước:
- *  - Thêm `handleCallEnded` callback truyền vào useCallSignalR
- *  - Khi cuộc gọi kết thúc, inject một system message vào danh sách tin nhắn
- *    (giống Zalo / Messenger) mà không cần server gửi ReceiveMessage.
- *  - Không thay đổi bất kỳ logic chat nào khác.
+ * Cuộc gọi kết thúc được ghi lại thành một Message thật ở backend
+ * (messageType "call_log") và phát tới chatroom qua sự kiện "ReceiveMessage"
+ * hiện có, nên nó tự động xuất hiện trong `messages` và vẫn còn sau khi
+ * reload/chuyển tab — không cần inject message giả ở client nữa.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Send } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ChatroomResponse } from "@/lib/types/chatroom";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useChatSignalR } from "@/lib/hooks/useChatSignalR";
-import { useCallSignalR, type CallEndedInfo } from "@/lib/hooks/useCallSignalR";
+import type { UseCallSignalRReturn } from "@/lib/hooks/useCallSignalR";
 
 import { useMessages, PAGE_SIZE } from "@/lib/hooks/useMessages";
 import { useSendMessage } from "@/lib/hooks/useSendMessage";
@@ -24,8 +23,6 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import ConversationInfoPanel from "./ConversationInfoPanel";
-import IncomingCallModal from "./IncomingCallModal";
-import ActiveCallScreen from "./ActiveCallScreen";
 import { messagesApi } from "@/lib/api/messages";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import { chatroomQueryKeys } from "@/lib/queries/queryKeys";
@@ -39,57 +36,7 @@ interface ChatWindowLayoutProps {
   onBack?: () => void;
   onReadChatroom?: () => void;
   onChatroomUpdated?: (chatroom: ChatroomResponse) => void;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function formatCallDuration(sec: number): string {
-  if (sec < 60) return `${sec} giây`;
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return s > 0 ? `${m} phút ${s} giây` : `${m} phút`;
-}
-
-/** Tạo system message giả cho cuộc gọi — chỉ hiển thị local, không gửi server */
-function makeCallSystemMessage(
-  info: CallEndedInfo,
-  currentUserId: string,
-): MessageResponse {
-  const isVideo = info.callType === "video";
-  const callLabel = isVideo ? "Cuộc gọi video" : "Cuộc gọi thoại";
-  const durationLabel =
-    info.durationSec > 0
-      ? ` · ${formatCallDuration(info.durationSec)}`
-      : " · Không có ai trả lời";
-
-  // Icon prefix dạng emoji để không cần thêm component phức tạp
-  const icon = isVideo ? "📹" : "📞";
-  const directionLabel = info.wasInitiator ? "Bạn đã gọi" : "Cuộc gọi đến";
-
-  return {
-    messageId: `call-log-${info.callLogId}`,
-    chatroomId: info.chatroomId,
-    senderId: currentUserId,
-    senderFullname: "",
-    senderUsername: "",
-    senderNickname: null,
-    senderAvatar: null,
-    messageText: `${icon} ${directionLabel} — ${callLabel}${durationLabel}`,
-    messageType: "call",
-    parentMessageId: null,
-    sentAt: new Date().toISOString(),
-    isOwn: false,
-    isDeleted: false,
-    isEdited: false,
-    editedAt: null,
-    deletedAt: null,
-    parentMessage: null,
-    attachments: [],
-    deliveryStatus: "sent",
-    deliveredCount: 0,
-    readCount: 0,
-    recipientCount: 0,
-  } satisfies MessageResponse;
+  callController?: Pick<UseCallSignalRReturn, "initiateCall">;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -99,6 +46,7 @@ export default function ChatWindowLayout({
   onBack,
   onReadChatroom,
   onChatroomUpdated,
+  callController,
 }: ChatWindowLayoutProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -122,6 +70,13 @@ export default function ChatWindowLayout({
   const chatroomId = currentChatroom?.chatroomId;
   const otherMember = currentChatroom?.members?.find(
     (m) => m.userId !== user?.userId,
+  );
+  const remoteCallUserIds = useMemo(
+    () =>
+      currentChatroom?.members
+        ?.filter((member) => member.userId !== user?.userId)
+        .map((member) => member.userId) ?? [],
+    [currentChatroom?.members, user?.userId],
   );
 
   const scrollToBottomRef = useRef<(() => void) | null>(null);
@@ -263,7 +218,6 @@ export default function ChatWindowLayout({
   // ── SignalR (chat) ─────────────────────────────────────────────────────────
   const {
     isConnected,
-    connectionRef,
     sendMessage: signalRSend,
     sendTyping: signalRTyping,
     stopTyping: signalRStopTyping,
@@ -282,52 +236,6 @@ export default function ChatWindowLayout({
     onUserStoppedTyping,
     onMembershipChanged: handleMembershipChanged,
   });
-
-  // ── Video refs ─────────────────────────────────────────────────────────────
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-
-  // ── Callback: cuộc gọi kết thúc → inject system message ───────────────────
-  const handleCallEnded = useCallback(
-    (info: CallEndedInfo) => {
-      // Chỉ inject nếu user đang xem đúng chatroom của cuộc gọi đó
-      if (!user?.userId) return;
-
-      const systemMsg = makeCallSystemMessage(info, user.userId);
-
-      // appendOptimistic đủ thông minh để tránh duplicate messageId
-      appendOptimistic(systemMsg);
-
-      // Scroll xuống để thấy tin nhắn cuộc gọi
-      shouldScrollToBottomRef.current = true;
-    },
-    [user?.userId, appendOptimistic, shouldScrollToBottomRef],
-  );
-
-  // ── SignalR (call) ─────────────────────────────────────────────────────────
-  const {
-    callState,
-    initiateCall,
-    answerCall,
-    rejectCall,
-    endCall,
-    toggleMic,
-    toggleCam,
-  } = useCallSignalR({
-    connectionRef,
-    isConnected,
-    currentUserId: user?.userId ?? "",
-    localVideoRef,
-    remoteVideoRef,
-    onCallEnded: handleCallEnded,
-  });
-
-  // Resolve thông tin người dùng phía bên kia cuộc gọi từ callState.remoteUserId.
-  // Đặt SAU useCallSignalR vì cần callState đã được khởi tạo.
-  // KHÔNG dùng otherMember vì cuộc gọi có thể đến từ chatroom khác đang không hiển thị.
-  const remoteCallMember = currentChatroom?.members?.find(
-    (m) => m.userId === callState.remoteUserId,
-  );
 
   // ── Send + typing ──────────────────────────────────────────────────────────
   const {
@@ -395,10 +303,26 @@ export default function ChatWindowLayout({
 
   const handleCallAgain = useCallback(
     (callType: "audio" | "video") => {
-      if (!currentChatroom || currentChatroom.roomType !== "direct") return;
-      void initiateCall(currentChatroom.chatroomId, callType);
+      if (!currentChatroom || remoteCallUserIds.length === 0) return;
+      void callController?.initiateCall(
+        currentChatroom.chatroomId,
+        callType,
+        remoteCallUserIds,
+      );
     },
-    [currentChatroom, initiateCall],
+    [callController, currentChatroom, remoteCallUserIds],
+  );
+
+  const startCurrentCall = useCallback(
+    (callType: "audio" | "video") => {
+      if (!currentChatroom || remoteCallUserIds.length === 0) return;
+      void callController?.initiateCall(
+        currentChatroom.chatroomId,
+        callType,
+        remoteCallUserIds,
+      );
+    },
+    [callController, currentChatroom, remoteCallUserIds],
   );
 
   const handleDelete = async (messageId: string) => {
@@ -533,18 +457,18 @@ export default function ChatWindowLayout({
             isConnected={isConnected}
             onBack={onBack}
             onAudioCall={
-              currentChatroom.roomType === "direct"
-                ? () => void initiateCall(currentChatroom.chatroomId, "audio")
+              remoteCallUserIds.length > 0
+                ? () => startCurrentCall("audio")
                 : undefined
             }
             onVideoCall={
-              currentChatroom.roomType === "direct"
-                ? () => void initiateCall(currentChatroom.chatroomId, "video")
+              remoteCallUserIds.length > 0
+                ? () => startCurrentCall("video")
                 : undefined
             }
           />
 
-          <div className="shrink-0 border-b bg-background px-4 py-2">
+          <div className="shrink-0 border-b bg-background px-3 py-2 sm:px-4">
             <div className="flex gap-2">
               <input
                 value={messageSearch}
@@ -553,12 +477,12 @@ export default function ChatWindowLayout({
                   if (e.key === "Enter") handleSearchMessages();
                 }}
                 placeholder="Tìm tin nhắn..."
-                className="h-8 flex-1 rounded-md border px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400/30"
+                className="h-8 min-w-0 flex-1 rounded-md border px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400/30"
               />
               <button
                 type="button"
                 onClick={handleSearchMessages}
-                className="h-8 rounded-md bg-sky-500 px-3 text-sm text-white disabled:opacity-60"
+                className="h-8 shrink-0 rounded-md bg-sky-500 px-3 text-sm text-white disabled:opacity-60"
                 disabled={searching}
               >
                 Tìm
@@ -635,7 +559,7 @@ export default function ChatWindowLayout({
           />
 
           {deliveryOpen && deliveryStatus && (
-            <div className="absolute bottom-16 right-4 z-30 w-72 rounded-md border bg-background p-3 shadow-lg">
+            <div className="absolute inset-x-3 bottom-16 z-30 rounded-md border bg-background p-3 shadow-lg sm:left-auto sm:right-4 sm:w-72">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-sm font-medium">Trạng thái tin nhắn</p>
                 <button
@@ -675,27 +599,6 @@ export default function ChatWindowLayout({
         />
       </div>
 
-      {/* ── Call UI ────────────────────────────────────────────────────────── */}
-      <IncomingCallModal
-        callState={callState}
-        callerName={remoteCallMember?.fullname ?? "Người dùng"}
-        callerAvatar={remoteCallMember?.avatar ?? null}
-        onAnswer={() => void answerCall()}
-        onReject={() => void rejectCall()}
-      />
-
-      <ActiveCallScreen
-        callState={callState}
-        remoteName={
-          remoteCallMember?.fullname ?? otherMember?.fullname ?? "Người dùng"
-        }
-        remoteAvatar={remoteCallMember?.avatar ?? otherMember?.avatar ?? null}
-        localVideoRef={localVideoRef}
-        remoteVideoRef={remoteVideoRef}
-        onToggleMic={toggleMic}
-        onToggleCam={toggleCam}
-        onEndCall={() => void endCall()}
-      />
     </>
   );
 }

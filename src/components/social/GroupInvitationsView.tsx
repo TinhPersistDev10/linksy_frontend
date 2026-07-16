@@ -125,17 +125,19 @@ export default function GroupInvitationsView() {
   return (
     <div className="space-y-6">
       {selectedInvitation && (
-        <section className="rounded-md border border-slate-200 bg-white p-5">
+        <section className="rounded-md border border-slate-200 bg-white p-3 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex items-start gap-4">
+            <div className="flex min-w-0 items-start gap-3 sm:gap-4">
               <InvitationAvatar
                 src={selectedInvitation.chatroomAvatar}
                 name={selectedInvitation.chatroomName}
               />
-              <div>
-                <p className="flex items-center gap-2 text-lg font-semibold">
+              <div className="min-w-0">
+                <p className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
                   <UsersRound size={18} className="text-slate-400" />
-                  {selectedInvitation.chatroomName || "Nhóm chưa đặt tên"}
+                  <span className="truncate">
+                    {selectedInvitation.chatroomName || "Nhóm chưa đặt tên"}
+                  </span>
                 </p>
                 <p className="text-sm text-slate-400">
                   {selectedInvitation.memberCount} thành viên ? Mời bởi {selectedInvitation.invitedByFullname || selectedInvitation.invitedByUsername}
@@ -146,7 +148,7 @@ export default function GroupInvitationsView() {
               </div>
             </div>
 
-            <div className="grid min-w-[360px] grid-cols-3 gap-2">
+            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:w-auto lg:min-w-[360px]">
               <button
                 type="button"
                 disabled={busyId === selectedInvitation.invitationId}
@@ -180,7 +182,7 @@ export default function GroupInvitationsView() {
         <h2 className="mb-4 text-sm font-semibold">
           Lời mời vào nhóm ({invitations.length})
         </h2>
-        <div className="grid gap-3 xl:grid-cols-3 lg:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {invitations.map((invitation) => {
             const selected = invitation.invitationId === selectedInvitationId;
 
@@ -193,13 +195,13 @@ export default function GroupInvitationsView() {
                   selected ? "bg-emerald-50 ring-1 ring-emerald-200" : "border border-slate-200 bg-white hover:bg-slate-50"
                 }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <InvitationAvatar
                     src={invitation.chatroomAvatar}
                     name={invitation.chatroomName}
                   />
-                  <div>
-                    <p className="font-semibold">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">
                       {invitation.chatroomName || "Nhóm chưa đặt tên"}
                     </p>
                     <p className="text-xs text-slate-400">
