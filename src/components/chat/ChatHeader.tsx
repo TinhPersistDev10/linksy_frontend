@@ -70,13 +70,12 @@ export default function ChatHeader({
       ? "Đang hoạt động"
       : `@${otherMember?.username ?? ""}`;
 
-  // Nút Phone và Video chỉ có handler thật khi là chat 1-1
-  const handlePhone = isGroup || !onAudioCall ? showUnderDevelopment : onAudioCall;
-  const handleVideo = isGroup || !onVideoCall ? showUnderDevelopment : onVideoCall;
+  const handlePhone = onAudioCall ?? showUnderDevelopment;
+  const handleVideo = onVideoCall ?? showUnderDevelopment;
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-3 border-b bg-background/80 px-4 py-3 backdrop-blur-sm">
+      <div className="flex shrink-0 items-center gap-2 border-b bg-background/80 px-3 py-2.5 backdrop-blur-sm sm:gap-3 sm:px-4 sm:py-3">
         {onBack && (
           <button
             onClick={onBack}
@@ -115,7 +114,7 @@ export default function ChatHeader({
           </p>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
           <span
             className={cn(
               "mr-1 h-2 w-2 rounded-full transition-colors",
@@ -128,7 +127,7 @@ export default function ChatHeader({
           <button
             type="button"
             onClick={handlePhone}
-            title={isGroup ? "Chức năng đang phát triển" : "Gọi thoại"}
+            title={isGroup ? "Gọi thoại nhóm" : "Gọi thoại"}
             className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent"
           >
             <Phone size={16} />
@@ -138,7 +137,7 @@ export default function ChatHeader({
           <button
             type="button"
             onClick={handleVideo}
-            title={isGroup ? "Chức năng đang phát triển" : "Gọi video"}
+            title={isGroup ? "Gọi video nhóm" : "Gọi video"}
             className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent"
           >
             <Video size={16} />
@@ -148,7 +147,7 @@ export default function ChatHeader({
           <button
             type="button"
             onClick={showUnderDevelopment}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent"
+            className="hidden h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent sm:flex"
           >
             <MoreVertical size={16} />
           </button>

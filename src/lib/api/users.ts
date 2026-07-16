@@ -50,8 +50,15 @@ export const usersApi = {
     await apiClient.delete("/users/avatar");
   },
 
-  changePassword: async (data: ChangePasswordRequest): Promise<void> => {
-    await apiClient.post("/auth/change-password", data);
+  changePassword: async (
+    data: Omit<ChangePasswordRequest, "confirmPassword">,
+  ): Promise<void> => {
+    const payload: ChangePasswordRequest = {
+      ...data,
+      confirmPassword: data.newPassword,
+    };
+
+    await apiClient.post("/auth/change-password", payload);
   },
   searchUsers: async (query: string, limit = 20): Promise<UserLookup[]> => {
     const keyword = query.trim();

@@ -117,16 +117,16 @@ export default function CreateGroupDialog({
   const canCreate = roomName.trim().length > 0 && selectedIds.length > 0 && !creating;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
-      <section className="flex h-[720px] w-full max-w-[540px] flex-col overflow-hidden rounded-md bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 px-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={onClose}>
+      <section className="flex max-h-[90svh] w-full max-w-[540px] flex-col overflow-hidden rounded-md bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 px-4 sm:px-5">
           <h2 className="text-base font-semibold text-slate-900">Tạo nhóm</h2>
           <button type="button" onClick={onClose} className="rounded-full p-1 text-slate-500 hover:bg-slate-100">
             <X size={22} />
           </button>
         </header>
 
-        <div className="shrink-0 border-b border-slate-200 px-5 py-4">
+        <div className="shrink-0 border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4">
           <div className="flex items-center gap-3">
             <button type="button" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-300 text-slate-600 hover:bg-slate-50">
               <Camera size={20} />
@@ -166,7 +166,7 @@ export default function CreateGroupDialog({
           {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
           <p className="mb-3 text-sm font-semibold text-slate-700">Danh sách bạn bè</p>
           {Object.keys(grouped).length === 0 ? (
             <p className="py-12 text-center text-sm text-slate-500">Không tìm thấy bạn bè phù hợp</p>
@@ -198,17 +198,17 @@ export default function CreateGroupDialog({
           )}
         </div>
 
-        <footer className="flex shrink-0 items-center justify-between border-t border-slate-200 px-5 py-4">
+        <footer className="flex shrink-0 flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
           <p className="text-sm text-slate-500">Đã chọn {selectedIds.length} thành viên</p>
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="h-10 rounded-md bg-slate-100 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-200">
-              H?y
+          <div className="flex w-full gap-2 sm:w-auto">
+            <button type="button" onClick={onClose} className="h-10 flex-1 rounded-md bg-slate-100 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-200 sm:flex-none">
+              Hủy
             </button>
             <button
               type="button"
               disabled={!canCreate}
               onClick={createGroup}
-              className="flex h-10 items-center gap-2 rounded-md bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-500 disabled:bg-blue-200"
+              className="flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-500 disabled:bg-blue-200 sm:flex-none"
             >
               {creating && <Loader2 size={16} className="animate-spin" />}
               Tạo nhóm

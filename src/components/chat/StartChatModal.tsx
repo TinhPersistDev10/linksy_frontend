@@ -107,8 +107,8 @@ export default function StartChatModal({
         onClick={onClose}
       />
 
-      <div className="fixed left-1/2 top-1/2 z-50 flex h-[520px] w-full max-w-xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
-        <div className="flex h-16 shrink-0 items-center justify-between border-b px-5">
+      <div className="fixed inset-x-3 top-1/2 z-50 flex max-h-[85svh] -translate-y-1/2 flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl sm:left-1/2 sm:w-full sm:max-w-xl sm:-translate-x-1/2">
+        <div className="flex h-16 shrink-0 items-center justify-between border-b px-4 sm:px-5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/10">
               <Users size={18} className="text-sky-500" />
@@ -130,7 +130,7 @@ export default function StartChatModal({
           </button>
         </div>
 
-        <div className="border-b px-5 py-3">
+        <div className="border-b px-4 py-3 sm:px-5">
           <div className="flex h-10 items-center gap-2 rounded-lg border bg-muted/40 px-3">
             <Search size={16} className="text-muted-foreground" />
             <input

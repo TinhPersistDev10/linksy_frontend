@@ -16,9 +16,12 @@ import ChatAvatar from "./ChatAvatar";
 import {
   formatMessageTime,
   formatDateDivider,
+  formatCallDuration,
+  formatCallOccurredAt,
   isSameDay,
 } from "@/lib/utils/chatFormatters";
 import type { MessageResponse } from "@/lib/types/message";
+import { parseCallLogPayload } from "@/lib/types/call";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,38 +75,45 @@ function getAttachmentUrl(attachment: NonNullable<MessageResponse["attachments"]
   return attachment.cdnUrl ?? attachment.fileUrl ?? "";
 }
 
-function getCallInfo(msg: MessageResponse) {
-  const text = msg.messageText ?? "";
-  const lower = text.toLowerCase();
-  const isCall =
-    msg.messageType === "call" ||
-    msg.messageType === "call_log" ||
-    msg.messageId.startsWith("call-log-") ||
-    (msg.messageType === "system" &&
-      (lower.includes("cuộc gọi") || lower.includes("gọi thoại")));
+function getCallInfo(msg: MessageResponse, isOwn: boolean) {
+  if (msg.messageType !== "call_log") return null;
 
-  if (!isCall) return null;
+  const payload = parseCallLogPayload(msg.messageText ?? "");
+  if (!payload) return null;
 
-  const callType: "audio" | "video" =
-    lower.includes("video") || msg.messageType === "video_call"
-      ? "video"
-      : "audio";
-  const direction = lower.includes("đến") ? "incoming" : "outgoing";
-  const label =
-    callType === "video"
-      ? direction === "incoming"
-        ? "Cuộc gọi video đến"
-        : "Cuộc gọi video đi"
-      : direction === "incoming"
-        ? "Cuộc gọi thoại đến"
-        : "Cuộc gọi thoại đi";
-  const duration =
-    text
-      .split(/[·—-]/)
-      .map((part) => part.trim())
-      .find((part) => /giây|phút|không có ai trả lời/i.test(part)) ?? "";
+  const { callType, status, durationSec } = payload;
+  const direction: "incoming" | "outgoing" = isOwn ? "outgoing" : "incoming";
+  const typeLabel = callType === "video" ? "Cuộc gọi video" : "Cuộc gọi thoại";
+  const isGroup = Boolean(payload.isGroup);
 
-  return { callType, direction, label, duration };
+  let label: string;
+  let statusText: string;
+  let durationText = "";
+
+  if (isGroup) {
+    const callerName = payload.callerName?.trim() || msg.senderFullname || "Ai đó";
+    const roomName = payload.chatroomName?.trim() || "nhóm";
+    label = `${callerName} đã bắt đầu cuộc gọi nhóm ${roomName}`;
+  } else if (status === "missed") {
+    label = isOwn ? `${typeLabel} không trả lời` : `${typeLabel} nhỡ`;
+  } else if (status === "rejected") {
+    label = isOwn ? `${typeLabel} bị từ chối` : `Bạn đã từ chối ${typeLabel.toLowerCase()}`;
+  } else {
+    label = `${typeLabel} ${direction === "incoming" ? "đến" : "đi"}`;
+  }
+
+  if (status === "missed") {
+    statusText = isOwn ? "Không có ai trả lời" : "Cuộc gọi nhỡ";
+  } else if (status === "rejected") {
+    statusText = isOwn ? "Bị từ chối" : "Bạn đã từ chối";
+  } else {
+    statusText = "Đã kết thúc";
+    durationText = formatCallDuration(durationSec);
+  }
+
+  const occurredAt = formatCallOccurredAt(payload.startedAt ?? msg.sentAt);
+
+  return { callType, direction, label, statusText, durationText, occurredAt };
 }
 
 export default function MessageItem({
@@ -121,7 +131,7 @@ export default function MessageItem({
   const isTemp = msg.messageId.startsWith("temp-");
 
   const showDateDivider = !prevMsg || !isSameDay(prevMsg.sentAt, msg.sentAt);
-  const callInfo = getCallInfo(msg);
+  const callInfo = getCallInfo(msg, isOwn);
   if (callInfo) {
     const Icon = callInfo.callType === "video" ? Video : Phone;
     return (
@@ -155,7 +165,7 @@ export default function MessageItem({
 
           <div
             className={cn(
-              "w-48 overflow-hidden rounded-lg border text-sm shadow-sm",
+              "w-64 max-w-[calc(100vw-5rem)] overflow-hidden rounded-lg border text-sm shadow-sm sm:w-72",
               isOwn
                 ? "border-blue-200 bg-blue-50 text-slate-800"
                 : "border-border bg-background",
@@ -166,9 +176,19 @@ export default function MessageItem({
               <div className="mt-2 flex items-center gap-2 text-muted-foreground">
                 <Icon size={17} className="shrink-0" />
                 <span className="min-w-0 truncate">
-                  {callInfo.duration || "Không có ai trả lời"}
+                  {callInfo.statusText}
                 </span>
               </div>
+              {callInfo.durationText && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Thời lượng: {callInfo.durationText}
+                </p>
+              )}
+              {callInfo.occurredAt && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Thời gian: {callInfo.occurredAt}
+                </p>
+              )}
             </div>
             <div className="border-t border-border/80">
               <button
@@ -248,7 +268,7 @@ export default function MessageItem({
 
         <div
           className={cn(
-            "flex max-w-[70%] flex-col",
+            "flex max-w-[82%] flex-col sm:max-w-[70%]",
             isOwn ? "items-end" : "items-start",
           )}
         >

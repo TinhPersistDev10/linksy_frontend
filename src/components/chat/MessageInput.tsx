@@ -49,7 +49,7 @@ export default function MessageInput({
   };
 
   return (
-    <div className="shrink-0 border-t bg-background px-4 py-3">
+    <div className="shrink-0 border-t bg-background px-2 py-2 sm:px-4 sm:py-3">
       {(replyTo || editingMessage) && (
         <div className="mb-2 flex items-center justify-between gap-3 rounded-md border bg-muted/50 px-3 py-2">
           <div className="min-w-0">
@@ -76,11 +76,11 @@ export default function MessageInput({
       )}
 
       {selectedFiles.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-2">
+        <div className="mb-2 flex max-h-24 flex-wrap gap-2 overflow-y-auto">
           {selectedFiles.map((file, index) => (
             <div
               key={`${file.name}-${file.size}-${index}`}
-              className="flex max-w-64 items-center gap-2 rounded-md border bg-muted/50 px-2 py-1 text-xs"
+              className="flex max-w-full items-center gap-2 rounded-md border bg-muted/50 px-2 py-1 text-xs sm:max-w-64"
             >
               <span className="min-w-0 flex-1 truncate">{file.name}</span>
               <span className="shrink-0 text-muted-foreground">
@@ -100,7 +100,7 @@ export default function MessageInput({
         </div>
       )}
 
-      <div className="flex items-center gap-2 rounded-2xl border bg-muted/50 px-3 py-2">
+      <div className="flex items-end gap-1.5 rounded-2xl border bg-muted/50 px-2 py-2 sm:items-center sm:gap-2 sm:px-3">
         <input
           ref={fileInputRef}
           type="file"
@@ -121,7 +121,7 @@ export default function MessageInput({
           disabled={attachmentsDisabled}
           variant="ghost"
           size="icon"
-          className="mb-0.5 p-1 text-muted-foreground transition-colors hover:text-foreground"
+          className="mb-0.5 h-8 w-8 shrink-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
         >
           <Paperclip size={18} />
         </Button>
@@ -133,7 +133,7 @@ export default function MessageInput({
           placeholder={editingMessage ? "Chỉnh sửa tin nhắn..." : "Nhắn tin..."}
           rows={1}
           className={cn(
-            "min-h-0 flex-1 resize-none border-0 bg-transparent py-0.5 text-sm shadow-none",
+            "min-h-0 min-w-0 flex-1 resize-none border-0 bg-transparent py-0.5 text-sm shadow-none",
             "focus-visible:ring-0 focus-visible:ring-offset-0",
             "max-h-32 placeholder:text-muted-foreground",
             "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
@@ -145,7 +145,7 @@ export default function MessageInput({
           onClick={showUnderDevelopment}
           variant="ghost"
           size="icon"
-          className="mb-0.5 h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+          className="mb-0.5 hidden h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground sm:inline-flex"
         >
           <Smile size={18} />
         </Button>
@@ -165,7 +165,7 @@ export default function MessageInput({
         </Button>
       </div>
 
-      <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
+      <p className="mt-1.5 hidden text-center text-[10px] text-muted-foreground sm:block">
         Enter để gửi · Shift+Enter xuống dòng
       </p>
     </div>

@@ -156,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const err = error as any;
       if (err?.response?.status !== 401) console.error("Logout error:", err);
     }
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   return (

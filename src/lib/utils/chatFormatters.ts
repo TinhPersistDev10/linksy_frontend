@@ -2,6 +2,7 @@ import {
   formatDateKey,
   formatLongDate,
   formatTime,
+  formatDatetime,
   isToday,
   isYesterday,
 } from "./datetime";
@@ -27,4 +28,18 @@ export function buildAvatarUrl(
 ): string | undefined {
   if (!src?.trim()) return undefined;
   return src.startsWith("http") ? src : `${baseUrl}${src}`;
+}
+
+/** "125" -> "2 phút 5 giây" — dùng cho thẻ hiển thị lịch sử cuộc gọi. */
+export function formatCallDuration(sec: number): string {
+  if (sec < 0) return "";
+  if (sec === 0) return "0 giây";
+  if (sec < 60) return `${sec} giây`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return s > 0 ? `${m} phút ${s} giây` : `${m} phút`;
+}
+
+export function formatCallOccurredAt(dateStr: string): string {
+  return formatDatetime(dateStr);
 }
