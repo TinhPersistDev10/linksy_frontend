@@ -1,18 +1,26 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next';
+import './globals.css';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { AppProviders } from './providers';
 
-export default function DashboardLayout({
+export const metadata: Metadata = {
+  title: 'Linksy - Ứng dụng chat',
+  description: 'Kết nối và trò chuyện với mọi người',
+};
+
+export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="vi">
       <body>
-        {/* Layout UI */}
-        {/* Place children where you want to render a page or nested layout */}
-        <main>{children}</main>
+        <AppProviders>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </AppProviders>
       </body>
     </html>
   )
