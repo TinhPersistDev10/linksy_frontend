@@ -1,7 +1,7 @@
 ﻿// src/components/chat/hooks/useMessages.ts
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { messagesApi } from "@/lib/api/messages";
 import type {
   AllMessagesReadEvent,
@@ -14,16 +14,56 @@ import type {
 
 export const PAGE_SIZE = 30;
 
+function scrollToMessageElement(messageId: string): boolean {
+  const el = document.querySelector<HTMLElement>(
+    `[data-msg-id="${messageId}"]`,
+  );
+  if (!el) return false;
+
+  // Chỉ scroll trong message list — tránh scrollIntoView kéo cả trang
+  // khiến ô input bị đẩy lên và để lại khoảng trống phía dưới.
+  const container = el.closest<HTMLElement>("[data-message-list]");
+  if (container) {
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const delta =
+      elRect.top -
+      containerRect.top -
+      container.clientHeight / 2 +
+      elRect.height / 2;
+    container.scrollTop += delta;
+
+    // Reset mọi scroll ancestor ngoài list (nếu bị lệch từ lần scroll trước).
+    let parent = container.parentElement;
+    while (parent) {
+      if (parent.scrollTop !== 0) parent.scrollTop = 0;
+      parent = parent.parentElement;
+    }
+    if (window.scrollY !== 0) window.scrollTo(0, 0);
+  }
+
+  el.classList.add("ring-2", "ring-sky-400");
+  window.setTimeout(() => {
+    el.classList.remove("ring-2", "ring-sky-400");
+  }, 1200);
+  return true;
+}
+
 export function useMessages(chatroomId: string | undefined) {
   const [messages, setMessages] = useState<MessageResponse[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  //attachments
-  
+  const [jumping, setJumping] = useState(false);
 
   const shouldScrollToBottomRef = useRef(true);
+  const pendingJumpIdRef = useRef<string | null>(null);
+  const messagesRef = useRef<MessageResponse[]>([]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const loadInitial = useCallback(async () => {
     if (!chatroomId) return;
@@ -31,6 +71,7 @@ export function useMessages(chatroomId: string | undefined) {
     setMessages([]);
     setPage(1);
     setHasMore(true);
+    pendingJumpIdRef.current = null;
     shouldScrollToBottomRef.current = true;
     try {
       const data = await messagesApi.getMessages(chatroomId, 1, PAGE_SIZE);
@@ -45,26 +86,87 @@ export function useMessages(chatroomId: string | undefined) {
 
   const loadMore = useCallback(async () => {
     if (!chatroomId || loadingMore || !hasMore) return;
+
+    const oldestId = messagesRef.current[0]?.messageId;
+    if (!oldestId) return;
+
     setLoadingMore(true);
-    const nextPage = page + 1;
     try {
       const older = await messagesApi.getMessages(
         chatroomId,
-        nextPage,
+        1,
         PAGE_SIZE,
+        oldestId,
       );
       setHasMore(older.hasMore);
 
       if (older.messages.length > 0) {
-        setMessages((prev) => [...older.messages, ...prev]);
-        setPage(nextPage);
+        setMessages((prev) => {
+          const existing = new Set(prev.map((m) => m.messageId));
+          const fresh = older.messages.filter(
+            (m) => !existing.has(m.messageId),
+          );
+          return fresh.length > 0 ? [...fresh, ...prev] : prev;
+        });
+        setPage((p) => p + 1);
       }
     } catch (e) {
       console.error("[useMessages] loadMore:", e);
     } finally {
       setLoadingMore(false);
     }
-  }, [chatroomId, loadingMore, hasMore, page]);
+  }, [chatroomId, loadingMore, hasMore]);
+
+  const jumpToMessage = useCallback(
+    async (messageId: string) => {
+      if (!chatroomId || jumping) return;
+
+      if (scrollToMessageElement(messageId)) return;
+
+      if (messagesRef.current.some((m) => m.messageId === messageId)) {
+        pendingJumpIdRef.current = messageId;
+        return;
+      }
+
+      shouldScrollToBottomRef.current = false;
+      setJumping(true);
+      pendingJumpIdRef.current = messageId;
+
+      try {
+        const data = await messagesApi.getMessagesAround(
+          chatroomId,
+          messageId,
+          20,
+          15,
+        );
+        setMessages(data.messages);
+        setHasMore(data.hasMoreBefore);
+        setPage(1);
+      } catch (e) {
+        console.error("[useMessages] jumpToMessage:", e);
+        pendingJumpIdRef.current = null;
+      } finally {
+        setJumping(false);
+      }
+    },
+    [chatroomId, jumping],
+  );
+
+  useEffect(() => {
+    const targetId = pendingJumpIdRef.current;
+    if (!targetId || jumping || loadingInitial) return;
+    if (!messages.some((m) => m.messageId === targetId)) return;
+
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (scrollToMessageElement(targetId)) {
+          pendingJumpIdRef.current = null;
+        }
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [messages, jumping, loadingInitial]);
 
   const receiveMessage = useCallback((msg: MessageResponse) => {
     setMessages((prev) => {
@@ -219,9 +321,11 @@ export function useMessages(chatroomId: string | undefined) {
     hasMore,
     loadingInitial,
     loadingMore,
+    jumping,
     shouldScrollToBottomRef,
     loadInitial,
     loadMore,
+    jumpToMessage,
     receiveMessage,
     onMessageDeleted,
     onMessageEdited,

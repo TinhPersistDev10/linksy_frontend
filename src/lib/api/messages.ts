@@ -1,9 +1,11 @@
 import type { ApiResponse } from "../types/common";
 import type {
   EditMessageRequest,
+  GetMessagesAroundData,
   GetMessagesData,
   MessageDeliveryStatusResponse,
   MessageResponse,
+  PinnedMessageResponse,
   SearchMessagesData,
   SendMessageAttachmentRequest,
   SendMessageRequest,
@@ -21,17 +23,35 @@ export const messagesApi = {
     chatroomId: string,
     page = 1,
     pageSize = 30,
+    beforeMessageId?: string,
   ): Promise<GetMessagesData> => {
     const res = await apiClient.get<ApiResponse<GetMessagesData>>(
       `/messages/${chatroomId}`,
       {
-        params: { page, pageSize },
+        params: beforeMessageId
+          ? { beforeMessageId, pageSize }
+          : { page, pageSize },
       },
     );
     if (!res.data.data) {
       throw new Error(res.data.message || "Invalid API response");
     }
     return requireData(res.data, "Không thể tải tin nhắn");
+  },
+
+  getMessagesAround: async (
+    chatroomId: string,
+    messageId: string,
+    before = 20,
+    after = 15,
+  ): Promise<GetMessagesAroundData> => {
+    const res = await apiClient.get<ApiResponse<GetMessagesAroundData>>(
+      `/messages/${chatroomId}/around/${messageId}`,
+      {
+        params: { before, after },
+      },
+    );
+    return requireData(res.data, "Không thể tải tin nhắn quanh vị trí đã chọn");
   },
 
   sendMessage: async (data: SendMessageRequest): Promise<MessageResponse> => {
@@ -76,6 +96,15 @@ export const messagesApi = {
   markDelivered: async (messageId: string): Promise<void> => {
     await apiClient.post(`/messages/${messageId}/delivered`);
   },
+  getPinnedMessages: async (
+    chatroomId: string,
+  ): Promise<PinnedMessageResponse[]> => {
+    const res = await apiClient.get<ApiResponse<PinnedMessageResponse[]>>(
+      `/messages/${chatroomId}/pinned`,
+    );
+    return requireData(res.data, "Không thể tải tin nhắn đã ghim") ?? [];
+  },
+
   searchMessages: async (
     chatroomId: string,
     keyword: string,

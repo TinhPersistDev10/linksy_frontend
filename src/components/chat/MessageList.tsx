@@ -31,6 +31,10 @@ interface MessageListProps {
   onReply: (message: MessageResponse) => void;
   onEdit: (message: MessageResponse) => void;
   onCallAgain?: (callType: "audio" | "video") => void;
+  canPin?: boolean;
+  pinnedMessageIds?: Set<string>;
+  onPin?: (messageId: string) => void;
+  onUnpin?: (messageId: string) => void;
 }
 
 export default function MessageList({
@@ -50,6 +54,10 @@ export default function MessageList({
   scrollToBottomRef,
   onNearBottom,
   onShowDelivery,
+  canPin = false,
+  pinnedMessageIds,
+  onPin,
+  onUnpin,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -140,6 +148,7 @@ export default function MessageList({
   return (
     <div
       ref={containerRef}
+      data-message-list
       className="h-full min-h-0 space-y-1 overflow-y-auto overscroll-contain px-2 py-3 sm:px-4 sm:py-4"
     >
       {loadingInitial ? (
@@ -187,6 +196,10 @@ export default function MessageList({
               onEdit={onEdit}
               onShowDelivery={onShowDelivery}
               onCallAgain={onCallAgain}
+              canPin={canPin}
+              isPinned={pinnedMessageIds?.has(msg.messageId) ?? false}
+              onPin={onPin}
+              onUnpin={onUnpin}
             />
           ))}
 
