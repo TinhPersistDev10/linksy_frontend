@@ -1,3 +1,9 @@
+export interface MentionDto {
+  userId: string;
+  displayName: string;
+  avatarUrl?: string | null;
+}
+
 export interface MessageResponse {
   messageId: string;
   chatroomId: string;
@@ -21,6 +27,7 @@ export interface MessageResponse {
   recipientCount: number;
   deliveredCount: number;
   readCount: number;
+  mentions?: MentionDto[] | null;
 }
 
 export interface GetMessagesData {
@@ -36,6 +43,12 @@ export interface SendMessageRequest {
   messageType?: "text" | "image" | "file" | string;
   parentMessageId?: string | null;
   attachments?: SendMessageAttachmentRequest[] | null;
+  mentions?: string[] | null;
+}
+
+export interface PendingMention {
+  userId: string;
+  displayName: string;
 }
 
 export interface EditMessageRequest {

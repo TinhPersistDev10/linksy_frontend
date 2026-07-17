@@ -242,13 +242,21 @@ export function useChatSignalR({
   }, [chatroomId, isConnected, isMounted]);
 
   const sendMessage = useCallback(
-    async (chatroomId: string, text: string, type = "text") => {
+    async (
+      chatroomId: string,
+      text: string,
+      type = "text",
+      mentions?: string[],
+      parentMessageId?: string | null,
+    ) => {
       const conn = connectionRef.current;
       if (!conn) throw new Error("SignalR not connected");
       await conn.invoke("SendMessage", {
         ChatroomId: chatroomId,
         MessageText: text,
         MessageType: type,
+        Mentions: mentions && mentions.length > 0 ? mentions : undefined,
+        ParentMessageId: parentMessageId || undefined,
       });
     },
     [],

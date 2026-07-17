@@ -29,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import MentionedText from "./MentionedText";
 
 interface MessageItemProps {
   msg: MessageResponse;
@@ -381,7 +382,14 @@ export default function MessageItem({
                 </div>
               )}
 
-              {msg.messageText && <span>{msg.messageText}</span>}
+              {msg.messageText && (
+                <MentionedText
+                  text={msg.messageText}
+                  mentions={msg.mentions}
+                  currentUserId={currentUserId}
+                  isOwn={isOwn}
+                />
+              )}
               {!isTemp && !msg.isDeleted && (
                 <div
                   className={cn(

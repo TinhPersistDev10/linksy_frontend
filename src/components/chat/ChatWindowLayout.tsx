@@ -223,7 +223,6 @@ export default function ChatWindowLayout({
     stopTyping: signalRStopTyping,
     deleteMessage: signalRDelete,
     editMessage: signalREdit,
-    replyToMessage: signalRReply,
   } = useChatSignalR({
     chatroomId: chatroomId ?? null,
     onReceiveMessage: handleReceiveMessage,
@@ -248,6 +247,9 @@ export default function ChatWindowLayout({
     addSelectedFiles,
     removeSelectedFile,
     clearSelectedFiles,
+    pendingMentions,
+    setPendingMentions,
+    clearPendingMentions,
   } = useSendMessage({
     chatroomId,
     user,
@@ -258,6 +260,9 @@ export default function ChatWindowLayout({
     signalRTyping,
     signalRStopTyping,
   });
+
+  const isGroupChat =
+    currentChatroom?.roomType?.toLowerCase() === "group";
 
   const handleSearchMessages = async () => {
     if (!chatroomId || !messageSearch.trim()) {
@@ -362,15 +367,18 @@ export default function ChatWindowLayout({
         await signalREdit(editingMessage.messageId, content);
         setEditingMessage(null);
         setInput("");
+        clearPendingMentions();
         return;
       }
       if (replyTo) {
-        await signalRReply(chatroomId, replyTo.messageId, content);
+        await handleSend({
+          parentMessageId: replyTo.messageId,
+          mentions: pendingMentions,
+        });
         setReplyTo(null);
-        setInput("");
         return;
       }
-      await handleSend();
+      await handleSend({ mentions: pendingMentions });
     } catch (error) {
       console.error("Submit message failed:", error);
     } finally {
@@ -389,6 +397,7 @@ export default function ChatWindowLayout({
     setEditingMessage(null);
     setInput("");
     clearSelectedFiles();
+    clearPendingMentions();
 
     messagesApi
       .markAllRead(chatroomId)
@@ -404,6 +413,7 @@ export default function ChatWindowLayout({
     loadInitial,
     markChatroomReadInCache,
     clearSelectedFiles,
+    clearPendingMentions,
     setInput,
   ]);
 
@@ -555,7 +565,13 @@ export default function ChatWindowLayout({
               setEditingMessage(null);
               setInput("");
               clearSelectedFiles();
+              clearPendingMentions();
             }}
+            enableMentions={isGroupChat && !editingMessage}
+            mentionMembers={currentChatroom?.members ?? []}
+            currentUserId={user?.userId}
+            pendingMentions={pendingMentions}
+            onPendingMentionsChange={setPendingMentions}
           />
 
           {deliveryOpen && deliveryStatus && (
