@@ -7,6 +7,8 @@ import {
   Pencil,
   Phone,
   PhoneCall,
+  Pin,
+  PinOff,
   Reply,
   Trash2,
   Video,
@@ -41,6 +43,10 @@ interface MessageItemProps {
   onEdit: (message: MessageResponse) => void;
   onShowDelivery?: (messageId: string) => void;
   onCallAgain?: (callType: "audio" | "video") => void;
+  canPin?: boolean;
+  isPinned?: boolean;
+  onPin?: (messageId: string) => void;
+  onUnpin?: (messageId: string) => void;
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
@@ -127,6 +133,10 @@ export default function MessageItem({
   onEdit,
   onShowDelivery,
   onCallAgain,
+  canPin = false,
+  isPinned = false,
+  onPin,
+  onUnpin,
 }: MessageItemProps) {
   const isOwn = msg.isOwn || msg.senderId === currentUserId;
   const isTemp = msg.messageId.startsWith("temp-");
@@ -282,8 +292,20 @@ export default function MessageItem({
                   : "rounded-bl-sm bg-muted",
                 msg.isDeleted && "opacity-50 italic",
                 isTemp && "opacity-60",
+                isPinned && "ring-1 ring-sky-400/60",
               )}
             >
+              {isPinned && (
+                <div
+                  className={cn(
+                    "mb-1 flex items-center gap-1 text-[10px] font-medium",
+                    isOwn ? "text-white/80" : "text-sky-700",
+                  )}
+                >
+                  <Pin size={10} />
+                  Đã ghim
+                </div>
+              )}
               {msg.parentMessage && (
                 <div
                   className={cn(
@@ -435,6 +457,19 @@ export default function MessageItem({
                         <Copy />
                         Sao chép
                       </DropdownMenuItem>
+
+                      {canPin && (
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            isPinned
+                              ? onUnpin?.(msg.messageId)
+                              : onPin?.(msg.messageId)
+                          }
+                        >
+                          {isPinned ? <PinOff /> : <Pin />}
+                          {isPinned ? "Bỏ ghim" : "Ghim tin nhắn"}
+                        </DropdownMenuItem>
+                      )}
 
                       {isOwn && (
                         <>

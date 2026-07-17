@@ -13,7 +13,9 @@ import type {
   MessageDeliveredEvent,
   MessageDeletedEvent,
   MessageEditedEvent,
+  MessagePinnedEvent,
   MessageReadEvent,
+  MessageUnpinnedEvent,
 } from "../types/message";
 
 const BASE_URL = getApiOrigin();
@@ -36,6 +38,8 @@ interface UseChatSignalROptions {
   }) => void;
   onUserStoppedTyping: (data: { userId: string }) => void;
   onMembershipChanged: (data: { chatroomId: string }) => void;
+  onMessagePinned?: (event: MessagePinnedEvent) => void;
+  onMessageUnpinned?: (event: MessageUnpinnedEvent) => void;
 }
 
 export function useChatSignalR({
@@ -49,6 +53,8 @@ export function useChatSignalR({
   onUserTyping,
   onUserStoppedTyping,
   onMembershipChanged,
+  onMessagePinned,
+  onMessageUnpinned,
 }: UseChatSignalROptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -70,6 +76,8 @@ export function useChatSignalR({
     onUserTyping,
     onUserStoppedTyping,
     onMembershipChanged,
+    onMessagePinned,
+    onMessageUnpinned,
   });
   cbRef.current = {
     onReceiveMessage,
@@ -81,6 +89,8 @@ export function useChatSignalR({
     onUserTyping,
     onUserStoppedTyping,
     onMembershipChanged,
+    onMessagePinned,
+    onMessageUnpinned,
   };
 
   useEffect(() => {
@@ -143,6 +153,12 @@ export function useChatSignalR({
       );
       connection.on("MemberLeft", (data: { chatroomId: string }) =>
         cbRef.current.onMembershipChanged(data),
+      );
+      connection.on("MessagePinned", (event: MessagePinnedEvent) =>
+        cbRef.current.onMessagePinned?.(event),
+      );
+      connection.on("MessageUnpinned", (event: MessageUnpinnedEvent) =>
+        cbRef.current.onMessageUnpinned?.(event),
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("Error", (err: any) =>
@@ -280,6 +296,18 @@ export function useChatSignalR({
     await connection.invoke("DeleteMessage", messageId);
   }, []);
 
+  const pinMessage = useCallback(async (messageId: string) => {
+    const connection = connectionRef.current;
+    if (!connection) throw new Error("SignalR not connected");
+    await connection.invoke("PinMessage", messageId);
+  }, []);
+
+  const unpinMessage = useCallback(async (messageId: string) => {
+    const connection = connectionRef.current;
+    if (!connection) throw new Error("SignalR not connected");
+    await connection.invoke("UnpinMessage", messageId);
+  }, []);
+
   const editMessage = useCallback(
     async (messageId: string, newText: string) => {
       const connection = connectionRef.current;
@@ -312,5 +340,7 @@ export function useChatSignalR({
     deleteMessage,
     editMessage,
     replyToMessage,
+    pinMessage,
+    unpinMessage,
   };
 }

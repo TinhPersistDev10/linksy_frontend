@@ -23,12 +23,16 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import ConversationInfoPanel from "./ConversationInfoPanel";
+import PinnedMessagesBanner from "./PinnedMessagesBanner";
 import { messagesApi } from "@/lib/api/messages";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import { chatroomQueryKeys } from "@/lib/queries/queryKeys";
 import type {
   MessageDeliveryStatusResponse,
+  MessagePinnedEvent,
   MessageResponse,
+  MessageUnpinnedEvent,
+  PinnedMessageResponse,
 } from "@/lib/types/message";
 
 interface ChatWindowLayoutProps {
@@ -96,6 +100,9 @@ export default function ChatWindowLayout({
   const [deliveryStatus, setDeliveryStatus] =
     useState<MessageDeliveryStatusResponse | null>(null);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState<
+    PinnedMessageResponse[]
+  >([]);
 
   useEffect(() => {
     onReadChatroomRef.current = onReadChatroom;
@@ -135,6 +142,7 @@ export default function ChatWindowLayout({
     shouldScrollToBottomRef,
     loadInitial,
     loadMore,
+    jumpToMessage,
     receiveMessage,
     onMessageDeleted,
     onMessageEdited,
@@ -215,6 +223,32 @@ export default function ChatWindowLayout({
     [chatroomId, handleChatroomChange, queryClient, user?.userId],
   );
 
+  const handleMessagePinned = useCallback((event: MessagePinnedEvent) => {
+    if (!event?.pinnedMessage) return;
+    setPinnedMessages((prev) => {
+      if (prev.some((p) => p.messageId === event.pinnedMessage.messageId)) {
+        return prev;
+      }
+      return [event.pinnedMessage, ...prev];
+    });
+  }, []);
+
+  const handleMessageUnpinned = useCallback((event: MessageUnpinnedEvent) => {
+    setPinnedMessages((prev) =>
+      prev.filter((p) => p.messageId !== event.messageId),
+    );
+  }, []);
+
+  const handleMessageDeletedWithPins = useCallback(
+    (event: Parameters<typeof onMessageDeleted>[0]) => {
+      onMessageDeleted(event);
+      setPinnedMessages((prev) =>
+        prev.filter((p) => p.messageId !== event.messageId),
+      );
+    },
+    [onMessageDeleted],
+  );
+
   // ── SignalR (chat) ─────────────────────────────────────────────────────────
   const {
     isConnected,
@@ -223,10 +257,12 @@ export default function ChatWindowLayout({
     stopTyping: signalRStopTyping,
     deleteMessage: signalRDelete,
     editMessage: signalREdit,
+    pinMessage: signalRPin,
+    unpinMessage: signalRUnpin,
   } = useChatSignalR({
     chatroomId: chatroomId ?? null,
     onReceiveMessage: handleReceiveMessage,
-    onMessageDeleted,
+    onMessageDeleted: handleMessageDeletedWithPins,
     onMessageEdited,
     onMessageRead,
     onMessageDelivered,
@@ -234,6 +270,8 @@ export default function ChatWindowLayout({
     onUserTyping,
     onUserStoppedTyping,
     onMembershipChanged: handleMembershipChanged,
+    onMessagePinned: handleMessagePinned,
+    onMessageUnpinned: handleMessageUnpinned,
   });
 
   // ── Send + typing ──────────────────────────────────────────────────────────
@@ -263,6 +301,38 @@ export default function ChatWindowLayout({
 
   const isGroupChat =
     currentChatroom?.roomType?.toLowerCase() === "group";
+  const isDirectChat =
+    currentChatroom?.roomType?.toLowerCase() === "direct";
+  const canPin =
+    isDirectChat ||
+    currentChatroom?.myMemberInfo?.memberRole === "admin" ||
+    Boolean(currentChatroom?.myMemberInfo?.permissions?.canPinMessages);
+  const pinnedMessageIds = useMemo(
+    () => new Set(pinnedMessages.map((p) => p.messageId)),
+    [pinnedMessages],
+  );
+
+  const handlePin = useCallback(
+    async (messageId: string) => {
+      try {
+        await signalRPin(messageId);
+      } catch (error) {
+        console.error("Pin message failed:", error);
+      }
+    },
+    [signalRPin],
+  );
+
+  const handleUnpin = useCallback(
+    async (messageId: string) => {
+      try {
+        await signalRUnpin(messageId);
+      } catch (error) {
+        console.error("Unpin message failed:", error);
+      }
+    },
+    [signalRUnpin],
+  );
 
   const handleSearchMessages = async () => {
     if (!chatroomId || !messageSearch.trim()) {
@@ -280,19 +350,6 @@ export default function ChatWindowLayout({
       console.error("Search messages failed:", error);
     } finally {
       setSearching(false);
-    }
-  };
-
-  const handleJumpToMessage = (messageId: string) => {
-    const el = document.querySelector<HTMLElement>(
-      `[data-msg-id="${messageId}"]`,
-    );
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("ring-2", "ring-sky-400");
-      window.setTimeout(() => {
-        el.classList.remove("ring-2", "ring-sky-400");
-      }, 1200);
     }
   };
 
@@ -398,6 +455,7 @@ export default function ChatWindowLayout({
     setInput("");
     clearSelectedFiles();
     clearPendingMentions();
+    setPinnedMessages([]);
 
     messagesApi
       .markAllRead(chatroomId)
@@ -406,6 +464,11 @@ export default function ChatWindowLayout({
         onReadChatroomRef.current?.();
       })
       .catch((error) => console.error("Mark all read failed:", error));
+
+    messagesApi
+      .getPinnedMessages(chatroomId)
+      .then(setPinnedMessages)
+      .catch((error) => console.error("Load pinned messages failed:", error));
 
     loadInitial();
   }, [
@@ -505,7 +568,7 @@ export default function ChatWindowLayout({
                   <button
                     key={msg.messageId}
                     type="button"
-                    onClick={() => handleJumpToMessage(msg.messageId)}
+                    onClick={() => void jumpToMessage(msg.messageId)}
                     className="block w-full border-b px-3 py-2 text-left text-xs hover:bg-muted"
                   >
                     <span className="font-medium">{msg.senderFullname}: </span>
@@ -515,6 +578,13 @@ export default function ChatWindowLayout({
               </div>
             )}
           </div>
+
+          <PinnedMessagesBanner
+            pinnedMessages={pinnedMessages}
+            canUnpin={canPin}
+            onJump={(messageId) => void jumpToMessage(messageId)}
+            onUnpin={(messageId) => void handleUnpin(messageId)}
+          />
 
           <div className="min-h-0 flex-1 overflow-hidden">
             <MessageList
@@ -545,6 +615,10 @@ export default function ChatWindowLayout({
                 clearSelectedFiles();
               }}
               onCallAgain={handleCallAgain}
+              canPin={canPin}
+              pinnedMessageIds={pinnedMessageIds}
+              onPin={(messageId) => void handlePin(messageId)}
+              onUnpin={(messageId) => void handleUnpin(messageId)}
             />
           </div>
 
