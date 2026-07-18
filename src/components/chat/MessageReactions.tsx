@@ -37,15 +37,15 @@ export default function MessageReactions({
           }
           onClick={() => onToggle(reaction.emojiCode)}
           className={cn(
-            "inline-flex h-6 items-center gap-1 rounded-full border px-1.5 text-xs transition-colors",
+            "inline-flex h-7 items-center gap-1 rounded-full border px-2 text-sm transition-colors",
             reaction.reactedByMe
               ? "border-sky-400/70 bg-sky-50 text-sky-800"
               : "border-border bg-background text-foreground hover:bg-muted",
             disabled && "pointer-events-none opacity-50",
           )}
         >
-          <span className="leading-none">{reaction.emojiCode}</span>
-          <span className="tabular-nums text-[11px] text-muted-foreground">
+          <span className="text-base leading-none">{reaction.emojiCode}</span>
+          <span className="tabular-nums text-xs text-muted-foreground">
             {reaction.count}
           </span>
         </button>

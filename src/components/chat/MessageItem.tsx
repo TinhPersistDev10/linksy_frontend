@@ -40,10 +40,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import MentionedText from "./MentionedText";
+import MessageImageGrid, {
+  collectImageAttachments,
+} from "./MessageImageGrid";
 import MessageReactions from "./MessageReactions";
 import EmojiPickerPopover, {
   QUICK_REACTION_EMOJIS,
 } from "./EmojiPickerPopover";
+import { emojiOnlyTextClass } from "@/lib/utils/emojiText";
 
 interface MessageItemProps {
   msg: MessageResponse;
@@ -267,6 +271,46 @@ export default function MessageItem({
         ? "delivered"
         : msg.deliveryStatus;
 
+  const imageAttachments = collectImageAttachments(msg.attachments);
+
+  const getAttachmentType = (
+    attachment: NonNullable<MessageResponse["attachments"]>[number],
+  ) =>
+    (
+      attachment.attachmentType ??
+      attachment.fileType ??
+      (attachment.mimeType?.startsWith("image/")
+        ? "image"
+        : attachment.mimeType?.startsWith("video/")
+          ? "video"
+          : attachment.mimeType?.startsWith("audio/")
+            ? "audio"
+            : "file")
+    ).toLowerCase();
+
+  const videoAttachments = (msg.attachments ?? []).filter((attachment) => {
+    const url = getAttachmentUrl(attachment);
+    return Boolean(url) && getAttachmentType(attachment) === "video";
+  });
+  const otherAttachments = (msg.attachments ?? []).filter((attachment) => {
+    const type = getAttachmentType(attachment);
+    return type !== "image" && type !== "video";
+  });
+  const emojiTextClass = msg.messageText
+    ? emojiOnlyTextClass(msg.messageText)
+    : null;
+  const hasTextBubbleContent = Boolean(
+    isPinned ||
+      msg.parentMessage ||
+      otherAttachments.length > 0 ||
+      msg.messageText,
+  );
+  const mediaOnly =
+    (imageAttachments.length > 0 || videoAttachments.length > 0) &&
+    !msg.parentMessage &&
+    !otherAttachments.length &&
+    !msg.messageText;
+
   return (
     <div data-msg-id={msg.messageId}>
       {showDateDivider && (
@@ -305,20 +349,73 @@ export default function MessageItem({
           <div className="relative">
             <div
               className={cn(
-                "relative rounded-2xl px-3.5 py-2 text-sm leading-relaxed transition-opacity",
-                isOwn
-                  ? "rounded-br-sm bg-blue-500 text-white"
-                  : "rounded-bl-sm bg-muted",
+                "relative flex flex-col gap-1 transition-opacity",
                 msg.isDeleted && "opacity-50 italic",
                 isTemp && "opacity-60",
-                isPinned && "ring-1 ring-sky-400/60",
               )}
             >
-              {isPinned && (
+              {imageAttachments.length > 0 && (
+                <div
+                  className={cn(
+                    mediaOnly &&
+                      isPinned &&
+                      "rounded-2xl ring-1 ring-sky-400/60",
+                  )}
+                >
+                  {mediaOnly && isPinned && (
+                    <div className="mb-1 flex items-center gap-1 px-1 text-[10px] font-medium text-sky-700">
+                      <Pin size={10} />
+                      Đã ghim
+                    </div>
+                  )}
+                  <MessageImageGrid images={imageAttachments} isOwn={isOwn} />
+                </div>
+              )}
+
+              {videoAttachments.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  {videoAttachments.map((attachment) => {
+                    const url = getAttachmentUrl(attachment);
+                    if (!url) return null;
+                    const key = attachment.attachmentId ?? url;
+                    return (
+                      <video
+                        key={key}
+                        src={url}
+                        controls
+                        className={cn(
+                          "max-h-72 max-w-full bg-black",
+                          isOwn
+                            ? "rounded-2xl rounded-br-md"
+                            : "rounded-2xl rounded-bl-md",
+                        )}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+
+              {hasTextBubbleContent && (
+            <div
+              className={cn(
+                "relative text-sm leading-relaxed",
+                emojiTextClass
+                  ? "bg-transparent px-0.5 py-0.5"
+                  : "rounded-2xl px-3.5 py-2",
+                !emojiTextClass &&
+                  (isOwn
+                    ? "rounded-br-sm bg-blue-500 text-white"
+                    : "rounded-bl-sm bg-muted"),
+                isPinned && !mediaOnly && "ring-1 ring-sky-400/60",
+              )}
+            >
+              {isPinned && !mediaOnly && (
                 <div
                   className={cn(
                     "mb-1 flex items-center gap-1 text-[10px] font-medium",
-                    isOwn ? "text-white/80" : "text-sky-700",
+                    isOwn && !emojiTextClass
+                      ? "text-white/80"
+                      : "text-sky-700",
                   )}
                 >
                   <Pin size={10} />
@@ -329,7 +426,7 @@ export default function MessageItem({
                 <div
                   className={cn(
                     "mb-1.5 rounded-md border-l-2 px-2 py-1 text-xs",
-                    isOwn
+                    isOwn && !emojiTextClass
                       ? "border-white/70 bg-white/10"
                       : "border-sky-500 bg-background/70",
                   )}
@@ -344,54 +441,14 @@ export default function MessageItem({
                 </div>
               )}
 
-              {msg.attachments && msg.attachments.length > 0 && (
+              {otherAttachments.length > 0 && (
                 <div className="mb-1.5 space-y-1.5">
-                  {msg.attachments.map((attachment) => {
+                  {otherAttachments.map((attachment) => {
                     const url = getAttachmentUrl(attachment);
                     if (!url) return null;
 
                     const key = attachment.attachmentId ?? url;
-                    const attachmentType =
-                      attachment.attachmentType ??
-                      attachment.fileType ??
-                      (attachment.mimeType?.startsWith("image/")
-                        ? "image"
-                        : attachment.mimeType?.startsWith("video/")
-                          ? "video"
-                          : attachment.mimeType?.startsWith("audio/")
-                            ? "audio"
-                            : "file");
-
-                    if (attachmentType === "image") {
-                      return (
-                        <a
-                          key={key}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={`Mở ${attachment.fileName}`}
-                          aria-label={`Mở ảnh ${attachment.fileName}`}
-                          className="block cursor-zoom-in"
-                        >
-                          <img
-                            src={url}
-                            alt={attachment.fileName}
-                            className="max-h-72 max-w-full rounded-lg object-cover"
-                          />
-                        </a>
-                      );
-                    }
-
-                    if (attachmentType === "video") {
-                      return (
-                        <video
-                          key={key}
-                          src={url}
-                          controls
-                          className="max-h-72 max-w-full rounded-lg"
-                        />
-                      );
-                    }
+                    const attachmentType = getAttachmentType(attachment);
 
                     if (attachmentType === "audio") {
                       return (
@@ -428,8 +485,13 @@ export default function MessageItem({
                   text={msg.messageText}
                   mentions={msg.mentions}
                   currentUserId={currentUserId}
-                  isOwn={isOwn}
+                  isOwn={isOwn && !emojiTextClass}
+                  className={cn(
+                    emojiTextClass ?? "text-[15px] leading-relaxed",
+                  )}
                 />
+              )}
+            </div>
               )}
               {showActions && (
                 <div
@@ -475,7 +537,7 @@ export default function MessageItem({
                                 onToggleReaction?.(msg.messageId, emoji);
                                 setReactionOpen(false);
                               }}
-                              className="flex h-8 w-8 items-center justify-center rounded-full text-base hover:bg-muted"
+                              className="flex h-9 w-9 items-center justify-center rounded-full text-lg hover:bg-muted"
                             >
                               {emoji}
                             </button>
