@@ -14,6 +14,7 @@ import {
   insertMentionToken,
   syncPendingMentions,
 } from "@/lib/utils/mentions";
+import EmojiPickerPopover from "./EmojiPickerPopover";
 
 interface MessageInputProps {
   value: string;
@@ -24,6 +25,7 @@ interface MessageInputProps {
   replyTo?: MessageResponse | null;
   editingMessage?: MessageResponse | null;
   onCancelMode?: () => void;
+  onInsertEmoji?: (emoji: string) => void;
 
   selectedFiles?: File[];
   onFilesSelected?: (files: File[]) => void;
@@ -52,6 +54,7 @@ export default function MessageInput({
   replyTo,
   editingMessage,
   onCancelMode,
+  onInsertEmoji,
   selectedFiles = [],
   onFilesSelected,
   onRemoveFile,
@@ -71,9 +74,6 @@ export default function MessageInput({
   >(null);
 
   const canSend = value.trim().length > 0 || selectedFiles.length > 0;
-  const showUnderDevelopment = () => {
-    window.alert("Chuc nang hien dang phat trien");
-  };
 
   const mentionQuery = useMemo(() => {
     if (!enableMentions) return null;
@@ -111,6 +111,17 @@ export default function MessageInput({
       el.focus();
       el.setSelectionRange(nextCursor, nextCursor);
     });
+  };
+
+  const handleInsertEmoji = (emoji: string) => {
+    if (onInsertEmoji) {
+      onInsertEmoji(emoji);
+      return;
+    }
+    const start = textareaRef.current?.selectionStart ?? value.length;
+    const end = textareaRef.current?.selectionEnd ?? start;
+    const nextValue = value.slice(0, start) + emoji + value.slice(end);
+    applyTextChange(nextValue, start + emoji.length);
   };
 
   const selectMention = (member: ChatroomMemberResponse) => {
@@ -365,15 +376,18 @@ export default function MessageInput({
             )}
           />
 
-          <Button
-            type="button"
-            onClick={showUnderDevelopment}
-            variant="ghost"
-            size="icon"
-            className="mb-0.5 hidden h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground sm:inline-flex"
-          >
-            <Smile size={18} />
-          </Button>
+          <EmojiPickerPopover side="top" align="end" onSelect={handleInsertEmoji}>
+            <Button
+              type="button"
+              title="Emoji"
+              aria-label="Chọn emoji"
+              variant="ghost"
+              size="icon"
+              className="mb-0.5 inline-flex h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              <Smile size={18} />
+            </Button>
+          </EmojiPickerPopover>
 
           <Button
             onClick={onSend}

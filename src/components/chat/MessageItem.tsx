@@ -1,15 +1,18 @@
+import { useState } from "react";
 import {
   Check,
   CheckCheck,
   Copy,
   Eye,
-  MoreHorizontal,
+  MoreVertical,
   Pencil,
   Phone,
   PhoneCall,
   Pin,
   PinOff,
   Reply,
+  Smile,
+  SmilePlus,
   Trash2,
   Video,
 } from "lucide-react";
@@ -31,7 +34,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import MentionedText from "./MentionedText";
+import MessageReactions from "./MessageReactions";
+import EmojiPickerPopover, {
+  QUICK_REACTION_EMOJIS,
+} from "./EmojiPickerPopover";
 
 interface MessageItemProps {
   msg: MessageResponse;
@@ -47,6 +59,7 @@ interface MessageItemProps {
   isPinned?: boolean;
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
+  onToggleReaction?: (messageId: string, emojiCode: string) => void;
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
@@ -137,9 +150,15 @@ export default function MessageItem({
   isPinned = false,
   onPin,
   onUnpin,
+  onToggleReaction,
 }: MessageItemProps) {
+  const [reactionOpen, setReactionOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const isOwn = msg.isOwn || msg.senderId === currentUserId;
   const isTemp = msg.messageId.startsWith("temp-");
+  const canReact = Boolean(onToggleReaction) && !isTemp && !msg.isDeleted;
+  const showActions = !isTemp && !msg.isDeleted;
+  const actionsVisible = reactionOpen || menuOpen;
 
   const showDateDivider = !prevMsg || !isSameDay(prevMsg.sentAt, msg.sentAt);
   const callInfo = getCallInfo(msg, isOwn);
@@ -412,30 +431,104 @@ export default function MessageItem({
                   isOwn={isOwn}
                 />
               )}
-              {!isTemp && !msg.isDeleted && (
+              {showActions && (
                 <div
                   className={cn(
-                    "absolute top-1/2 z-10 -translate-y-1/2",
-                    isOwn ? "right-full mr-1" : "left-full ml-1",
+                    "absolute top-1/2 z-20 flex -translate-y-1/2 items-center gap-0.5",
+                    "opacity-0 transition-opacity",
+                    "group-hover/message:opacity-100 focus-within:opacity-100",
+                    actionsVisible && "opacity-100",
+                    isOwn
+                      ? "right-full mr-1 flex-row-reverse"
+                      : "left-full ml-1",
                   )}
                 >
-                  <DropdownMenu>
+                  {canReact && (
+                    <Popover open={reactionOpen} onOpenChange={setReactionOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          title="Cảm xúc"
+                          aria-label="Cảm xúc"
+                          className={cn(
+                            "flex h-7 w-7 items-center justify-center rounded-full border bg-background",
+                            "text-muted-foreground shadow-sm",
+                            "hover:bg-muted hover:text-foreground",
+                          )}
+                        >
+                          <Smile size={15} />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        side="top"
+                        align={isOwn ? "end" : "start"}
+                        sideOffset={8}
+                        className="w-auto rounded-full border bg-background p-1 shadow-md"
+                      >
+                        <div className="flex items-center gap-0.5">
+                          {QUICK_REACTION_EMOJIS.map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              title={`React ${emoji}`}
+                              onClick={() => {
+                                onToggleReaction?.(msg.messageId, emoji);
+                                setReactionOpen(false);
+                              }}
+                              className="flex h-8 w-8 items-center justify-center rounded-full text-base hover:bg-muted"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                          <EmojiPickerPopover
+                            side="top"
+                            align={isOwn ? "end" : "start"}
+                            onSelect={(emoji) => {
+                              onToggleReaction?.(msg.messageId, emoji);
+                              setReactionOpen(false);
+                            }}
+                          >
+                            <button
+                              type="button"
+                              title="Thêm emoji"
+                              aria-label="Thêm emoji"
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground"
+                            >
+                              <SmilePlus size={16} />
+                            </button>
+                          </EmojiPickerPopover>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+
+                  <button
+                    type="button"
+                    title="Trả lời"
+                    aria-label="Trả lời"
+                    onClick={() => onReply(msg)}
+                    className={cn(
+                      "flex h-7 w-7 items-center justify-center rounded-full border bg-background",
+                      "text-muted-foreground shadow-sm",
+                      "hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    <Reply size={15} />
+                  </button>
+
+                  <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
                         title="Tùy chọn tin nhắn"
                         aria-label="Tùy chọn tin nhắn"
                         className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-full",
-                          "bg-background text-muted-foreground shadow-sm",
-                          "opacity-0 transition-opacity",
+                          "flex h-7 w-7 items-center justify-center rounded-full border bg-background",
+                          "text-muted-foreground shadow-sm",
                           "hover:bg-muted hover:text-foreground",
-                          "focus-visible:opacity-100 focus-visible:outline-none",
-                          "group-hover/message:opacity-100",
-                          "data-[state=open]:opacity-100",
                         )}
                       >
-                        <MoreHorizontal size={15} />
+                        <MoreVertical size={15} />
                       </button>
                     </DropdownMenuTrigger>
 
@@ -444,11 +537,6 @@ export default function MessageItem({
                       align="center"
                       className="w-44"
                     >
-                      <DropdownMenuItem onSelect={() => onReply(msg)}>
-                        <Reply />
-                        Trả lời
-                      </DropdownMenuItem>
-
                       <DropdownMenuItem
                         onSelect={() => {
                           void navigator.clipboard.writeText(msg.messageText);
@@ -520,6 +608,19 @@ export default function MessageItem({
               )}
             </div>
           </div>
+
+          {msg.reactions && msg.reactions.length > 0 && (
+            <div className={cn("mt-1", isOwn ? "self-end" : "self-start")}>
+              <MessageReactions
+                reactions={msg.reactions}
+                disabled={!canReact}
+                alignEnd={isOwn}
+                onToggle={(emoji) =>
+                  onToggleReaction?.(msg.messageId, emoji)
+                }
+              />
+            </div>
+          )}
 
           {isOwn && !isTemp && (
             <button

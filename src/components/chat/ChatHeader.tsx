@@ -1,21 +1,11 @@
 "use client";
 
-/**
- * ChatHeader.tsx  ← THAY THẾ file cũ
- *
- * THAY ĐỔI so với bản gốc:
- *   - Nhận thêm props: onAudioCall, onVideoCall (optional)
- *   - Nút Phone và Video gọi props đó thay vì showUnderDevelopment
- *   - MoreVertical vẫn giữ showUnderDevelopment
- *   - Không thay đổi bất kỳ UI/logic nào khác
- */
-
 import { useState } from "react";
 import {
   ArrowLeft,
   CalendarDays,
   IdCard,
-  MoreVertical,
+  Info,
   Phone,
   UserRound,
   Users,
@@ -31,9 +21,10 @@ interface ChatHeaderProps {
   otherMember: ChatroomMemberResponse | undefined;
   isConnected: boolean;
   onBack?: () => void;
-  // ↓↓↓ THÊM MỚI ↓↓↓
   onAudioCall?: () => void;
   onVideoCall?: () => void;
+  infoOpen?: boolean;
+  onToggleInfo?: () => void;
 }
 
 function formatDate(value: string | null | undefined) {
@@ -52,6 +43,8 @@ export default function ChatHeader({
   onBack,
   onAudioCall,
   onVideoCall,
+  infoOpen = false,
+  onToggleInfo,
 }: ChatHeaderProps) {
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -143,13 +136,22 @@ export default function ChatHeader({
             <Video size={16} />
           </button>
 
-          {/* More */}
           <button
             type="button"
-            onClick={showUnderDevelopment}
-            className="hidden h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent sm:flex"
+            onClick={onToggleInfo}
+            title={infoOpen ? "Đóng thông tin hội thoại" : "Thông tin hội thoại"}
+            aria-label={
+              infoOpen ? "Đóng thông tin hội thoại" : "Thông tin hội thoại"
+            }
+            aria-pressed={infoOpen}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
+              infoOpen
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:bg-accent",
+            )}
           >
-            <MoreVertical size={16} />
+            <Info size={16} />
           </button>
         </div>
       </div>

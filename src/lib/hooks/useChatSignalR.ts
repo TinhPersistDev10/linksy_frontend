@@ -16,6 +16,7 @@ import type {
   MessagePinnedEvent,
   MessageReadEvent,
   MessageUnpinnedEvent,
+  ReactionUpdatedEvent,
 } from "../types/message";
 
 const BASE_URL = getApiOrigin();
@@ -40,6 +41,7 @@ interface UseChatSignalROptions {
   onMembershipChanged: (data: { chatroomId: string }) => void;
   onMessagePinned?: (event: MessagePinnedEvent) => void;
   onMessageUnpinned?: (event: MessageUnpinnedEvent) => void;
+  onReactionUpdated?: (event: ReactionUpdatedEvent) => void;
 }
 
 export function useChatSignalR({
@@ -55,6 +57,7 @@ export function useChatSignalR({
   onMembershipChanged,
   onMessagePinned,
   onMessageUnpinned,
+  onReactionUpdated,
 }: UseChatSignalROptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -78,6 +81,7 @@ export function useChatSignalR({
     onMembershipChanged,
     onMessagePinned,
     onMessageUnpinned,
+    onReactionUpdated,
   });
   cbRef.current = {
     onReceiveMessage,
@@ -91,6 +95,7 @@ export function useChatSignalR({
     onMembershipChanged,
     onMessagePinned,
     onMessageUnpinned,
+    onReactionUpdated,
   };
 
   useEffect(() => {
@@ -159,6 +164,9 @@ export function useChatSignalR({
       );
       connection.on("MessageUnpinned", (event: MessageUnpinnedEvent) =>
         cbRef.current.onMessageUnpinned?.(event),
+      );
+      connection.on("ReactionUpdated", (event: ReactionUpdatedEvent) =>
+        cbRef.current.onReactionUpdated?.(event),
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("Error", (err: any) =>
@@ -308,6 +316,15 @@ export function useChatSignalR({
     await connection.invoke("UnpinMessage", messageId);
   }, []);
 
+  const toggleReaction = useCallback(
+    async (messageId: string, emojiCode: string) => {
+      const connection = connectionRef.current;
+      if (!connection) throw new Error("SignalR not connected");
+      await connection.invoke("ToggleReaction", messageId, emojiCode);
+    },
+    [],
+  );
+
   const editMessage = useCallback(
     async (messageId: string, newText: string) => {
       const connection = connectionRef.current;
@@ -342,5 +359,6 @@ export function useChatSignalR({
     replyToMessage,
     pinMessage,
     unpinMessage,
+    toggleReaction,
   };
 }
