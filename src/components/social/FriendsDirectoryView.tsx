@@ -10,12 +10,15 @@ import {
   Search,
   SlidersHorizontal,
   UserPlus,
+  UserRound,
   UserX,
   X,
 } from "lucide-react";
+import MemberProfileDialog from "@/components/chat/MemberProfileDialog";
 import { blockedUsersApi } from "@/lib/api/blocked-users";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import { friendsApi } from "@/lib/api/friends";
+import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import type { ChatroomResponse, Friend, SearchUserResult } from "@/lib/types/chatroom";
 
 interface FriendsDirectoryViewProps {
@@ -41,6 +44,20 @@ function Avatar({ src, name, className = "h-11 w-11" }: { src?: string | null; n
 
 function FriendAvatar({ friend }: { friend: Friend }) {
   return <Avatar src={friend.avatar} name={friend.fullname || friend.username} />;
+}
+
+function friendToProfileMember(friend: Friend): ChatroomMemberResponse {
+  return {
+    userId: friend.userId,
+    username: friend.username,
+    fullname: friend.fullname,
+    avatar: friend.avatar,
+    memberRole: "member",
+    joinedAt: friend.friendsSince,
+    isOnline: false,
+    lastActiveAt: null,
+    nickname: null,
+  };
 }
 
 function AddFriendDialog({ open, onClose, onFriendAdded }: { open: boolean; onClose: () => void; onFriendAdded: () => void }) {
@@ -160,6 +177,7 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [addFriendOpen, setAddFriendOpen] = useState(false);
+  const [profileFriend, setProfileFriend] = useState<Friend | null>(null);
 
   const loadFriends = async () => {
     setLoading(true);
@@ -301,6 +319,14 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
                           loading={openingId === friend.userId}
                           onClick={() => void openDirectChat(friend)}
                         />
+                        <FriendMenuItem
+                          icon={UserRound}
+                          label="Xem hồ sơ"
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            setProfileFriend(friend);
+                          }}
+                        />
                         <div className="my-1 border-t border-slate-100" />
                         <FriendMenuItem
                           icon={UserX}
@@ -326,6 +352,23 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
         </div>
       </div>
       <AddFriendDialog open={addFriendOpen} onClose={() => setAddFriendOpen(false)} onFriendAdded={loadFriends} />
+
+      <MemberProfileDialog
+        open={Boolean(profileFriend)}
+        member={profileFriend ? friendToProfileMember(profileFriend) : null}
+        showGroupInfo={false}
+        friendsSince={profileFriend?.friendsSince}
+        onClose={() => setProfileFriend(null)}
+        onMessage={
+          profileFriend
+            ? () => {
+                const friend = profileFriend;
+                setProfileFriend(null);
+                void openDirectChat(friend);
+              }
+            : undefined
+        }
+      />
     </>
   );
 }

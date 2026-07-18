@@ -25,6 +25,9 @@ type MemberProfileDialogProps = {
   open: boolean;
   member: ChatroomMemberResponse | null;
   chatroomName?: string;
+  /** Ẩn khối thông tin trong nhóm (vd. xem hồ sơ từ danh sách bạn bè). */
+  showGroupInfo?: boolean;
+  friendsSince?: string | null;
   isSelf?: boolean;
   onClose: () => void;
   onMessage?: () => void;
@@ -89,6 +92,8 @@ export default function MemberProfileDialog({
   open,
   member,
   chatroomName,
+  showGroupInfo = true,
+  friendsSince,
   isSelf = false,
   onClose,
   onMessage,
@@ -174,13 +179,15 @@ export default function MemberProfileDialog({
                   size={24}
                 />
               </div>
-              <span
-                className={cn(
-                  "absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-white",
-                  member.isOnline ? "bg-emerald-500" : "bg-slate-300",
-                )}
-                title={member.isOnline ? "Đang hoạt động" : "Ngoại tuyến"}
-              />
+              {showGroupInfo && (
+                <span
+                  className={cn(
+                    "absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-white",
+                    member.isOnline ? "bg-emerald-500" : "bg-slate-300",
+                  )}
+                  title={member.isOnline ? "Đang hoạt động" : "Ngoại tuyến"}
+                />
+              )}
             </div>
 
             <h3 className="mt-3 text-xl font-semibold tracking-tight text-slate-900">
@@ -189,26 +196,34 @@ export default function MemberProfileDialog({
             <p className="mt-0.5 text-sm text-slate-500">@{username}</p>
 
             <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-                  member.isOnline
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-slate-100 text-slate-600",
-                )}
-              >
-                <span
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full",
-                    member.isOnline ? "bg-emerald-500" : "bg-slate-400",
-                  )}
-                />
-                {member.isOnline ? "Đang hoạt động" : "Ngoại tuyến"}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
-                <Shield size={12} />
-                {roleLabel}
-              </span>
+              {showGroupInfo ? (
+                <>
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+                      member.isOnline
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-slate-100 text-slate-600",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        member.isOnline ? "bg-emerald-500" : "bg-slate-400",
+                      )}
+                    />
+                    {member.isOnline ? "Đang hoạt động" : "Ngoại tuyến"}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
+                    <Shield size={12} />
+                    {roleLabel}
+                  </span>
+                </>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
+                  Bạn bè
+                </span>
+              )}
             </div>
 
             {loading ? (
@@ -289,38 +304,51 @@ export default function MemberProfileDialog({
               />
             </section>
 
-            <section className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
-              <h4 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Trong nhóm{chatroomName ? `: ${chatroomName}` : ""}
-              </h4>
-              <InfoRow
-                icon={<UserRound size={15} />}
-                label="Biệt danh trong nhóm"
-                value={member.nickname?.trim() || "Chưa đặt biệt danh"}
-              />
-              <InfoRow
-                icon={<Shield size={15} />}
-                label="Vai trò"
-                value={roleLabel}
-              />
-              <InfoRow
-                icon={<CalendarDays size={15} />}
-                label="Tham gia nhóm"
-                value={formatDate(member.joinedAt)}
-              />
-              <InfoRow
-                icon={<Clock3 size={15} />}
-                label="Hoạt động gần đây"
-                value={
-                  member.isOnline
-                    ? "Đang hoạt động"
-                    : formatDateTime(member.lastActiveAt)
-                }
-                valueClassName={
-                  member.isOnline ? "text-emerald-600" : undefined
-                }
-              />
-            </section>
+            {showGroupInfo ? (
+              <section className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+                <h4 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Trong nhóm{chatroomName ? `: ${chatroomName}` : ""}
+                </h4>
+                <InfoRow
+                  icon={<UserRound size={15} />}
+                  label="Biệt danh trong nhóm"
+                  value={member.nickname?.trim() || "Chưa đặt biệt danh"}
+                />
+                <InfoRow
+                  icon={<Shield size={15} />}
+                  label="Vai trò"
+                  value={roleLabel}
+                />
+                <InfoRow
+                  icon={<CalendarDays size={15} />}
+                  label="Tham gia nhóm"
+                  value={formatDate(member.joinedAt)}
+                />
+                <InfoRow
+                  icon={<Clock3 size={15} />}
+                  label="Hoạt động gần đây"
+                  value={
+                    member.isOnline
+                      ? "Đang hoạt động"
+                      : formatDateTime(member.lastActiveAt)
+                  }
+                  valueClassName={
+                    member.isOnline ? "text-emerald-600" : undefined
+                  }
+                />
+              </section>
+            ) : friendsSince ? (
+              <section className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+                <h4 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Quan hệ
+                </h4>
+                <InfoRow
+                  icon={<CalendarDays size={15} />}
+                  label="Bạn bè từ"
+                  value={formatDate(friendsSince)}
+                />
+              </section>
+            ) : null}
 
             <section className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
               <h4 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
