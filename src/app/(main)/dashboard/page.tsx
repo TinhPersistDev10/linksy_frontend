@@ -148,6 +148,7 @@ function DashboardShell() {
               callController={callController}
               onBack={() => setSelectedChatroom(null)}
               onReadChatroom={() => setSidebarRefresh((v) => v + 1)}
+              onOpenChatroom={openChatroom}
               onChatroomUpdated={(updatedChatroom) => {
                 setSelectedChatroom(updatedChatroom);
                 setSidebarRefresh((v) => v + 1);
