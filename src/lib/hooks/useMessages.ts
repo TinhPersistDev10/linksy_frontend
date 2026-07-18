@@ -10,9 +10,25 @@ import type {
   MessageEditedEvent,
   MessageReadEvent,
   MessageResponse,
+  ReactionSummary,
+  ReactionUpdatedEvent,
 } from "../types/message";
 
 export const PAGE_SIZE = 30;
+
+function normalizeReactionSummary(raw: unknown): ReactionSummary {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    emojiCode: String(r.emojiCode ?? r.EmojiCode ?? ""),
+    count: Number(r.count ?? r.Count ?? 0),
+    reactedByMe: Boolean(r.reactedByMe ?? r.ReactedByMe ?? false),
+    users: Array.isArray(r.users)
+      ? (r.users as ReactionSummary["users"])
+      : Array.isArray(r.Users)
+        ? (r.Users as ReactionSummary["users"])
+        : [],
+  };
+}
 
 function scrollToMessageElement(messageId: string): boolean {
   const el = document.querySelector<HTMLElement>(
@@ -75,7 +91,12 @@ export function useMessages(chatroomId: string | undefined) {
     shouldScrollToBottomRef.current = true;
     try {
       const data = await messagesApi.getMessages(chatroomId, 1, PAGE_SIZE);
-      setMessages(data.messages);
+      setMessages(
+        data.messages.map((m) => ({
+          ...m,
+          reactions: (m.reactions ?? []).map(normalizeReactionSummary),
+        })),
+      );
       setHasMore(data.hasMore);
     } catch (e) {
       console.error("[useMessages] loadInitial:", e);
@@ -282,6 +303,83 @@ export function useMessages(chatroomId: string | undefined) {
     );
   }, []);
 
+  const onReactionUpdated = useCallback((event: ReactionUpdatedEvent) => {
+    const raw = event as unknown as Record<string, unknown>;
+    const messageId = String(
+      event.messageId ?? raw.MessageId ?? raw.messageId ?? "",
+    );
+    const payload = (event.reactions ??
+      raw.Reactions ??
+      raw.reactions) as unknown;
+    let nextReactions: ReactionSummary[] | null = null;
+    if (Array.isArray(payload)) {
+      nextReactions = payload.map(normalizeReactionSummary);
+    } else if (payload && typeof payload === "object") {
+      const nested = payload as Record<string, unknown>;
+      const list = nested.reactions ?? nested.Reactions;
+      if (Array.isArray(list)) {
+        nextReactions = list.map(normalizeReactionSummary);
+      }
+    }
+    // Do not wipe chips when SignalR payload shape is unexpected.
+    if (!messageId || nextReactions === null) return;
+    setMessages((previous) =>
+      previous.map((message) =>
+        message.messageId === messageId
+          ? { ...message, reactions: nextReactions }
+          : message,
+      ),
+    );
+  }, []);
+
+  /** Patch chips immediately after REST/hub toggle (UI must not depend only on SignalR). */
+  const applyReactionToggleResult = useCallback(
+    (messageId: string, emojiCode: string, added: boolean) => {
+      setMessages((previous) =>
+        previous.map((message) => {
+          if (message.messageId !== messageId) return message;
+          const list = (message.reactions ?? []).map(normalizeReactionSummary);
+          const index = list.findIndex((r) => r.emojiCode === emojiCode);
+
+          if (added) {
+            if (index >= 0) {
+              const current = list[index];
+              list[index] = {
+                ...current,
+                reactedByMe: true,
+                count: current.reactedByMe
+                  ? current.count
+                  : current.count + 1,
+              };
+            } else {
+              list.push({
+                emojiCode,
+                count: 1,
+                reactedByMe: true,
+                users: [],
+              });
+            }
+          } else if (index >= 0) {
+            const current = list[index];
+            const nextCount = Math.max(0, current.count - 1);
+            if (nextCount === 0) {
+              list.splice(index, 1);
+            } else {
+              list[index] = {
+                ...current,
+                count: nextCount,
+                reactedByMe: false,
+              };
+            }
+          }
+
+          return { ...message, reactions: list };
+        }),
+      );
+    },
+    [],
+  );
+
   // -- Optimistic helpers -----------------------------------------------------
   const appendOptimistic = useCallback((msg: MessageResponse) => {
     setMessages((prev) => {
@@ -332,6 +430,8 @@ export function useMessages(chatroomId: string | undefined) {
     onMessageRead,
     onMessageDelivered,
     onAllMessagesRead,
+    onReactionUpdated,
+    applyReactionToggleResult,
     appendOptimistic,
     replaceOptimistic,
     removeOptimistic,

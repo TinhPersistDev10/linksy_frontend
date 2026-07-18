@@ -29,6 +29,8 @@ import ChatAvatar from "./ChatAvatar";
 interface ConversationInfoPanelProps {
   chatroom: ChatroomResponse;
   otherMember?: ChatroomMemberResponse;
+  open?: boolean;
+  onClose?: () => void;
   onChatroomChange?: (chatroom: ChatroomResponse) => void;
   onLeaveChatroom?: () => void;
 }
@@ -64,6 +66,8 @@ function requestMessage(error: unknown, fallback: string) {
 export default function ConversationInfoPanel({
   chatroom,
   otherMember,
+  open = false,
+  onClose,
   onChatroomChange,
   onLeaveChatroom,
 }: ConversationInfoPanelProps) {
@@ -195,12 +199,25 @@ export default function ConversationInfoPanel({
     }
   };
 
+  if (!open) return null;
+
   return (
     <>
-      <aside className="hidden w-80 shrink-0 border-l bg-background xl:flex xl:flex-col">
+      <aside className="flex w-80 shrink-0 flex-col border-l bg-background">
         <div className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold">
           <Info size={16} />
-          <span>Thông tin hội thoại</span>
+          <span className="flex-1">Thông tin hội thoại</span>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              title="Đóng"
+              aria-label="Đóng thông tin hội thoại"
+              className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">

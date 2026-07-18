@@ -35,6 +35,7 @@ interface MessageListProps {
   pinnedMessageIds?: Set<string>;
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
+  onToggleReaction?: (messageId: string, emojiCode: string) => void;
 }
 
 export default function MessageList({
@@ -58,6 +59,7 @@ export default function MessageList({
   pinnedMessageIds,
   onPin,
   onUnpin,
+  onToggleReaction,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -200,6 +202,7 @@ export default function MessageList({
               isPinned={pinnedMessageIds?.has(msg.messageId) ?? false}
               onPin={onPin}
               onUnpin={onUnpin}
+              onToggleReaction={onToggleReaction}
             />
           ))}
 

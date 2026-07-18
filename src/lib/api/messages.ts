@@ -82,6 +82,16 @@ export const messagesApi = {
   deleteMessage: async (messageId: string): Promise<void> => {
     await apiClient.delete(`/messages/${messageId}`);
   },
+
+  toggleReaction: async (
+    messageId: string,
+    emojiCode: string,
+  ): Promise<{ added: boolean; emojiCode: string }> => {
+    const res = await apiClient.post<
+      ApiResponse<{ added: boolean; emojiCode: string }>
+    >(`/messages/${messageId}/reactions`, { emojiCode });
+    return requireData(res.data, "Không thể cập nhật cảm xúc");
+  },
   markMessageRead: async (
     chatroomId: string,
     messageId: string,

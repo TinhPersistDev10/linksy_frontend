@@ -28,6 +28,37 @@ export interface MessageResponse {
   deliveredCount: number;
   readCount: number;
   mentions?: MentionDto[] | null;
+  reactions?: ReactionSummary[] | null;
+}
+
+export interface ReactionUser {
+  userId: string;
+  username: string;
+  avatar?: string | null;
+}
+
+export interface ReactionSummary {
+  emojiCode: string;
+  count: number;
+  reactedByMe: boolean;
+  users?: ReactionUser[];
+}
+
+export interface MessageReactionsPayload {
+  messageId: string;
+  reactions: ReactionSummary[];
+  totalCount: number;
+}
+
+export interface ReactionUpdatedEvent {
+  messageId: string;
+  chatroomId: string;
+  userId: string;
+  emojiCode: string;
+  added: boolean;
+  /** Summary list (preferred) or legacy wrapped payload. */
+  reactions: ReactionSummary[] | MessageReactionsPayload;
+  totalCount?: number;
 }
 
 export interface GetMessagesData {

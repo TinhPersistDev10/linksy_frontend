@@ -57,6 +57,7 @@ export default function ChatWindowLayout({
   const [activeChatroom, setActiveChatroom] = useState<ChatroomResponse | null>(
     chatroom,
   );
+  const [infoOpen, setInfoOpen] = useState(false);
 
   useEffect(() => {
     setActiveChatroom(chatroom);
@@ -72,6 +73,10 @@ export default function ChatWindowLayout({
 
   const currentChatroom = activeChatroom ?? chatroom;
   const chatroomId = currentChatroom?.chatroomId;
+
+  useEffect(() => {
+    setInfoOpen(false);
+  }, [chatroomId]);
   const otherMember = currentChatroom?.members?.find(
     (m) => m.userId !== user?.userId,
   );
@@ -149,6 +154,8 @@ export default function ChatWindowLayout({
     onMessageRead,
     onMessageDelivered,
     onAllMessagesRead,
+    onReactionUpdated,
+    applyReactionToggleResult,
     appendOptimistic,
     replaceOptimistic,
     removeOptimistic,
@@ -259,6 +266,7 @@ export default function ChatWindowLayout({
     editMessage: signalREdit,
     pinMessage: signalRPin,
     unpinMessage: signalRUnpin,
+    toggleReaction: signalRToggleReaction,
   } = useChatSignalR({
     chatroomId: chatroomId ?? null,
     onReceiveMessage: handleReceiveMessage,
@@ -272,6 +280,7 @@ export default function ChatWindowLayout({
     onMembershipChanged: handleMembershipChanged,
     onMessagePinned: handleMessagePinned,
     onMessageUnpinned: handleMessageUnpinned,
+    onReactionUpdated,
   });
 
   // ── Send + typing ──────────────────────────────────────────────────────────
@@ -332,6 +341,32 @@ export default function ChatWindowLayout({
       }
     },
     [signalRUnpin],
+  );
+
+  const handleToggleReaction = useCallback(
+    async (messageId: string, emojiCode: string) => {
+      try {
+        const result = await messagesApi.toggleReaction(messageId, emojiCode);
+        const raw = result as unknown as Record<string, unknown>;
+        const added = Boolean(raw?.added ?? raw?.Added);
+        applyReactionToggleResult(messageId, emojiCode, added);
+      } catch (restError) {
+        try {
+          await signalRToggleReaction(messageId, emojiCode);
+          // Hub không trả added; UI cập nhật qua event ReactionUpdated.
+        } catch (hubError) {
+          console.error("Toggle reaction failed:", restError || hubError);
+        }
+      }
+    },
+    [signalRToggleReaction, applyReactionToggleResult],
+  );
+
+  const handleInsertEmoji = useCallback(
+    (emoji: string) => {
+      setInput((prev) => prev + emoji);
+    },
+    [setInput],
   );
 
   const handleSearchMessages = async () => {
@@ -539,6 +574,8 @@ export default function ChatWindowLayout({
                 ? () => startCurrentCall("video")
                 : undefined
             }
+            infoOpen={infoOpen}
+            onToggleInfo={() => setInfoOpen((open) => !open)}
           />
 
           <div className="shrink-0 border-b bg-background px-3 py-2 sm:px-4">
@@ -619,6 +656,9 @@ export default function ChatWindowLayout({
               pinnedMessageIds={pinnedMessageIds}
               onPin={(messageId) => void handlePin(messageId)}
               onUnpin={(messageId) => void handleUnpin(messageId)}
+              onToggleReaction={(messageId, emoji) =>
+                void handleToggleReaction(messageId, emoji)
+              }
             />
           </div>
 
@@ -634,6 +674,7 @@ export default function ChatWindowLayout({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onSend={() => void handleSubmit()}
+            onInsertEmoji={handleInsertEmoji}
             onCancelMode={() => {
               setReplyTo(null);
               setEditingMessage(null);
@@ -684,6 +725,8 @@ export default function ChatWindowLayout({
         <ConversationInfoPanel
           chatroom={currentChatroom}
           otherMember={otherMember}
+          open={infoOpen}
+          onClose={() => setInfoOpen(false)}
           onChatroomChange={handleChatroomChange}
           onLeaveChatroom={onBack}
         />
