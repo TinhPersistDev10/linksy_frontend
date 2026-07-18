@@ -1,20 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import {
-  ArrowLeft,
-  CalendarDays,
-  IdCard,
-  Info,
-  Phone,
-  UserRound,
-  Users,
-  Video,
-  X,
-} from "lucide-react";
-import type { ChatroomMemberResponse, ChatroomResponse } from "@/lib/types/chatroom";
+import { ArrowLeft, Info, Phone, Video } from "lucide-react";
+import type {
+  ChatroomMemberResponse,
+  ChatroomResponse,
+} from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
 import ChatAvatar from "./ChatAvatar";
+import GroupMembersDialog from "./GroupMembersDialog";
+import MemberProfileDialog from "./MemberProfileDialog";
 
 interface ChatHeaderProps {
   chatroom: ChatroomResponse;
@@ -25,15 +20,9 @@ interface ChatHeaderProps {
   onVideoCall?: () => void;
   infoOpen?: boolean;
   onToggleInfo?: () => void;
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Chưa có dữ liệu";
-  return new Date(value).toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  onOpenDirectChat?: (chatroom: ChatroomResponse) => void;
+  onCallMember?: (userId: string, callType: "audio" | "video") => void;
+  onMembersChanged?: () => void;
 }
 
 export default function ChatHeader({
@@ -45,8 +34,12 @@ export default function ChatHeader({
   onVideoCall,
   infoOpen = false,
   onToggleInfo,
+  onOpenDirectChat,
+  onCallMember,
+  onMembersChanged,
 }: ChatHeaderProps) {
   const [profileOpen, setProfileOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
 
   const showUnderDevelopment = () => {
     window.alert("Chức năng hiện đang phát triển");
@@ -80,16 +73,23 @@ export default function ChatHeader({
 
         <button
           type="button"
-          disabled={isGroup || !otherMember}
-          onClick={() => setProfileOpen(true)}
+          disabled={!isGroup && !otherMember}
+          onClick={() => {
+            if (isGroup) setMembersOpen(true);
+            else if (otherMember) setProfileOpen(true);
+          }}
           className={cn(
             "rounded-full outline-none transition-transform focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2",
-            !isGroup && otherMember
+            isGroup || otherMember
               ? "cursor-pointer hover:scale-105"
               : "cursor-default",
           )}
           title={
-            !isGroup && otherMember ? "Xem thông tin người dùng" : undefined
+            isGroup
+              ? "Xem thành viên nhóm"
+              : otherMember
+                ? "Xem thông tin người dùng"
+                : undefined
           }
         >
           <ChatAvatar src={avatar ?? undefined} name={displayName} />
@@ -116,7 +116,6 @@ export default function ChatHeader({
             title={isConnected ? "Realtime: Kết nối" : "Đang kết nối..."}
           />
 
-          {/* Phone */}
           <button
             type="button"
             onClick={handlePhone}
@@ -126,7 +125,6 @@ export default function ChatHeader({
             <Phone size={16} />
           </button>
 
-          {/* Video */}
           <button
             type="button"
             onClick={handleVideo}
@@ -139,7 +137,9 @@ export default function ChatHeader({
           <button
             type="button"
             onClick={onToggleInfo}
-            title={infoOpen ? "Đóng thông tin hội thoại" : "Thông tin hội thoại"}
+            title={
+              infoOpen ? "Đóng thông tin hội thoại" : "Thông tin hội thoại"
+            }
             aria-label={
               infoOpen ? "Đóng thông tin hội thoại" : "Thông tin hội thoại"
             }
@@ -156,78 +156,37 @@ export default function ChatHeader({
         </div>
       </div>
 
-      {profileOpen && otherMember && !isGroup && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
-          onClick={() => setProfileOpen(false)}
-        >
-          <article
-            className="w-full max-w-[420px] overflow-hidden rounded-md bg-white shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="flex h-12 items-center justify-between border-b border-slate-100 px-4">
-              <h3 className="font-semibold text-slate-900">
-                Thông tin tài khoản
-              </h3>
-              <button
-                type="button"
-                onClick={() => setProfileOpen(false)}
-                className="rounded-full p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-              >
-                <X size={22} />
-              </button>
-            </header>
+      <MemberProfileDialog
+        open={profileOpen && !isGroup}
+        member={otherMember ?? null}
+        onClose={() => setProfileOpen(false)}
+        onAudioCall={
+          onAudioCall
+            ? () => {
+                setProfileOpen(false);
+                onAudioCall();
+              }
+            : undefined
+        }
+        onVideoCall={
+          onVideoCall
+            ? () => {
+                setProfileOpen(false);
+                onVideoCall();
+              }
+            : undefined
+        }
+      />
 
-            <div className="px-5 py-6">
-              <div className="flex flex-col items-center text-center">
-                <ChatAvatar
-                  src={otherMember.avatar ?? undefined}
-                  name={displayName}
-                  size={20}
-                />
-                <p className="mt-3 text-lg font-semibold text-slate-900">
-                  {displayName}
-                </p>
-                <p className="text-sm text-slate-500">
-                  @{otherMember.username}
-                </p>
-                <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-                  <span
-                    className={cn(
-                      "h-2 w-2 rounded-full",
-                      otherMember.isOnline ? "bg-green-500" : "bg-slate-300",
-                    )}
-                  />
-                  {otherMember.isOnline ? "Đang hoạt động" : "Không hoạt động"}
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-100 px-5 py-4">
-              <h4 className="mb-3 font-semibold text-slate-900">
-                Thông tin cá nhân
-              </h4>
-              <div className="space-y-3 text-sm text-slate-600">
-                <div className="flex items-center gap-3">
-                  <UserRound size={16} className="text-slate-400" />
-                  <span>Họ tên: {otherMember.fullname}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <IdCard size={16} className="text-slate-400" />
-                  <span>Username: @{otherMember.username}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CalendarDays size={16} className="text-slate-400" />
-                  <span>Tham gia chat: {formatDate(otherMember.joinedAt)}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Users size={16} className="text-slate-400" />
-                  <span>Vai trò: {otherMember.memberRole}</span>
-                </div>
-              </div>
-            </div>
-          </article>
-        </div>
+      {isGroup && (
+        <GroupMembersDialog
+          open={membersOpen}
+          chatroom={chatroom}
+          onClose={() => setMembersOpen(false)}
+          onOpenDirectChat={onOpenDirectChat}
+          onCallMember={onCallMember}
+          onMembersChanged={onMembersChanged}
+        />
       )}
     </>
   );

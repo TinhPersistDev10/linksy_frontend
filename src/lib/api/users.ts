@@ -67,4 +67,9 @@ export const usersApi = {
     });
     return res.data.data ?? [];
   },
+
+  getById: async (userId: string): Promise<User> => {
+    const res = await apiClient.get<ApiEnvelope<User>>(`/users/${userId}`);
+    return unwrap<User>(res.data);
+  },
 };

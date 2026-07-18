@@ -40,6 +40,7 @@ interface ChatWindowLayoutProps {
   onBack?: () => void;
   onReadChatroom?: () => void;
   onChatroomUpdated?: (chatroom: ChatroomResponse) => void;
+  onOpenChatroom?: (chatroom: ChatroomResponse) => void;
   callController?: Pick<UseCallSignalRReturn, "initiateCall">;
 }
 
@@ -50,6 +51,7 @@ export default function ChatWindowLayout({
   onBack,
   onReadChatroom,
   onChatroomUpdated,
+  onOpenChatroom,
   callController,
 }: ChatWindowLayoutProps) {
   const { user } = useAuth();
@@ -74,6 +76,16 @@ export default function ChatWindowLayout({
   const currentChatroom = activeChatroom ?? chatroom;
   const chatroomId = currentChatroom?.chatroomId;
 
+  const refreshChatroomMembers = useCallback(() => {
+    if (!chatroomId) return;
+    void chatroomsApi
+      .getChatroom(chatroomId)
+      .then((updated) => {
+        handleChatroomChange(updated);
+      })
+      .catch(() => undefined);
+  }, [chatroomId, handleChatroomChange]);
+
   useEffect(() => {
     setInfoOpen(false);
   }, [chatroomId]);
@@ -91,6 +103,7 @@ export default function ChatWindowLayout({
   const scrollToBottomRef = useRef<(() => void) | null>(null);
   const nearBottomRef = useRef(true);
   const markReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const onReadChatroomRef = useRef(onReadChatroom);
   const [replyTo, setReplyTo] = useState<MessageResponse | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessageResponse | null>(
@@ -576,11 +589,28 @@ export default function ChatWindowLayout({
             }
             infoOpen={infoOpen}
             onToggleInfo={() => setInfoOpen((open) => !open)}
+            onOpenDirectChat={(directChatroom) => {
+              onOpenChatroom?.(directChatroom);
+            }}
+            onCallMember={(userId, callType) => {
+              if (!currentChatroom) return;
+              void callController
+                ?.initiateCall(currentChatroom.chatroomId, callType, [userId])
+                .catch((error: unknown) => {
+                  const message =
+                    error instanceof Error
+                      ? error.message
+                      : "Không thể bắt đầu cuộc gọi.";
+                  window.alert(message);
+                });
+            }}
+            onMembersChanged={refreshChatroomMembers}
           />
 
           <div className="shrink-0 border-b bg-background px-3 py-2 sm:px-4">
             <div className="flex gap-2">
               <input
+                ref={searchInputRef}
                 value={messageSearch}
                 onChange={(e) => setMessageSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -729,6 +759,37 @@ export default function ChatWindowLayout({
           onClose={() => setInfoOpen(false)}
           onChatroomChange={handleChatroomChange}
           onLeaveChatroom={onBack}
+          pinnedCount={pinnedMessages.length}
+          onSearchInChat={() => {
+            searchInputRef.current?.focus();
+            searchInputRef.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "nearest",
+            });
+          }}
+          onViewPinnedMessages={() => {
+            if (pinnedMessages.length === 0) {
+              window.alert("Chưa có tin nhắn đã ghim.");
+              return;
+            }
+            void jumpToMessage(pinnedMessages[0].messageId);
+          }}
+          onOpenDirectChat={(directChatroom) => {
+            onOpenChatroom?.(directChatroom);
+            setInfoOpen(false);
+          }}
+          onCallMember={(userId, callType) => {
+            if (!currentChatroom) return;
+            void callController
+              ?.initiateCall(currentChatroom.chatroomId, callType, [userId])
+              .catch((error: unknown) => {
+                const message =
+                  error instanceof Error
+                    ? error.message
+                    : "Không thể bắt đầu cuộc gọi.";
+                window.alert(message);
+              });
+          }}
         />
       </div>
 
