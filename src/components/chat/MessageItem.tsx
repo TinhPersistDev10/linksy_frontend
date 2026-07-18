@@ -1,13 +1,18 @@
+import { useState } from "react";
 import {
   Check,
   CheckCheck,
   Copy,
   Eye,
-  MoreHorizontal,
+  MoreVertical,
   Pencil,
   Phone,
   PhoneCall,
+  Pin,
+  PinOff,
   Reply,
+  Smile,
+  SmilePlus,
   Trash2,
   Video,
 } from "lucide-react";
@@ -29,6 +34,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import MentionedText from "./MentionedText";
+import MessageImageGrid, {
+  collectImageAttachments,
+} from "./MessageImageGrid";
+import MessageReactions from "./MessageReactions";
+import EmojiPickerPopover, {
+  QUICK_REACTION_EMOJIS,
+} from "./EmojiPickerPopover";
+import { emojiOnlyTextClass } from "@/lib/utils/emojiText";
 
 interface MessageItemProps {
   msg: MessageResponse;
@@ -40,6 +59,11 @@ interface MessageItemProps {
   onEdit: (message: MessageResponse) => void;
   onShowDelivery?: (messageId: string) => void;
   onCallAgain?: (callType: "audio" | "video") => void;
+  canPin?: boolean;
+  isPinned?: boolean;
+  onPin?: (messageId: string) => void;
+  onUnpin?: (messageId: string) => void;
+  onToggleReaction?: (messageId: string, emojiCode: string) => void;
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
@@ -126,9 +150,19 @@ export default function MessageItem({
   onEdit,
   onShowDelivery,
   onCallAgain,
+  canPin = false,
+  isPinned = false,
+  onPin,
+  onUnpin,
+  onToggleReaction,
 }: MessageItemProps) {
+  const [reactionOpen, setReactionOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const isOwn = msg.isOwn || msg.senderId === currentUserId;
   const isTemp = msg.messageId.startsWith("temp-");
+  const canReact = Boolean(onToggleReaction) && !isTemp && !msg.isDeleted;
+  const showActions = !isTemp && !msg.isDeleted;
+  const actionsVisible = reactionOpen || menuOpen;
 
   const showDateDivider = !prevMsg || !isSameDay(prevMsg.sentAt, msg.sentAt);
   const callInfo = getCallInfo(msg, isOwn);
@@ -237,6 +271,46 @@ export default function MessageItem({
         ? "delivered"
         : msg.deliveryStatus;
 
+  const imageAttachments = collectImageAttachments(msg.attachments);
+
+  const getAttachmentType = (
+    attachment: NonNullable<MessageResponse["attachments"]>[number],
+  ) =>
+    (
+      attachment.attachmentType ??
+      attachment.fileType ??
+      (attachment.mimeType?.startsWith("image/")
+        ? "image"
+        : attachment.mimeType?.startsWith("video/")
+          ? "video"
+          : attachment.mimeType?.startsWith("audio/")
+            ? "audio"
+            : "file")
+    ).toLowerCase();
+
+  const videoAttachments = (msg.attachments ?? []).filter((attachment) => {
+    const url = getAttachmentUrl(attachment);
+    return Boolean(url) && getAttachmentType(attachment) === "video";
+  });
+  const otherAttachments = (msg.attachments ?? []).filter((attachment) => {
+    const type = getAttachmentType(attachment);
+    return type !== "image" && type !== "video";
+  });
+  const emojiTextClass = msg.messageText
+    ? emojiOnlyTextClass(msg.messageText)
+    : null;
+  const hasTextBubbleContent = Boolean(
+    isPinned ||
+      msg.parentMessage ||
+      otherAttachments.length > 0 ||
+      msg.messageText,
+  );
+  const mediaOnly =
+    (imageAttachments.length > 0 || videoAttachments.length > 0) &&
+    !msg.parentMessage &&
+    !otherAttachments.length &&
+    !msg.messageText;
+
   return (
     <div data-msg-id={msg.messageId}>
       {showDateDivider && (
@@ -275,19 +349,84 @@ export default function MessageItem({
           <div className="relative">
             <div
               className={cn(
-                "relative rounded-2xl px-3.5 py-2 text-sm leading-relaxed transition-opacity",
-                isOwn
-                  ? "rounded-br-sm bg-blue-500 text-white"
-                  : "rounded-bl-sm bg-muted",
+                "relative flex flex-col gap-1 transition-opacity",
                 msg.isDeleted && "opacity-50 italic",
                 isTemp && "opacity-60",
               )}
             >
+              {imageAttachments.length > 0 && (
+                <div
+                  className={cn(
+                    mediaOnly &&
+                      isPinned &&
+                      "rounded-2xl ring-1 ring-sky-400/60",
+                  )}
+                >
+                  {mediaOnly && isPinned && (
+                    <div className="mb-1 flex items-center gap-1 px-1 text-[10px] font-medium text-sky-700">
+                      <Pin size={10} />
+                      Đã ghim
+                    </div>
+                  )}
+                  <MessageImageGrid images={imageAttachments} isOwn={isOwn} />
+                </div>
+              )}
+
+              {videoAttachments.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  {videoAttachments.map((attachment) => {
+                    const url = getAttachmentUrl(attachment);
+                    if (!url) return null;
+                    const key = attachment.attachmentId ?? url;
+                    return (
+                      <video
+                        key={key}
+                        src={url}
+                        controls
+                        className={cn(
+                          "max-h-72 max-w-full bg-black",
+                          isOwn
+                            ? "rounded-2xl rounded-br-md"
+                            : "rounded-2xl rounded-bl-md",
+                        )}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+
+              {hasTextBubbleContent && (
+            <div
+              className={cn(
+                "relative text-sm leading-relaxed",
+                emojiTextClass
+                  ? "bg-transparent px-0.5 py-0.5"
+                  : "rounded-2xl px-3.5 py-2",
+                !emojiTextClass &&
+                  (isOwn
+                    ? "rounded-br-sm bg-blue-500 text-white"
+                    : "rounded-bl-sm bg-muted"),
+                isPinned && !mediaOnly && "ring-1 ring-sky-400/60",
+              )}
+            >
+              {isPinned && !mediaOnly && (
+                <div
+                  className={cn(
+                    "mb-1 flex items-center gap-1 text-[10px] font-medium",
+                    isOwn && !emojiTextClass
+                      ? "text-white/80"
+                      : "text-sky-700",
+                  )}
+                >
+                  <Pin size={10} />
+                  Đã ghim
+                </div>
+              )}
               {msg.parentMessage && (
                 <div
                   className={cn(
                     "mb-1.5 rounded-md border-l-2 px-2 py-1 text-xs",
-                    isOwn
+                    isOwn && !emojiTextClass
                       ? "border-white/70 bg-white/10"
                       : "border-sky-500 bg-background/70",
                   )}
@@ -302,54 +441,14 @@ export default function MessageItem({
                 </div>
               )}
 
-              {msg.attachments && msg.attachments.length > 0 && (
+              {otherAttachments.length > 0 && (
                 <div className="mb-1.5 space-y-1.5">
-                  {msg.attachments.map((attachment) => {
+                  {otherAttachments.map((attachment) => {
                     const url = getAttachmentUrl(attachment);
                     if (!url) return null;
 
                     const key = attachment.attachmentId ?? url;
-                    const attachmentType =
-                      attachment.attachmentType ??
-                      attachment.fileType ??
-                      (attachment.mimeType?.startsWith("image/")
-                        ? "image"
-                        : attachment.mimeType?.startsWith("video/")
-                          ? "video"
-                          : attachment.mimeType?.startsWith("audio/")
-                            ? "audio"
-                            : "file");
-
-                    if (attachmentType === "image") {
-                      return (
-                        <a
-                          key={key}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={`Mở ${attachment.fileName}`}
-                          aria-label={`Mở ảnh ${attachment.fileName}`}
-                          className="block cursor-zoom-in"
-                        >
-                          <img
-                            src={url}
-                            alt={attachment.fileName}
-                            className="max-h-72 max-w-full rounded-lg object-cover"
-                          />
-                        </a>
-                      );
-                    }
-
-                    if (attachmentType === "video") {
-                      return (
-                        <video
-                          key={key}
-                          src={url}
-                          controls
-                          className="max-h-72 max-w-full rounded-lg"
-                        />
-                      );
-                    }
+                    const attachmentType = getAttachmentType(attachment);
 
                     if (attachmentType === "audio") {
                       return (
@@ -381,31 +480,117 @@ export default function MessageItem({
                 </div>
               )}
 
-              {msg.messageText && <span>{msg.messageText}</span>}
-              {!isTemp && !msg.isDeleted && (
+              {msg.messageText && (
+                <MentionedText
+                  text={msg.messageText}
+                  mentions={msg.mentions}
+                  currentUserId={currentUserId}
+                  isOwn={isOwn && !emojiTextClass}
+                  className={cn(
+                    emojiTextClass ?? "text-[15px] leading-relaxed",
+                  )}
+                />
+              )}
+            </div>
+              )}
+              {showActions && (
                 <div
                   className={cn(
-                    "absolute top-1/2 z-10 -translate-y-1/2",
-                    isOwn ? "right-full mr-1" : "left-full ml-1",
+                    "absolute top-1/2 z-20 flex -translate-y-1/2 items-center gap-0.5",
+                    "opacity-0 transition-opacity",
+                    "group-hover/message:opacity-100 focus-within:opacity-100",
+                    actionsVisible && "opacity-100",
+                    isOwn
+                      ? "right-full mr-1 flex-row-reverse"
+                      : "left-full ml-1",
                   )}
                 >
-                  <DropdownMenu>
+                  {canReact && (
+                    <Popover open={reactionOpen} onOpenChange={setReactionOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          title="Cảm xúc"
+                          aria-label="Cảm xúc"
+                          className={cn(
+                            "flex h-7 w-7 items-center justify-center rounded-full border bg-background",
+                            "text-muted-foreground shadow-sm",
+                            "hover:bg-muted hover:text-foreground",
+                          )}
+                        >
+                          <Smile size={15} />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        side="top"
+                        align={isOwn ? "end" : "start"}
+                        sideOffset={8}
+                        className="w-auto rounded-full border bg-background p-1 shadow-md"
+                      >
+                        <div className="flex items-center gap-0.5">
+                          {QUICK_REACTION_EMOJIS.map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              title={`React ${emoji}`}
+                              onClick={() => {
+                                onToggleReaction?.(msg.messageId, emoji);
+                                setReactionOpen(false);
+                              }}
+                              className="flex h-9 w-9 items-center justify-center rounded-full text-lg hover:bg-muted"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                          <EmojiPickerPopover
+                            side="top"
+                            align={isOwn ? "end" : "start"}
+                            onSelect={(emoji) => {
+                              onToggleReaction?.(msg.messageId, emoji);
+                              setReactionOpen(false);
+                            }}
+                          >
+                            <button
+                              type="button"
+                              title="Thêm emoji"
+                              aria-label="Thêm emoji"
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground"
+                            >
+                              <SmilePlus size={16} />
+                            </button>
+                          </EmojiPickerPopover>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+
+                  <button
+                    type="button"
+                    title="Trả lời"
+                    aria-label="Trả lời"
+                    onClick={() => onReply(msg)}
+                    className={cn(
+                      "flex h-7 w-7 items-center justify-center rounded-full border bg-background",
+                      "text-muted-foreground shadow-sm",
+                      "hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    <Reply size={15} />
+                  </button>
+
+                  <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
                         title="Tùy chọn tin nhắn"
                         aria-label="Tùy chọn tin nhắn"
                         className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-full",
-                          "bg-background text-muted-foreground shadow-sm",
-                          "opacity-0 transition-opacity",
+                          "flex h-7 w-7 items-center justify-center rounded-full border bg-background",
+                          "text-muted-foreground shadow-sm",
                           "hover:bg-muted hover:text-foreground",
-                          "focus-visible:opacity-100 focus-visible:outline-none",
-                          "group-hover/message:opacity-100",
-                          "data-[state=open]:opacity-100",
                         )}
                       >
-                        <MoreHorizontal size={15} />
+                        <MoreVertical size={15} />
                       </button>
                     </DropdownMenuTrigger>
 
@@ -414,11 +599,6 @@ export default function MessageItem({
                       align="center"
                       className="w-44"
                     >
-                      <DropdownMenuItem onSelect={() => onReply(msg)}>
-                        <Reply />
-                        Trả lời
-                      </DropdownMenuItem>
-
                       <DropdownMenuItem
                         onSelect={() => {
                           void navigator.clipboard.writeText(msg.messageText);
@@ -427,6 +607,19 @@ export default function MessageItem({
                         <Copy />
                         Sao chép
                       </DropdownMenuItem>
+
+                      {canPin && (
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            isPinned
+                              ? onUnpin?.(msg.messageId)
+                              : onPin?.(msg.messageId)
+                          }
+                        >
+                          {isPinned ? <PinOff /> : <Pin />}
+                          {isPinned ? "Bỏ ghim" : "Ghim tin nhắn"}
+                        </DropdownMenuItem>
+                      )}
 
                       {isOwn && (
                         <>
@@ -477,6 +670,19 @@ export default function MessageItem({
               )}
             </div>
           </div>
+
+          {msg.reactions && msg.reactions.length > 0 && (
+            <div className={cn("mt-1", isOwn ? "self-end" : "self-start")}>
+              <MessageReactions
+                reactions={msg.reactions}
+                disabled={!canReact}
+                alignEnd={isOwn}
+                onToggle={(emoji) =>
+                  onToggleReaction?.(msg.messageId, emoji)
+                }
+              />
+            </div>
+          )}
 
           {isOwn && !isTemp && (
             <button

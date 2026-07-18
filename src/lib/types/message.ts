@@ -1,3 +1,9 @@
+export interface MentionDto {
+  userId: string;
+  displayName: string;
+  avatarUrl?: string | null;
+}
+
 export interface MessageResponse {
   messageId: string;
   chatroomId: string;
@@ -21,6 +27,38 @@ export interface MessageResponse {
   recipientCount: number;
   deliveredCount: number;
   readCount: number;
+  mentions?: MentionDto[] | null;
+  reactions?: ReactionSummary[] | null;
+}
+
+export interface ReactionUser {
+  userId: string;
+  username: string;
+  avatar?: string | null;
+}
+
+export interface ReactionSummary {
+  emojiCode: string;
+  count: number;
+  reactedByMe: boolean;
+  users?: ReactionUser[];
+}
+
+export interface MessageReactionsPayload {
+  messageId: string;
+  reactions: ReactionSummary[];
+  totalCount: number;
+}
+
+export interface ReactionUpdatedEvent {
+  messageId: string;
+  chatroomId: string;
+  userId: string;
+  emojiCode: string;
+  added: boolean;
+  /** Summary list (preferred) or legacy wrapped payload. */
+  reactions: ReactionSummary[] | MessageReactionsPayload;
+  totalCount?: number;
 }
 
 export interface GetMessagesData {
@@ -30,12 +68,48 @@ export interface GetMessagesData {
   hasMore: boolean;
 }
 
+export interface GetMessagesAroundData {
+  messages: MessageResponse[];
+  hasMoreBefore: boolean;
+  targetMessageId: string;
+}
+
 export interface SendMessageRequest {
   chatroomId: string;
   messageText: string;
   messageType?: "text" | "image" | "file" | string;
   parentMessageId?: string | null;
   attachments?: SendMessageAttachmentRequest[] | null;
+  mentions?: string[] | null;
+}
+
+export interface PendingMention {
+  userId: string;
+  displayName: string;
+}
+
+export interface PinnedMessageResponse {
+  pinnedMessageId: string;
+  chatroomId: string;
+  messageId: string;
+  messageType: string;
+  messageText: string;
+  senderId: string;
+  senderFullname: string;
+  pinnedByUserId: string;
+  pinnedByName: string;
+  pinnedAt: string;
+}
+
+export interface MessagePinnedEvent {
+  chatroomId: string;
+  pinnedMessage: PinnedMessageResponse;
+}
+
+export interface MessageUnpinnedEvent {
+  chatroomId: string;
+  messageId: string;
+  unpinnedBy: string;
 }
 
 export interface EditMessageRequest {

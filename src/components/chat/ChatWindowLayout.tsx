@@ -23,12 +23,16 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import ConversationInfoPanel from "./ConversationInfoPanel";
+import PinnedMessagesBanner from "./PinnedMessagesBanner";
 import { messagesApi } from "@/lib/api/messages";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import { chatroomQueryKeys } from "@/lib/queries/queryKeys";
 import type {
   MessageDeliveryStatusResponse,
+  MessagePinnedEvent,
   MessageResponse,
+  MessageUnpinnedEvent,
+  PinnedMessageResponse,
 } from "@/lib/types/message";
 
 interface ChatWindowLayoutProps {
@@ -36,6 +40,7 @@ interface ChatWindowLayoutProps {
   onBack?: () => void;
   onReadChatroom?: () => void;
   onChatroomUpdated?: (chatroom: ChatroomResponse) => void;
+  onOpenChatroom?: (chatroom: ChatroomResponse) => void;
   callController?: Pick<UseCallSignalRReturn, "initiateCall">;
 }
 
@@ -46,6 +51,7 @@ export default function ChatWindowLayout({
   onBack,
   onReadChatroom,
   onChatroomUpdated,
+  onOpenChatroom,
   callController,
 }: ChatWindowLayoutProps) {
   const { user } = useAuth();
@@ -53,6 +59,7 @@ export default function ChatWindowLayout({
   const [activeChatroom, setActiveChatroom] = useState<ChatroomResponse | null>(
     chatroom,
   );
+  const [infoOpen, setInfoOpen] = useState(false);
 
   useEffect(() => {
     setActiveChatroom(chatroom);
@@ -68,6 +75,20 @@ export default function ChatWindowLayout({
 
   const currentChatroom = activeChatroom ?? chatroom;
   const chatroomId = currentChatroom?.chatroomId;
+
+  const refreshChatroomMembers = useCallback(() => {
+    if (!chatroomId) return;
+    void chatroomsApi
+      .getChatroom(chatroomId)
+      .then((updated) => {
+        handleChatroomChange(updated);
+      })
+      .catch(() => undefined);
+  }, [chatroomId, handleChatroomChange]);
+
+  useEffect(() => {
+    setInfoOpen(false);
+  }, [chatroomId]);
   const otherMember = currentChatroom?.members?.find(
     (m) => m.userId !== user?.userId,
   );
@@ -82,6 +103,7 @@ export default function ChatWindowLayout({
   const scrollToBottomRef = useRef<(() => void) | null>(null);
   const nearBottomRef = useRef(true);
   const markReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const onReadChatroomRef = useRef(onReadChatroom);
   const [replyTo, setReplyTo] = useState<MessageResponse | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessageResponse | null>(
@@ -96,6 +118,9 @@ export default function ChatWindowLayout({
   const [deliveryStatus, setDeliveryStatus] =
     useState<MessageDeliveryStatusResponse | null>(null);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState<
+    PinnedMessageResponse[]
+  >([]);
 
   useEffect(() => {
     onReadChatroomRef.current = onReadChatroom;
@@ -135,12 +160,15 @@ export default function ChatWindowLayout({
     shouldScrollToBottomRef,
     loadInitial,
     loadMore,
+    jumpToMessage,
     receiveMessage,
     onMessageDeleted,
     onMessageEdited,
     onMessageRead,
     onMessageDelivered,
     onAllMessagesRead,
+    onReactionUpdated,
+    applyReactionToggleResult,
     appendOptimistic,
     replaceOptimistic,
     removeOptimistic,
@@ -215,6 +243,32 @@ export default function ChatWindowLayout({
     [chatroomId, handleChatroomChange, queryClient, user?.userId],
   );
 
+  const handleMessagePinned = useCallback((event: MessagePinnedEvent) => {
+    if (!event?.pinnedMessage) return;
+    setPinnedMessages((prev) => {
+      if (prev.some((p) => p.messageId === event.pinnedMessage.messageId)) {
+        return prev;
+      }
+      return [event.pinnedMessage, ...prev];
+    });
+  }, []);
+
+  const handleMessageUnpinned = useCallback((event: MessageUnpinnedEvent) => {
+    setPinnedMessages((prev) =>
+      prev.filter((p) => p.messageId !== event.messageId),
+    );
+  }, []);
+
+  const handleMessageDeletedWithPins = useCallback(
+    (event: Parameters<typeof onMessageDeleted>[0]) => {
+      onMessageDeleted(event);
+      setPinnedMessages((prev) =>
+        prev.filter((p) => p.messageId !== event.messageId),
+      );
+    },
+    [onMessageDeleted],
+  );
+
   // ── SignalR (chat) ─────────────────────────────────────────────────────────
   const {
     isConnected,
@@ -223,11 +277,13 @@ export default function ChatWindowLayout({
     stopTyping: signalRStopTyping,
     deleteMessage: signalRDelete,
     editMessage: signalREdit,
-    replyToMessage: signalRReply,
+    pinMessage: signalRPin,
+    unpinMessage: signalRUnpin,
+    toggleReaction: signalRToggleReaction,
   } = useChatSignalR({
     chatroomId: chatroomId ?? null,
     onReceiveMessage: handleReceiveMessage,
-    onMessageDeleted,
+    onMessageDeleted: handleMessageDeletedWithPins,
     onMessageEdited,
     onMessageRead,
     onMessageDelivered,
@@ -235,6 +291,9 @@ export default function ChatWindowLayout({
     onUserTyping,
     onUserStoppedTyping,
     onMembershipChanged: handleMembershipChanged,
+    onMessagePinned: handleMessagePinned,
+    onMessageUnpinned: handleMessageUnpinned,
+    onReactionUpdated,
   });
 
   // ── Send + typing ──────────────────────────────────────────────────────────
@@ -248,6 +307,9 @@ export default function ChatWindowLayout({
     addSelectedFiles,
     removeSelectedFile,
     clearSelectedFiles,
+    pendingMentions,
+    setPendingMentions,
+    clearPendingMentions,
   } = useSendMessage({
     chatroomId,
     user,
@@ -258,6 +320,67 @@ export default function ChatWindowLayout({
     signalRTyping,
     signalRStopTyping,
   });
+
+  const isGroupChat =
+    currentChatroom?.roomType?.toLowerCase() === "group";
+  const isDirectChat =
+    currentChatroom?.roomType?.toLowerCase() === "direct";
+  const canPin =
+    isDirectChat ||
+    currentChatroom?.myMemberInfo?.memberRole === "admin" ||
+    Boolean(currentChatroom?.myMemberInfo?.permissions?.canPinMessages);
+  const pinnedMessageIds = useMemo(
+    () => new Set(pinnedMessages.map((p) => p.messageId)),
+    [pinnedMessages],
+  );
+
+  const handlePin = useCallback(
+    async (messageId: string) => {
+      try {
+        await signalRPin(messageId);
+      } catch (error) {
+        console.error("Pin message failed:", error);
+      }
+    },
+    [signalRPin],
+  );
+
+  const handleUnpin = useCallback(
+    async (messageId: string) => {
+      try {
+        await signalRUnpin(messageId);
+      } catch (error) {
+        console.error("Unpin message failed:", error);
+      }
+    },
+    [signalRUnpin],
+  );
+
+  const handleToggleReaction = useCallback(
+    async (messageId: string, emojiCode: string) => {
+      try {
+        const result = await messagesApi.toggleReaction(messageId, emojiCode);
+        const raw = result as unknown as Record<string, unknown>;
+        const added = Boolean(raw?.added ?? raw?.Added);
+        applyReactionToggleResult(messageId, emojiCode, added);
+      } catch (restError) {
+        try {
+          await signalRToggleReaction(messageId, emojiCode);
+          // Hub không trả added; UI cập nhật qua event ReactionUpdated.
+        } catch (hubError) {
+          console.error("Toggle reaction failed:", restError || hubError);
+        }
+      }
+    },
+    [signalRToggleReaction, applyReactionToggleResult],
+  );
+
+  const handleInsertEmoji = useCallback(
+    (emoji: string) => {
+      setInput((prev) => prev + emoji);
+    },
+    [setInput],
+  );
 
   const handleSearchMessages = async () => {
     if (!chatroomId || !messageSearch.trim()) {
@@ -275,19 +398,6 @@ export default function ChatWindowLayout({
       console.error("Search messages failed:", error);
     } finally {
       setSearching(false);
-    }
-  };
-
-  const handleJumpToMessage = (messageId: string) => {
-    const el = document.querySelector<HTMLElement>(
-      `[data-msg-id="${messageId}"]`,
-    );
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("ring-2", "ring-sky-400");
-      window.setTimeout(() => {
-        el.classList.remove("ring-2", "ring-sky-400");
-      }, 1200);
     }
   };
 
@@ -362,15 +472,18 @@ export default function ChatWindowLayout({
         await signalREdit(editingMessage.messageId, content);
         setEditingMessage(null);
         setInput("");
+        clearPendingMentions();
         return;
       }
       if (replyTo) {
-        await signalRReply(chatroomId, replyTo.messageId, content);
+        await handleSend({
+          parentMessageId: replyTo.messageId,
+          mentions: pendingMentions,
+        });
         setReplyTo(null);
-        setInput("");
         return;
       }
-      await handleSend();
+      await handleSend({ mentions: pendingMentions });
     } catch (error) {
       console.error("Submit message failed:", error);
     } finally {
@@ -389,6 +502,8 @@ export default function ChatWindowLayout({
     setEditingMessage(null);
     setInput("");
     clearSelectedFiles();
+    clearPendingMentions();
+    setPinnedMessages([]);
 
     messagesApi
       .markAllRead(chatroomId)
@@ -398,12 +513,18 @@ export default function ChatWindowLayout({
       })
       .catch((error) => console.error("Mark all read failed:", error));
 
+    messagesApi
+      .getPinnedMessages(chatroomId)
+      .then(setPinnedMessages)
+      .catch((error) => console.error("Load pinned messages failed:", error));
+
     loadInitial();
   }, [
     chatroomId,
     loadInitial,
     markChatroomReadInCache,
     clearSelectedFiles,
+    clearPendingMentions,
     setInput,
   ]);
 
@@ -466,11 +587,30 @@ export default function ChatWindowLayout({
                 ? () => startCurrentCall("video")
                 : undefined
             }
+            infoOpen={infoOpen}
+            onToggleInfo={() => setInfoOpen((open) => !open)}
+            onOpenDirectChat={(directChatroom) => {
+              onOpenChatroom?.(directChatroom);
+            }}
+            onCallMember={(userId, callType) => {
+              if (!currentChatroom) return;
+              void callController
+                ?.initiateCall(currentChatroom.chatroomId, callType, [userId])
+                .catch((error: unknown) => {
+                  const message =
+                    error instanceof Error
+                      ? error.message
+                      : "Không thể bắt đầu cuộc gọi.";
+                  window.alert(message);
+                });
+            }}
+            onMembersChanged={refreshChatroomMembers}
           />
 
           <div className="shrink-0 border-b bg-background px-3 py-2 sm:px-4">
             <div className="flex gap-2">
               <input
+                ref={searchInputRef}
                 value={messageSearch}
                 onChange={(e) => setMessageSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -495,7 +635,7 @@ export default function ChatWindowLayout({
                   <button
                     key={msg.messageId}
                     type="button"
-                    onClick={() => handleJumpToMessage(msg.messageId)}
+                    onClick={() => void jumpToMessage(msg.messageId)}
                     className="block w-full border-b px-3 py-2 text-left text-xs hover:bg-muted"
                   >
                     <span className="font-medium">{msg.senderFullname}: </span>
@@ -505,6 +645,13 @@ export default function ChatWindowLayout({
               </div>
             )}
           </div>
+
+          <PinnedMessagesBanner
+            pinnedMessages={pinnedMessages}
+            canUnpin={canPin}
+            onJump={(messageId) => void jumpToMessage(messageId)}
+            onUnpin={(messageId) => void handleUnpin(messageId)}
+          />
 
           <div className="min-h-0 flex-1 overflow-hidden">
             <MessageList
@@ -535,6 +682,13 @@ export default function ChatWindowLayout({
                 clearSelectedFiles();
               }}
               onCallAgain={handleCallAgain}
+              canPin={canPin}
+              pinnedMessageIds={pinnedMessageIds}
+              onPin={(messageId) => void handlePin(messageId)}
+              onUnpin={(messageId) => void handleUnpin(messageId)}
+              onToggleReaction={(messageId, emoji) =>
+                void handleToggleReaction(messageId, emoji)
+              }
             />
           </div>
 
@@ -550,12 +704,19 @@ export default function ChatWindowLayout({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onSend={() => void handleSubmit()}
+            onInsertEmoji={handleInsertEmoji}
             onCancelMode={() => {
               setReplyTo(null);
               setEditingMessage(null);
               setInput("");
               clearSelectedFiles();
+              clearPendingMentions();
             }}
+            enableMentions={isGroupChat && !editingMessage}
+            mentionMembers={currentChatroom?.members ?? []}
+            currentUserId={user?.userId}
+            pendingMentions={pendingMentions}
+            onPendingMentionsChange={setPendingMentions}
           />
 
           {deliveryOpen && deliveryStatus && (
@@ -594,8 +755,41 @@ export default function ChatWindowLayout({
         <ConversationInfoPanel
           chatroom={currentChatroom}
           otherMember={otherMember}
+          open={infoOpen}
+          onClose={() => setInfoOpen(false)}
           onChatroomChange={handleChatroomChange}
           onLeaveChatroom={onBack}
+          pinnedCount={pinnedMessages.length}
+          onSearchInChat={() => {
+            searchInputRef.current?.focus();
+            searchInputRef.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "nearest",
+            });
+          }}
+          onViewPinnedMessages={() => {
+            if (pinnedMessages.length === 0) {
+              window.alert("Chưa có tin nhắn đã ghim.");
+              return;
+            }
+            void jumpToMessage(pinnedMessages[0].messageId);
+          }}
+          onOpenDirectChat={(directChatroom) => {
+            onOpenChatroom?.(directChatroom);
+            setInfoOpen(false);
+          }}
+          onCallMember={(userId, callType) => {
+            if (!currentChatroom) return;
+            void callController
+              ?.initiateCall(currentChatroom.chatroomId, callType, [userId])
+              .catch((error: unknown) => {
+                const message =
+                  error instanceof Error
+                    ? error.message
+                    : "Không thể bắt đầu cuộc gọi.";
+                window.alert(message);
+              });
+          }}
         />
       </div>
 

@@ -25,6 +25,9 @@ export interface ChatroomMemberResponse {
   isOnline: boolean;
   lastActiveAt: string | null;
   nickname: string | null;
+  addedBy?: string | null;
+  addedByUsername?: string | null;
+  addedByFullname?: string | null;
 }
 
 export interface ChatroomMemberDetailResponse {

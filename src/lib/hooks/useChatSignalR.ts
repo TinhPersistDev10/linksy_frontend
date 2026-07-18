@@ -13,7 +13,10 @@ import type {
   MessageDeliveredEvent,
   MessageDeletedEvent,
   MessageEditedEvent,
+  MessagePinnedEvent,
   MessageReadEvent,
+  MessageUnpinnedEvent,
+  ReactionUpdatedEvent,
 } from "../types/message";
 
 const BASE_URL = getApiOrigin();
@@ -36,6 +39,9 @@ interface UseChatSignalROptions {
   }) => void;
   onUserStoppedTyping: (data: { userId: string }) => void;
   onMembershipChanged: (data: { chatroomId: string }) => void;
+  onMessagePinned?: (event: MessagePinnedEvent) => void;
+  onMessageUnpinned?: (event: MessageUnpinnedEvent) => void;
+  onReactionUpdated?: (event: ReactionUpdatedEvent) => void;
 }
 
 export function useChatSignalR({
@@ -49,6 +55,9 @@ export function useChatSignalR({
   onUserTyping,
   onUserStoppedTyping,
   onMembershipChanged,
+  onMessagePinned,
+  onMessageUnpinned,
+  onReactionUpdated,
 }: UseChatSignalROptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -70,6 +79,9 @@ export function useChatSignalR({
     onUserTyping,
     onUserStoppedTyping,
     onMembershipChanged,
+    onMessagePinned,
+    onMessageUnpinned,
+    onReactionUpdated,
   });
   cbRef.current = {
     onReceiveMessage,
@@ -81,6 +93,9 @@ export function useChatSignalR({
     onUserTyping,
     onUserStoppedTyping,
     onMembershipChanged,
+    onMessagePinned,
+    onMessageUnpinned,
+    onReactionUpdated,
   };
 
   useEffect(() => {
@@ -143,6 +158,15 @@ export function useChatSignalR({
       );
       connection.on("MemberLeft", (data: { chatroomId: string }) =>
         cbRef.current.onMembershipChanged(data),
+      );
+      connection.on("MessagePinned", (event: MessagePinnedEvent) =>
+        cbRef.current.onMessagePinned?.(event),
+      );
+      connection.on("MessageUnpinned", (event: MessageUnpinnedEvent) =>
+        cbRef.current.onMessageUnpinned?.(event),
+      );
+      connection.on("ReactionUpdated", (event: ReactionUpdatedEvent) =>
+        cbRef.current.onReactionUpdated?.(event),
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("Error", (err: any) =>
@@ -242,13 +266,21 @@ export function useChatSignalR({
   }, [chatroomId, isConnected, isMounted]);
 
   const sendMessage = useCallback(
-    async (chatroomId: string, text: string, type = "text") => {
+    async (
+      chatroomId: string,
+      text: string,
+      type = "text",
+      mentions?: string[],
+      parentMessageId?: string | null,
+    ) => {
       const conn = connectionRef.current;
       if (!conn) throw new Error("SignalR not connected");
       await conn.invoke("SendMessage", {
         ChatroomId: chatroomId,
         MessageText: text,
         MessageType: type,
+        Mentions: mentions && mentions.length > 0 ? mentions : undefined,
+        ParentMessageId: parentMessageId || undefined,
       });
     },
     [],
@@ -271,6 +303,27 @@ export function useChatSignalR({
     if (!connection) throw new Error("SignalR not connected");
     await connection.invoke("DeleteMessage", messageId);
   }, []);
+
+  const pinMessage = useCallback(async (messageId: string) => {
+    const connection = connectionRef.current;
+    if (!connection) throw new Error("SignalR not connected");
+    await connection.invoke("PinMessage", messageId);
+  }, []);
+
+  const unpinMessage = useCallback(async (messageId: string) => {
+    const connection = connectionRef.current;
+    if (!connection) throw new Error("SignalR not connected");
+    await connection.invoke("UnpinMessage", messageId);
+  }, []);
+
+  const toggleReaction = useCallback(
+    async (messageId: string, emojiCode: string) => {
+      const connection = connectionRef.current;
+      if (!connection) throw new Error("SignalR not connected");
+      await connection.invoke("ToggleReaction", messageId, emojiCode);
+    },
+    [],
+  );
 
   const editMessage = useCallback(
     async (messageId: string, newText: string) => {
@@ -304,5 +357,8 @@ export function useChatSignalR({
     deleteMessage,
     editMessage,
     replyToMessage,
+    pinMessage,
+    unpinMessage,
+    toggleReaction,
   };
 }
