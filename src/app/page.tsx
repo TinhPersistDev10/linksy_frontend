@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MessageCircle, Users, Shield, Zap } from "lucide-react";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { isSystemAdmin } from "@/lib/types/user";
 
 export default function HomePage() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -13,7 +14,7 @@ export default function HomePage() {
   useEffect(() => {
     if (loading) return;
     if (isAuthenticated && user?.isEmailVerified) {
-      router.replace("/dashboard");
+      router.replace(isSystemAdmin(user) ? "/admin" : "/dashboard");
     }
   }, [loading, isAuthenticated, user, router]);
 
