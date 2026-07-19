@@ -12,10 +12,10 @@
 ### Tickets in this repo
 | ID | Work |
 |----|------|
-| M3 | Types + `src/lib/api/admin.ts` |
-| M4 | `src/app/(admin)/` + guard |
-| M5 | Users CRUD UI |
-| M6 | Review + smoke test |
+| M3 | Types + `src/lib/api/admin.ts` | **Done** |
+| M4 | `src/app/(admin)/` + guard | **Done** |
+| M5 | Users CRUD UI | **Done** |
+| M6 | Review + smoke test | **Done** — see backend [admin-m6-review.md](../backend_api/docs/admin-m6-review.md) |
 
 ### Depends on backend (M1)
 Login/refresh must return `user.roles` before M4 guard works. Coordinate with backend repo M1.

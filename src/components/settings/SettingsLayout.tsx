@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Lock, Palette, User } from "lucide-react";
+import Link from "next/link";
+import { Bell, Lock, Palette, Shield, User } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { isSystemAdmin } from "@/lib/types/user";
 import AppearanceSettings from "./AppearanceSettings";
 import NotificationSettings from "./NotificationSettings";
 import PasswordSettings from "./PasswordSettings";
@@ -17,6 +20,8 @@ const navItems = [
 
 export default function SettingsLayout() {
   const [activeTab, setActiveTab] = useState("profile");
+  const { user } = useAuth();
+  const showAdminLink = isSystemAdmin(user);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -55,6 +60,15 @@ export default function SettingsLayout() {
             </button>
           );
         })}
+        {showAdminLink ? (
+          <Link
+            href="/admin"
+            className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:w-full md:gap-3"
+          >
+            <Shield size={18} />
+            <span className="whitespace-nowrap">Admin Console</span>
+          </Link>
+        ) : null}
       </nav>
 
       <main className="min-w-0 flex-1 overflow-y-auto p-3 sm:p-6 md:max-w-2xl">

@@ -2,6 +2,7 @@
 
 import { createContext, useState, useEffect, useRef, ReactNode } from "react";
 import type { User } from "@/lib/types/user";
+import { isSystemAdmin } from "@/lib/types/user";
 import type {
   LoginRequest,
   RegisterRequest,
@@ -43,6 +44,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     const userData = await authApi.getCurrentUser();
+    if (userData) {
+      const cached = storage.getUser<User>();
+      if (
+        (!userData.roles || userData.roles.length === 0) &&
+        cached?.roles?.length
+      ) {
+        userData.roles = cached.roles;
+      }
+    }
     setUser(userData ?? null);
     return userData ?? null;
   };
@@ -88,10 +98,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error.response?.data?.message || error.message || "Đăng nhập thất bại",
       );
     });
-    if (response?.success) {
+    if (response?.success && response.user) {
       setUser(response.user);
-      if (response.user?.isEmailVerified) {
-        window.location.href = "/dashboard";
+      if (response.user.isEmailVerified) {
+        window.location.href = isSystemAdmin(response.user)
+          ? "/admin"
+          : "/dashboard";
       } else {
         router.push(
           `/verify-email?email=${encodeURIComponent(response.user.email)}`,
@@ -119,9 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyEmail = async (data: VerifyEmailRequest) => {
     try {
       const response = await authApi.verifyEmail(data);
-      if (response.success) {
+      if (response.success && response.user) {
         setUser(response.user);
-        router.push("/dashboard");
+        router.push(isSystemAdmin(response.user) ? "/admin" : "/dashboard");
       } else throw new Error(response.message || "Xác thực thất bại");
     } catch (error: unknown) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

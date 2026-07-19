@@ -1,18 +1,18 @@
 # Admin PRD — Link stub (Frontend repo)
 
-**PRD master nằm ở backend repo** (Cách A — single source of truth).
+**The master PRD lives in the backend repo** (Option A — single source of truth).
 
-## Đọc PRD đầy đủ
+## Read the full PRD
 
-Khi mở **multi-root workspace** (backend + frontend cùng folder cha):
+When using a **multi-root workspace** (backend + frontend under the same parent folder):
 
 - [../backend_api/docs/admin-prd.md](../backend_api/docs/admin-prd.md)
 
-Khi hai repo tách trên GitHub (clone riêng), cập nhật link sau:
+When the two repos are separate on GitHub (cloned independently), update the link below:
 
 - `https://github.com/<org>/linksy-backend/blob/main/docs/admin-prd.md`
 
-## Tickets thuộc frontend repo
+## Tickets in the frontend repo
 
 | ID | Work |
 |----|------|
@@ -23,7 +23,7 @@ Khi hai repo tách trên GitHub (clone riêng), cập nhật link sau:
 
 ## Agent prompts
 
-Mở workspace **frontend repo**, attach PRD từ backend (multi-root hoặc paste section 6–7):
+Open the **frontend repo** workspace, attach the PRD from backend (multi-root or paste sections 6–7):
 
 ```
 Implement M3 from admin PRD section 6–7. Frontend only.
@@ -32,4 +32,4 @@ Follow @src/lib/api/auth.ts pattern. Do not change backend.
 
 ## Cursor rule
 
-Xem [.cursor/rules/admin-frontend.mdc](../.cursor/rules/admin-frontend.mdc)
+See [.cursor/rules/admin-frontend.mdc](../.cursor/rules/admin-frontend.mdc)
