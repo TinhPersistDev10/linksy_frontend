@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bell, Lock, Palette, Shield, User } from "lucide-react";
+import { Bell, Lock, Palette, Shield, ShieldBan, User } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { isSystemAdmin } from "@/lib/types/user";
 import AppearanceSettings from "./AppearanceSettings";
+import BlockedUsersSettings from "./BlockedUsersSettings";
 import NotificationSettings from "./NotificationSettings";
 import PasswordSettings from "./PasswordSettings";
 import ProfileSettings from "./ProfileSettings";
@@ -16,6 +17,7 @@ const navItems = [
   { id: "password", label: "Đổi mật khẩu", icon: Lock },
   { id: "notifications", label: "Thông báo", icon: Bell },
   { id: "appearance", label: "Giao diện", icon: Palette },
+  { id: "blocked", label: "Người đã chặn", icon: ShieldBan },
 ];
 
 export default function SettingsLayout() {
@@ -33,6 +35,8 @@ export default function SettingsLayout() {
         return <NotificationSettings />;
       case "appearance":
         return <AppearanceSettings />;
+      case "blocked":
+        return <BlockedUsersSettings />;
       default:
         return <ProfileSettings />;
     }
