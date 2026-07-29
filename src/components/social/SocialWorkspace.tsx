@@ -53,13 +53,13 @@ export default function SocialWorkspace({
   const Icon = meta.icon;
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-white text-slate-900">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3 sm:h-16 sm:px-6">
+    <section className="flex min-h-0 flex-1 flex-col bg-background text-foreground">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:h-16 sm:px-6">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 md:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
             aria-label="Quay lại"
           >
             <ArrowLeft size={18} />

@@ -100,7 +100,7 @@ export default function GroupInvitationsView() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-slate-400">
+      <div className="flex h-full items-center justify-center text-muted-foreground">
         <Loader2 size={22} className="animate-spin" />
       </div>
     );
@@ -110,11 +110,11 @@ export default function GroupInvitationsView() {
     return (
       <div className="flex h-full items-center justify-center text-center">
         <div>
-          <div className="mx-auto mb-5 flex h-32 w-32 items-center justify-center rounded-full bg-slate-100">
-            <ClipboardList size={58} className="text-slate-700" />
+          <div className="mx-auto mb-5 flex h-32 w-32 items-center justify-center rounded-full bg-muted">
+            <ClipboardList size={58} className="text-foreground" />
           </div>
           <p className="font-semibold">Không có lời mời vào nhóm nào</p>
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-muted-foreground">
             Khi nào bạn nhận được lời mời, lời mời sẽ hiển thị ở đây.
           </p>
         </div>
@@ -125,7 +125,7 @@ export default function GroupInvitationsView() {
   return (
     <div className="space-y-6">
       {selectedInvitation && (
-        <section className="rounded-md border border-slate-200 bg-white p-3 sm:p-5">
+        <section className="rounded-md border border-border bg-card p-3 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 items-start gap-3 sm:gap-4">
               <InvitationAvatar
@@ -134,15 +134,15 @@ export default function GroupInvitationsView() {
               />
               <div className="min-w-0">
                 <p className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
-                  <UsersRound size={18} className="text-slate-400" />
+                  <UsersRound size={18} className="text-muted-foreground" />
                   <span className="truncate">
                     {selectedInvitation.chatroomName || "Nhóm chưa đặt tên"}
                   </span>
                 </p>
-                <p className="text-sm text-slate-400">
+                <p className="text-sm text-muted-foreground">
                   {selectedInvitation.memberCount} thành viên ? Mời bởi {selectedInvitation.invitedByFullname || selectedInvitation.invitedByUsername}
                 </p>
-                <p className="mt-4 max-w-2xl rounded border border-slate-200 px-3 py-3 text-sm text-slate-700">
+                <p className="mt-4 max-w-2xl rounded border border-border px-3 py-3 text-sm text-foreground">
                   {selectedInvitation.message || "Bạn được mời tham gia nhóm này."}
                 </p>
               </div>
@@ -161,7 +161,7 @@ export default function GroupInvitationsView() {
                 type="button"
                 disabled={busyId === selectedInvitation.invitationId}
                 onClick={() => reject(selectedInvitation.invitationId)}
-                className="h-10 rounded-md bg-slate-100 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                className="h-10 rounded-md bg-muted text-sm font-semibold text-foreground hover:bg-muted/80 disabled:opacity-60"
               >
                 Từ chối
               </button>
@@ -192,7 +192,7 @@ export default function GroupInvitationsView() {
                 type="button"
                 onClick={() => setSelectedInvitationId(invitation.invitationId)}
                 className={`rounded-md p-4 text-left transition ${
-                  selected ? "bg-emerald-50 ring-1 ring-emerald-200" : "border border-slate-200 bg-white hover:bg-slate-50"
+                  selected ? "bg-emerald-500/10 ring-1 ring-emerald-500/30" : "border border-border bg-card hover:bg-muted/60"
                 }`}
               >
                 <div className="flex min-w-0 items-center gap-3">
@@ -204,7 +204,7 @@ export default function GroupInvitationsView() {
                     <p className="truncate font-semibold">
                       {invitation.chatroomName || "Nhóm chưa đặt tên"}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-muted-foreground">
                       {formatDate(invitation.sentAt)} - Mời bởi {invitation.invitedByFullname || invitation.invitedByUsername}
                     </p>
                   </div>

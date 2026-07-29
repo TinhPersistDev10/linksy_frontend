@@ -48,7 +48,7 @@ function NotificationIcon({ item }: { item: NotificationResponse }) {
 
   if (item.notificationType === "friend_request") {
     return (
-      <span className={`${iconClass} bg-sky-100 text-sky-600`}>
+      <span className={`${iconClass} bg-sky-500/15 text-sky-600 dark:text-sky-400`}>
         <UserPlus size={17} />
       </span>
     );
@@ -56,14 +56,14 @@ function NotificationIcon({ item }: { item: NotificationResponse }) {
 
   if (item.notificationType.includes("group")) {
     return (
-      <span className={`${iconClass} bg-emerald-100 text-emerald-600`}>
+      <span className={`${iconClass} bg-emerald-500/15 text-emerald-600 dark:text-emerald-400`}>
         <UsersRound size={17} />
       </span>
     );
   }
 
   return (
-    <span className={`${iconClass} bg-slate-100 text-slate-600`}>
+    <span className={`${iconClass} bg-muted text-muted-foreground`}>
       <Bell size={17} />
     </span>
   );
@@ -265,7 +265,7 @@ export default function NotificationList({
           <button
             type="button"
             onClick={markAllRead}
-            className="flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-200"
+            className="flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-500/25 dark:text-sky-300"
           >
             <CheckCheck size={12} /> Đọc tất cả
           </button>
@@ -280,7 +280,7 @@ export default function NotificationList({
             onClick={() => setFilter(item.id)}
             className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${
               filter === item.id
-                ? "bg-white text-sky-700 shadow-sm"
+                ? "bg-background text-sky-700 shadow-sm dark:text-sky-300"
                 : "text-muted-foreground hover:text-sidebar-foreground"
             }`}
           >
@@ -290,11 +290,11 @@ export default function NotificationList({
       </div>
 
       {filteredItems.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-200 px-3 py-8 text-center text-xs text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-border px-3 py-8 text-center text-xs text-muted-foreground">
           {filter === "unread"
             ? "Không có thông báo chưa đọc"
             : filter === "read"
-              ? "Ch?a c? thông báo Đã đọc"
+              ? "Chưa có thông báo đã đọc"
               : "Không có thông báo"}
         </div>
       ) : (
@@ -307,23 +307,23 @@ export default function NotificationList({
               key={item.notificationId}
               type="button"
               onClick={() => handleOpenNotification(item)}
-              className={`group w-full rounded-xl border px-3 py-3 text-left transition hover:border-sky-100 hover:bg-sky-50/70 ${
+              className={`group w-full rounded-xl border px-3 py-3 text-left transition hover:border-sky-500/30 hover:bg-sky-500/10 ${
                 item.isRead
-                  ? "border-transparent bg-white opacity-80"
-                  : "border-sky-100 bg-sky-50/40"
+                  ? "border-border/60 bg-card opacity-90"
+                  : "border-sky-500/25 bg-sky-500/10"
               }`}
             >
               <div className="flex gap-3">
                 <div className="relative shrink-0">
                   <NotificationIcon item={item} />
                   {!item.isRead && (
-                    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-sky-500" />
+                    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-sky-500" />
                   )}
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="line-clamp-2 text-sm font-semibold leading-snug text-sidebar-foreground">
+                    <p className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">
                       {item.title}
                     </p>
                     <span className="shrink-0 text-[11px] text-muted-foreground">
@@ -339,10 +339,10 @@ export default function NotificationList({
                     <CalendarClock size={12} />
                     <span>{item.isRead ? "Đã đọc" : "Chưa đọc"}</span>
                     {clickable && (
-                      <span className="text-sky-600">Mở lời mời</span>
+                      <span className="text-sky-600 dark:text-sky-400">Mở lời mời</span>
                     )}
                     {!item.isRead && (
-                      <span className="text-sky-600">
+                      <span className="text-sky-600 dark:text-sky-400">
                         Click để đánh dấu đã đọc
                       </span>
                     )}
@@ -356,7 +356,7 @@ export default function NotificationList({
                     event.stopPropagation();
                     void deleteNotification(item.notificationId);
                   }}
-                  className="shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                  className="shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition hover:bg-red-500/10 hover:text-red-600 group-hover:opacity-100 dark:hover:text-red-400"
                 >
                   <Trash2 size={14} />
                 </button>

@@ -23,6 +23,7 @@ import {
 import type { UpdateAdminUserRequest } from "@/lib/types/admin";
 import { formatAdminDate, getApiErrorMessage } from "@/lib/utils/admin-errors";
 import { useAuth } from "@/lib/hooks/useAuth";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 export function AdminUserDetailView() {
   const params = useParams<{ userId: string }>();
@@ -40,6 +41,7 @@ export function AdminUserDetailView() {
 
   const [form, setForm] = useState<UpdateAdminUserRequest>({});
   const [resetOpen, setResetOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [selectedRoleId, setSelectedRoleId] = useState<number | "">("");
@@ -96,13 +98,9 @@ export function AdminUserDetailView() {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Xóa vĩnh viễn user này? Hành động không thể hoàn tác.",
-    );
-    if (!confirmed) return;
-
     try {
       await deleteMutation.mutateAsync(userId);
+      setDeleteOpen(false);
       router.push("/admin/users");
     } catch (err) {
       setError(getApiErrorMessage(err, "Xóa user thất bại"));
@@ -373,13 +371,9 @@ export function AdminUserDetailView() {
             variant="destructive"
             className="mt-3"
             disabled={isSelf || deleteMutation.isPending}
-            onClick={handleDelete}
+            onClick={() => setDeleteOpen(true)}
           >
-            {deleteMutation.isPending ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <Trash2 />
-            )}
+            <Trash2 />
             Xóa vĩnh viễn
           </Button>
         </div>
@@ -393,6 +387,28 @@ export function AdminUserDetailView() {
         onOpenChange={setResetOpen}
         userId={userId}
         username={detail.username}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) setDeleteOpen(open);
+        }}
+        title="Xóa người dùng"
+        description={
+          <>
+            Bạn có chắc chắn muốn xóa vĩnh viễn{" "}
+            <span className="font-semibold text-foreground">
+              {detail.fullname || detail.username}
+            </span>
+            ? Hành động này không thể hoàn tác.
+          </>
+        }
+        confirmLabel="Xóa vĩnh viễn"
+        cancelLabel="Hủy"
+        variant="destructive"
+        loading={deleteMutation.isPending}
+        onConfirm={() => void handleDelete()}
       />
     </AdminShell>
   );

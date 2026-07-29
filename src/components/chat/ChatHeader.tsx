@@ -7,6 +7,7 @@ import type {
   ChatroomResponse,
 } from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ChatAvatar from "./ChatAvatar";
 import GroupMembersDialog from "./GroupMembersDialog";
 import MemberProfileDialog from "./MemberProfileDialog";
@@ -40,10 +41,9 @@ export default function ChatHeader({
 }: ChatHeaderProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [infoNoticeOpen, setInfoNoticeOpen] = useState(false);
 
-  const showUnderDevelopment = () => {
-    window.alert("Chức năng hiện đang phát triển");
-  };
+  const showUnderDevelopment = () => setInfoNoticeOpen(true);
 
   const isGroup = chatroom.roomType === "group";
   const displayName = isGroup
@@ -188,6 +188,16 @@ export default function ChatHeader({
           onMembersChanged={onMembersChanged}
         />
       )}
+
+      <ConfirmDialog
+        open={infoNoticeOpen}
+        onOpenChange={setInfoNoticeOpen}
+        title="Tính năng đang phát triển"
+        description="Chức năng này hiện chưa khả dụng. Vui lòng thử lại sau."
+        confirmLabel="Đã hiểu"
+        variant="info"
+        onConfirm={() => setInfoNoticeOpen(false)}
+      />
     </>
   );
 }

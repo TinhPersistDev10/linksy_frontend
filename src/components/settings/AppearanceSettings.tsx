@@ -1,75 +1,61 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Check, Monitor, Moon, Sun } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { useThemeSettings } from "@/components/theme/ThemeProvider";
+import type { ThemePreference } from "@/lib/types/settings";
+import type { FontSize } from "@/lib/theme";
 
-type Theme = "light" | "dark" | "system";
-type FontSize = "sm" | "md" | "lg";
-
-const themes: { value: Theme; label: string; icon: React.ElementType; description: string }[] = [
-  { value: "light", label: "Sáng", icon: Sun, description: "Giao diện sáng, phù hợp ban ngày" },
-  { value: "dark", label: "Tối", icon: Moon, description: "Giao diện tối, giảm mỏi mắt ban đêm" },
-  { value: "system", label: "Theo hệ thống", icon: Monitor, description: "Tự động theo cài đặt thiết bị" },
+const themes: {
+  value: ThemePreference;
+  label: string;
+  icon: React.ElementType;
+  description: string;
+}[] = [
+  {
+    value: "light",
+    label: "Sáng",
+    icon: Sun,
+    description: "Giao diện sáng, phù hợp ban ngày",
+  },
+  {
+    value: "dark",
+    label: "Tối",
+    icon: Moon,
+    description: "Giao diện tối, giảm mỏi mắt ban đêm",
+  },
+  {
+    value: "system",
+    label: "Theo hệ thống",
+    icon: Monitor,
+    description: "Tự động theo cài đặt thiết bị",
+  },
 ];
 
-const fontSizes: Record<FontSize, string> = {
-  sm: "14px",
-  md: "16px",
-  lg: "18px",
-};
-
 export default function AppearanceSettings() {
-  const [theme, setTheme] = useState<Theme>("system");
-  const [fontSize, setFontSize] = useState<FontSize>("md");
-  const [isSaving, setIsSaving] = useState(false);
+  const {
+    theme,
+    fontSize,
+    setTheme,
+    setFontSize,
+    saveAppearance,
+    isSaving,
+  } = useThemeSettings();
   const [success, setSuccess] = useState("");
-
-  const applyTheme = (t: Theme) => {
-    const root = document.documentElement;
-    if (t === "dark") {
-      root.classList.add("dark");
-      return;
-    }
-
-    if (t === "light") {
-      root.classList.remove("dark");
-      return;
-    }
-
-    root.classList.toggle("dark", window.matchMedia("(prefers-color-scheme: dark)").matches);
-  };
-
-  const applyFontSize = (size: FontSize) => {
-    document.documentElement.style.fontSize = fontSizes[size];
-  };
-
-  useEffect(() => {
-    const savedTheme = (localStorage.getItem("theme") as Theme | null) ?? "system";
-    const savedFont = (localStorage.getItem("fontSize") as FontSize | null) ?? "md";
-    setTheme(savedTheme);
-    setFontSize(savedFont);
-    applyTheme(savedTheme);
-    applyFontSize(savedFont);
-  }, []);
-
-  const handleThemeChange = (nextTheme: Theme) => {
-    setTheme(nextTheme);
-    applyTheme(nextTheme);
-  };
-
-  const handleFontSizeChange = (nextSize: FontSize) => {
-    setFontSize(nextSize);
-    applyFontSize(nextSize);
-  };
+  const [error, setError] = useState("");
 
   const handleSave = async () => {
-    setIsSaving(true);
-    localStorage.setItem("theme", theme);
-    localStorage.setItem("fontSize", fontSize);
-    setIsSaving(false);
-    setSuccess("Đã lưu cài đặt giao diện!");
-    setTimeout(() => setSuccess(""), 3000);
+    setError("");
+    try {
+      await saveAppearance();
+      setSuccess("Đã lưu cài đặt giao diện!");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Không thể lưu cài đặt giao diện";
+      setError(message);
+    }
   };
 
   return (
@@ -81,7 +67,16 @@ export default function AppearanceSettings() {
         </p>
       </div>
 
-      {success && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{success}</div>}
+      {success && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+          {success}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div>
         <h3 className="mb-3 text-sm font-medium">Chủ đề màu sắc</h3>
@@ -93,9 +88,11 @@ export default function AppearanceSettings() {
               <button
                 key={item.value}
                 type="button"
-                onClick={() => handleThemeChange(item.value)}
+                onClick={() => setTheme(item.value)}
                 className={`relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all ${
-                  isActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-accent/30"
+                  isActive
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40 hover:bg-accent/30"
                 }`}
               >
                 {isActive && (
@@ -103,9 +100,18 @@ export default function AppearanceSettings() {
                     <Check size={10} className="text-primary-foreground" />
                   </span>
                 )}
-                <Icon size={24} className={isActive ? "text-primary" : "text-muted-foreground"} />
-                <span className={`text-sm font-medium ${isActive ? "text-primary" : ""}`}>{item.label}</span>
-                <span className="text-center text-xs leading-tight text-muted-foreground">{item.description}</span>
+                <Icon
+                  size={24}
+                  className={isActive ? "text-primary" : "text-muted-foreground"}
+                />
+                <span
+                  className={`text-sm font-medium ${isActive ? "text-primary" : ""}`}
+                >
+                  {item.label}
+                </span>
+                <span className="text-center text-xs leading-tight text-muted-foreground">
+                  {item.description}
+                </span>
               </button>
             );
           })}
@@ -117,16 +123,18 @@ export default function AppearanceSettings() {
       <div>
         <h3 className="mb-3 text-sm font-medium">Cỡ chữ tin nhắn</h3>
         <div className="flex items-center gap-3">
-          {(["sm", "md", "lg"] as const).map((size) => {
+          {(["sm", "md", "lg"] as FontSize[]).map((size) => {
             const labels = { sm: "Nhỏ", md: "Vừa", lg: "Lớn" };
             const textSizes = { sm: "text-sm", md: "text-base", lg: "text-lg" };
             return (
               <button
                 key={size}
                 type="button"
-                onClick={() => handleFontSizeChange(size)}
+                onClick={() => setFontSize(size)}
                 className={`flex-1 rounded-lg border-2 py-3 font-medium transition-all ${textSizes[size]} ${
-                  fontSize === size ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"
+                  fontSize === size
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border hover:border-primary/40"
                 }`}
               >
                 {labels[size]}
@@ -134,11 +142,13 @@ export default function AppearanceSettings() {
             );
           })}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Áp dụng cho giao diện trò chuyện</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Áp dụng cho giao diện trò chuyện (lưu trên thiết bị)
+        </p>
       </div>
 
       <div className="border-t pt-4">
-        <Button variant="primary" onClick={handleSave} isLoading={isSaving}>
+        <Button variant="primary" onClick={() => void handleSave()} isLoading={isSaving}>
           Lưu cài đặt
         </Button>
       </div>

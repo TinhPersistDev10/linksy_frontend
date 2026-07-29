@@ -38,8 +38,10 @@ const unwrapMessages = (data: unknown): MessageResponse[] => {
 };
 
 export const chatroomsApi = {
-  getChatrooms: async (): Promise<ChatroomResponse[]> => {
-    const res = await apiClient.get('/chatrooms');
+  getChatrooms: async (includeArchived = false): Promise<ChatroomResponse[]> => {
+    const res = await apiClient.get('/chatrooms', {
+      params: { includeArchived },
+    });
     // Backend trả về array trực tiếp []
     return Array.isArray(res.data) ? res.data : (res.data.chatrooms ?? []);
   },

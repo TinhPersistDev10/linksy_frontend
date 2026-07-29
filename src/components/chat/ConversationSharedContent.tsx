@@ -200,9 +200,9 @@ export default function ConversationSharedContent({
   }, [mediaItems]);
 
   const tabs: { id: SharedTab; label: string }[] = [
-    { id: "media", label: "Media" },
-    { id: "files", label: "Files" },
-    { id: "links", label: "Links" },
+    { id: "media", label: "Phương tiện" },
+    { id: "files", label: "Tệp" },
+    { id: "links", label: "Liên kết" },
   ];
 
   return (
@@ -216,7 +216,7 @@ export default function ConversationSharedContent({
         >
           <ArrowLeft size={18} />
         </button>
-        <h3 className="text-sm font-semibold">Media, files and links</h3>
+        <h3 className="text-sm font-semibold">File phương tiện & liên kết</h3>
       </div>
 
       <div className="flex shrink-0 border-b">
