@@ -34,6 +34,11 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_STUN_URLS: ${{ vars.NEXT_PUBLIC_STUN_URLS }}
+          NEXT_PUBLIC_TURN_URL: ${{ secrets.NEXT_PUBLIC_TURN_URL }}
+          NEXT_PUBLIC_TURN_URLS: ${{ secrets.NEXT_PUBLIC_TURN_URLS }}
+          NEXT_PUBLIC_TURN_USERNAME: ${{ secrets.NEXT_PUBLIC_TURN_USERNAME }}
+          NEXT_PUBLIC_TURN_CREDENTIAL: ${{ secrets.NEXT_PUBLIC_TURN_CREDENTIAL }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
