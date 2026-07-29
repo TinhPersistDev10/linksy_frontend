@@ -125,6 +125,52 @@ body {
   --scrollbar-thumb-hover: oklch(1 0 0 / 36%);
 }
 
+.auth-light {
+  color-scheme: light;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.45 0.15 255);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.88 0 0);
+  --input: oklch(0.88 0 0);
+  --ring: oklch(0.55 0.15 255);
+  color: var(--foreground);
+}
+
+.auth-light input,
+.auth-light textarea {
+  color: oklch(0.2 0 0) !important;
+  -webkit-text-fill-color: oklch(0.2 0 0);
+  caret-color: oklch(0.2 0 0);
+  background-color: #fff !important;
+}
+
+.auth-light input::placeholder,
+.auth-light textarea::placeholder {
+  color: oklch(0.55 0 0) !important;
+  -webkit-text-fill-color: oklch(0.55 0 0);
+  opacity: 1;
+}
+
+.auth-light input:-webkit-autofill,
+.auth-light input:-webkit-autofill:hover,
+.auth-light input:-webkit-autofill:focus {
+  -webkit-text-fill-color: oklch(0.2 0 0);
+  box-shadow: 0 0 0 1000px #fff inset;
+  transition: background-color 99999s ease-out;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

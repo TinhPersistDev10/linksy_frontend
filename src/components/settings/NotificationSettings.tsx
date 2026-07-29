@@ -1,11 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bell, Eye, Mail, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/switch";
 import { settingsApi } from "@/lib/api/settings";
+import { useAuth } from "@/lib/hooks/useAuth";
+import {
+  defaultNotificationSettings,
+  useNotificationSettingsQuery,
+} from "@/lib/hooks/useServerStateQueries";
+import { settingsQueryKeys } from "@/lib/queries/queryKeys";
 import type { NotificationSettingsData } from "@/lib/types/settings";
+import { ensureNotificationPermission } from "@/lib/utils/browserNotification";
 
 type NotifKey = keyof Pick<
   NotificationSettingsData,
@@ -49,49 +57,26 @@ const settingDefs: NotifSetting[] = [
   },
 ];
 
-const defaults: Pick<NotificationSettingsData, NotifKey> = {
-  notificationsEnabled: true,
-  notificationSoundEnabled: true,
-  messagePreviewEnabled: true,
-  emailNotifications: false,
-};
-
 export default function NotificationSettings() {
-  const [values, setValues] = useState(defaults);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: remoteSettings, isLoading } = useNotificationSettingsQuery(
+    user?.userId,
+  );
+  const [values, setValues] = useState(defaultNotificationSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-
-    void settingsApi
-      .getAll()
-      .then((settings) => {
-        if (cancelled) return;
-        const notif = settings.notificationSettings;
-        if (!notif) return;
-        setValues({
-          notificationsEnabled: notif.notificationsEnabled,
-          notificationSoundEnabled: notif.notificationSoundEnabled,
-          messagePreviewEnabled: notif.messagePreviewEnabled,
-          emailNotifications: notif.emailNotifications,
-        });
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setError("Không thể tải cài đặt thông báo");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!remoteSettings) return;
+    setValues({
+      notificationsEnabled: remoteSettings.notificationsEnabled,
+      notificationSoundEnabled: remoteSettings.notificationSoundEnabled,
+      messagePreviewEnabled: remoteSettings.messagePreviewEnabled,
+      emailNotifications: remoteSettings.emailNotifications,
+    });
+  }, [remoteSettings]);
 
   const toggle = (id: NotifKey) => {
     setValues((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -101,7 +86,19 @@ export default function NotificationSettings() {
     setIsSaving(true);
     setError("");
     try {
-      await settingsApi.updateNotifications(values);
+      if (values.notificationsEnabled) {
+        await ensureNotificationPermission();
+      }
+      const saved = await settingsApi.updateNotifications(values);
+      setValues({
+        notificationsEnabled: saved.notificationsEnabled,
+        notificationSoundEnabled: saved.notificationSoundEnabled,
+        messagePreviewEnabled: saved.messagePreviewEnabled,
+        emailNotifications: saved.emailNotifications,
+      });
+      if (user?.userId) {
+        queryClient.setQueryData(settingsQueryKeys.detail(user.userId), saved);
+      }
       setSuccess("Đã lưu cài đặt thông báo!");
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
@@ -123,12 +120,12 @@ export default function NotificationSettings() {
       </div>
 
       {success && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-300">
           {success}
         </div>
       )}
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
           {error}
         </div>
       )}
@@ -154,7 +151,7 @@ export default function NotificationSettings() {
               </div>
               <Switch
                 checked={values[setting.id]}
-                disabled={loading || isSaving}
+                disabled={isLoading || isSaving}
                 onCheckedChange={() => toggle(setting.id)}
               />
             </div>
@@ -167,7 +164,7 @@ export default function NotificationSettings() {
           variant="primary"
           onClick={() => void handleSave()}
           isLoading={isSaving}
-          disabled={loading}
+          disabled={isLoading}
         >
           Lưu cài đặt
         </Button>

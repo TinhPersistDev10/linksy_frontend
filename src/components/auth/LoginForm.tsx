@@ -33,15 +33,15 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-8 bg-white rounded-xl shadow-lg">
+    <div className="mx-auto w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-lg [&_input]:bg-white [&_input]:text-gray-900 [&_input]:caret-gray-900 [&_input]:placeholder:text-gray-400">
       {/* Logo và Title */}
-      <div className="text-center mb-8">
-        <div className="flex justify-center mb-4">
-          <div className="p-3 bg-blue-100 rounded-full">
+      <div className="mb-8 text-center">
+        <div className="mb-4 flex justify-center">
+          <div className="rounded-full bg-blue-100 p-3">
             <MessageCircle className="text-blue-600" size={40} />
           </div>
         </div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+        <h1 className="mb-2 text-3xl font-bold text-gray-800">
           Chào mừng trở lại!
         </h1>
         <p className="text-gray-600">

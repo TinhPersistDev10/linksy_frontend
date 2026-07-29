@@ -37,8 +37,10 @@ import NotificationList from "../notification/NotificationList";
 import { useSidebarRealtime } from "@/lib/hooks/useSidebarRealtime";
 import {
   useChatroomsQuery,
+  useNotificationSettingsQuery,
   useReceivedFriendRequestsQuery,
   useUnreadNotificationCountQuery,
+  defaultNotificationSettings,
 } from "@/lib/hooks/useServerStateQueries";
 import {
   chatroomQueryKeys,
@@ -46,6 +48,9 @@ import {
   notificationQueryKeys,
 } from "@/lib/queries/queryKeys";
 import type { NotificationResponse } from "@/lib/types/notification";
+import type { MessageNotificationPayload } from "@/lib/hooks/useSidebarRealtime";
+import { playNotificationSound } from "@/lib/utils/notificationSound";
+import { showBrowserNotification } from "@/lib/utils/browserNotification";
 
 export type SocialView =
   | "messages"
@@ -148,11 +153,17 @@ export function AppSidebar({
   const { data: chatrooms = [] } = useChatroomsQuery(user?.userId);
   const { data: notificationUnreadCount = 0 } =
     useUnreadNotificationCountQuery(user?.userId);
+  const { data: notificationSettings = { id: "local", ...defaultNotificationSettings } } =
+    useNotificationSettingsQuery(user?.userId);
   const { data: receivedFriendRequests = [] } =
     useReceivedFriendRequestsQuery(user?.userId);
   const friendRequestCount = receivedFriendRequests.length;
   const receivedNotificationIdsRef = React.useRef(new Set<string>());
   const previousExternalRefreshRef = React.useRef(externalRefreshTrigger);
+  const notificationSettingsRef = React.useRef(notificationSettings);
+  notificationSettingsRef.current = notificationSettings;
+  const selectedChatroomIdRef = React.useRef(selectedChatroomId);
+  selectedChatroomIdRef.current = selectedChatroomId;
 
   const messageUnreadCount = React.useMemo(
     () => chatrooms.reduce((total, room) => {
@@ -169,6 +180,19 @@ export function AppSidebar({
         return;
       }
       receivedNotificationIdsRef.current.add(notification.notificationId);
+
+      const settings = notificationSettingsRef.current;
+      if (settings.notificationsEnabled) {
+        if (settings.notificationSoundEnabled) {
+          playNotificationSound();
+        }
+        showBrowserNotification({
+          title: notification.title,
+          body: notification.body ?? notification.content,
+          messagePreviewEnabled: true,
+          tag: notification.notificationId,
+        });
+      }
 
       if (notification.notificationType === "friend_request") {
         void queryClient.invalidateQueries({
@@ -231,12 +255,40 @@ export function AppSidebar({
     ]);
   }, [queryClient, user?.userId]);
 
-  const handleNewMessage = React.useCallback(() => {
-    if (!user?.userId) return;
-    void queryClient.invalidateQueries({
-      queryKey: chatroomQueryKeys.list(user.userId),
-    });
-  }, [queryClient, user?.userId]);
+  const handleNewMessage = React.useCallback(
+    (payload?: MessageNotificationPayload) => {
+      if (!user?.userId) return;
+      void queryClient.invalidateQueries({
+        queryKey: chatroomQueryKeys.list(user.userId),
+      });
+
+      const settings = notificationSettingsRef.current;
+      const alertsEnabled =
+        payload?.alertsEnabled ?? settings.notificationsEnabled;
+      if (!alertsEnabled) return;
+
+      const viewingThisChat =
+        Boolean(payload?.chatroomId) &&
+        payload?.chatroomId === selectedChatroomIdRef.current &&
+        document.visibilityState === "visible";
+      if (viewingThisChat) return;
+
+      const soundEnabled =
+        payload?.notificationSoundEnabled ?? settings.notificationSoundEnabled;
+      if (soundEnabled) {
+        playNotificationSound();
+      }
+
+      showBrowserNotification({
+        title: payload?.title || "Tin nhắn mới",
+        body: payload?.body,
+        messagePreviewEnabled:
+          payload?.messagePreviewEnabled ?? settings.messagePreviewEnabled,
+        tag: payload?.messageId ?? payload?.chatroomId,
+      });
+    },
+    [queryClient, user?.userId],
+  );
 
   const handleAddedToGroup = React.useCallback(
     (chatroom: ChatroomResponse) => {

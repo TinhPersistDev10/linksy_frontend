@@ -6,6 +6,11 @@ export const notificationQueryKeys = {
     ["notifications", userId, "unread-count"] as const,
 };
 
+export const settingsQueryKeys = {
+  all: ["settings"] as const,
+  detail: (userId: string) => ["settings", userId] as const,
+};
+
 export const friendQueryKeys = {
   all: ["friends"] as const,
   receivedRequests: (userId: string) =>

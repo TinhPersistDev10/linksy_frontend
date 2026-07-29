@@ -110,7 +110,7 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-8 bg-white rounded-xl shadow-lg">
+    <div className="mx-auto w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-lg [&_input]:bg-white [&_input]:text-gray-900 [&_input]:caret-gray-900 [&_input]:placeholder:text-gray-400">
       {/* Logo và Title */}
       <div className="text-center mb-8">
         <div className="flex justify-center mb-4">
@@ -156,7 +156,7 @@ export default function VerifyEmailForm({ email }: VerifyEmailFormProps) {
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 onPaste={handlePaste}
-                className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+                className="h-14 w-12 rounded-lg border-2 border-gray-300 bg-white text-center text-2xl font-bold text-gray-900 caret-gray-900 transition-colors focus:border-blue-500 focus:outline-none"
                 disabled={isLoading}
               />
             ))}

@@ -7,8 +7,22 @@ import type { ChatroomResponse } from "../types/chatroom";
 
 const BASE_URL = getApiOrigin();
 
+export interface MessageNotificationPayload {
+  notificationType: string;
+  chatroomId: string;
+  messageId: string;
+  senderId?: string;
+  senderName?: string;
+  title?: string;
+  body?: string;
+  sentAt?: string;
+  alertsEnabled?: boolean;
+  notificationSoundEnabled?: boolean;
+  messagePreviewEnabled?: boolean;
+}
+
 interface UseSidebarRealtimeOptions {
-  onNewMessage?: () => void;
+  onNewMessage?: (payload?: MessageNotificationPayload) => void;
   onNewNotification?: (notification: NotificationResponse) => void;
   onReconnect?: () => void;
   onAddedToGroup?: (chatroom: ChatroomResponse) => void;
@@ -62,9 +76,12 @@ export function useSidebarRealtime({
           onNewNotificationRef.current?.(notification);
         },
       );
-      connection.on("ReceiveMessageNotification", () => {
-        onNewMessageRef.current?.();
-      });
+      connection.on(
+        "ReceiveMessageNotification",
+        (payload: MessageNotificationPayload) => {
+          onNewMessageRef.current?.(payload);
+        },
+      );
       connection.on("AddedToGroup", (chatroom: ChatroomResponse) => {
         onAddedToGroupRef.current?.(chatroom);
       });

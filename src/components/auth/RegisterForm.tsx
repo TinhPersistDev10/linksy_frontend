@@ -49,7 +49,7 @@ export default function RegisterForm() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-8 bg-white rounded-xl shadow-lg">
+    <div className="mx-auto w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-lg [&_input]:bg-white [&_input]:text-gray-900 [&_input]:caret-gray-900 [&_input]:placeholder:text-gray-400">
       {/* Logo và Title */}
       <div className="text-center mb-8">
         <div className="flex justify-center mb-4">
