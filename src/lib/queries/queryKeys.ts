@@ -14,7 +14,8 @@ export const friendQueryKeys = {
 
 export const chatroomQueryKeys = {
   all: ["chatrooms"] as const,
-  list: (userId: string) => ["chatrooms", userId, "list"] as const,
+  list: (userId: string, includeArchived = false) =>
+    ["chatrooms", userId, "list", includeArchived ? "archived" : "active"] as const,
 };
 
 export const adminQueryKeys = {

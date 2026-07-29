@@ -174,7 +174,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-slate-400">
+      <div className="flex h-full items-center justify-center text-muted-foreground">
         <Loader2 size={22} className="animate-spin" />
       </div>
     );
@@ -186,7 +186,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
         <section>
           <h2 className="mb-4 text-sm font-semibold">Lời mời đã nhận ({received.length})</h2>
           {received.length === 0 ? (
-            <p className="rounded-md border border-slate-200 bg-white p-5 text-sm text-slate-400">
+            <p className="rounded-md border border-border bg-card p-5 text-sm text-muted-foreground">
               Không có lời mời kết bạn nào
             </p>
           ) : (
@@ -198,14 +198,14 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                   <article
                     key={request.requestId}
                     onClick={() => setProfileRequest(request)}
-                    className="cursor-pointer rounded-md border border-slate-200 bg-white p-4 text-left transition hover:border-sky-200 hover:bg-sky-50/50"
+                    className="cursor-pointer rounded-md border border-border bg-card p-4 text-left transition hover:border-sky-500/40 hover:bg-sky-500/10"
                   >
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <RequestAvatar src={request.senderAvatar} name={name} />
                         <div>
-                          <p className="font-semibold text-slate-900">{name}</p>
-                          <p className="text-xs text-slate-500">
+                          <p className="font-semibold text-foreground">{name}</p>
+                          <p className="text-xs text-muted-foreground">
                             {formatDate(request.sentAt)} - Từ Linksy
                           </p>
                         </div>
@@ -218,7 +218,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                           event.stopPropagation();
                           openDirectChat(request);
                         }}
-                        className="rounded-full p-2 text-slate-400 hover:bg-sky-100 hover:text-sky-600 disabled:opacity-60"
+                        className="rounded-full p-2 text-muted-foreground hover:bg-sky-500/15 hover:text-sky-600 dark:hover:text-sky-400 disabled:opacity-60"
                       >
                         {busyId === request.requestId ? (
                           <Loader2 size={18} className="animate-spin" />
@@ -228,7 +228,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                       </button>
                     </div>
 
-                    <p className="line-clamp-2 rounded border border-slate-200 px-3 py-3 text-sm text-slate-700">
+                    <p className="line-clamp-2 rounded border border-border px-3 py-3 text-sm text-foreground">
                       {request.message || `Xin chào, mình là ${name}. Kết bạn với mình nhé!`}
                     </p>
 
@@ -240,7 +240,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                           event.stopPropagation();
                           reject(request.requestId);
                         }}
-                        className="h-10 rounded-md bg-slate-100 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                        className="h-10 rounded-md bg-muted text-sm font-semibold text-foreground hover:bg-muted/80 disabled:opacity-60"
                       >
                         Từ chối
                       </button>
@@ -266,7 +266,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
         <section>
           <h2 className="mb-4 text-sm font-semibold">Lời mời đã gửi ({sent.length})</h2>
           {sent.length === 0 ? (
-            <p className="rounded-md border border-slate-200 bg-white p-5 text-sm text-slate-400">
+            <p className="rounded-md border border-border bg-card p-5 text-sm text-muted-foreground">
               Bạn chưa gửi lời mời kết bạn nào
             </p>
           ) : (
@@ -274,12 +274,12 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
               {sent.map((request) => {
                 const name = requestName(request, "receiver");
                 return (
-                  <article key={request.requestId} className="rounded-md border border-slate-200 bg-white p-4">
+                  <article key={request.requestId} className="rounded-md border border-border bg-card p-4">
                     <div className="mb-4 flex items-center gap-3">
                       <RequestAvatar src={request.receiverAvatar} name={name} />
                       <div>
-                        <p className="font-semibold text-slate-900">{name}</p>
-                        <p className="text-xs text-slate-500">Bạn đã gửi lời mời</p>
+                        <p className="font-semibold text-foreground">{name}</p>
+                        <p className="text-xs text-muted-foreground">Bạn đã gửi lời mời</p>
                       </div>
                     </div>
 
@@ -287,7 +287,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                       type="button"
                       disabled={busyId === request.requestId}
                       onClick={() => cancel(request.requestId)}
-                      className="h-10 w-full rounded-md bg-slate-100 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                      className="h-10 w-full rounded-md bg-muted text-sm font-semibold text-foreground hover:bg-muted/80 disabled:opacity-60"
                     >
                       Thu hồi lời mời
                     </button>
@@ -305,15 +305,15 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
           onClick={() => setProfileRequest(null)}
         >
           <article
-            className="w-full max-w-[430px] overflow-hidden rounded-md bg-white shadow-2xl"
+            className="w-full max-w-[430px] overflow-hidden rounded-md bg-card shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <header className="flex h-12 items-center justify-between px-4">
-              <h3 className="font-semibold text-slate-900">Thông tin tài khoản</h3>
+              <h3 className="font-semibold text-foreground">Thông tin tài khoản</h3>
               <button
                 type="button"
                 onClick={() => setProfileRequest(null)}
-                className="rounded-full p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X size={22} />
               </button>
@@ -326,13 +326,13 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                   name={requestName(profileRequest, "sender")}
                   size="lg"
                 />
-                <p className="mt-3 text-lg font-semibold text-slate-900">
+                <p className="mt-3 text-lg font-semibold text-foreground">
                   {requestName(profileRequest, "sender")}
                 </p>
-                <p className="text-sm text-slate-500">@{profileRequest.senderUsername}</p>
+                <p className="text-sm text-muted-foreground">@{profileRequest.senderUsername}</p>
               </div>
 
-              <p className="mt-5 rounded border border-slate-200 px-3 py-3 text-sm text-slate-700">
+              <p className="mt-5 rounded border border-border px-3 py-3 text-sm text-foreground">
                 {profileRequest.message ||
                   `Xin chào, mình là ${requestName(profileRequest, "sender")}. Kết bạn với mình nhé`}
               </p>
@@ -342,7 +342,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                   type="button"
                   disabled={busyId === profileRequest.requestId}
                   onClick={() => accept(profileRequest.requestId)}
-                  className="h-10 rounded-md bg-slate-100 text-sm font-semibold text-slate-800 hover:bg-slate-200 disabled:opacity-60"
+                  className="h-10 rounded-md bg-muted text-sm font-semibold text-foreground hover:bg-muted/80 disabled:opacity-60"
                 >
                   Đồng ý
                 </button>
@@ -357,25 +357,25 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
               </div>
             </div>
 
-            <div className="border-t border-slate-100 px-4 py-4">
-              <h4 className="mb-3 font-semibold text-slate-900">Thông tin cá nhân</h4>
-              <div className="space-y-3 text-sm text-slate-600">
+            <div className="border-t border-border px-4 py-4">
+              <h4 className="mb-3 font-semibold text-foreground">Thông tin cá nhân</h4>
+              <div className="space-y-3 text-sm text-muted-foreground">
                 <div className="flex items-center gap-3">
-                  <CalendarDays size={16} className="text-slate-400" />
+                  <CalendarDays size={16} className="text-muted-foreground" />
                   <span>Ngày gửi lời mời: {formatDate(profileRequest.sentAt)}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Users size={16} className="text-slate-400" />
+                  <Users size={16} className="text-muted-foreground" />
                   <span>Nhóm chung (0)</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <IdCard size={16} className="text-slate-400" />
+                  <IdCard size={16} className="text-muted-foreground" />
                   <span>Chia sẻ danh thiếp</span>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 border-t border-slate-100 px-4 py-4">
+            <div className="grid grid-cols-2 gap-2 border-t border-border px-4 py-4">
               <button
                 type="button"
                 disabled={busyId === profileRequest.requestId || !profileRequest.senderId}
@@ -388,7 +388,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                 type="button"
                 disabled={busyId === profileRequest.requestId}
                 onClick={() => reject(profileRequest.requestId)}
-                className="h-10 rounded-md bg-slate-100 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                className="h-10 rounded-md bg-muted text-sm font-semibold text-foreground hover:bg-muted/80 disabled:opacity-60"
               >
                 Từ chối
               </button>

@@ -47,12 +47,20 @@ export function useUnreadNotificationCountQuery(userId: string | undefined) {
   });
 }
 
-export function useChatroomsQuery(userId: string | undefined) {
+export function useChatroomsQuery(
+  userId: string | undefined,
+  options?: { includeArchived?: boolean },
+) {
+  const includeArchived = options?.includeArchived ?? false;
+
   return useQuery({
-    queryKey: chatroomQueryKeys.list(userId ?? "anonymous"),
+    queryKey: chatroomQueryKeys.list(userId ?? "anonymous", includeArchived),
     queryFn: async () => {
-      const chatrooms = await chatroomsApi.getChatrooms();
-      return chatrooms.filter((chatroom) => chatroom.isActive !== false);
+      const chatrooms = await chatroomsApi.getChatrooms(includeArchived);
+      return chatrooms.filter((chatroom) => {
+        if (chatroom.isActive === false) return false;
+        return includeArchived ? chatroom.isArchived === true : !chatroom.isArchived;
+      });
     },
     enabled: Boolean(userId),
     staleTime: 2 * 60 * 1000,

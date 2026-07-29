@@ -118,17 +118,17 @@ export default function CreateGroupDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={onClose}>
-      <section className="flex max-h-[90svh] w-full max-w-[540px] flex-col overflow-hidden rounded-md bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 px-4 sm:px-5">
-          <h2 className="text-base font-semibold text-slate-900">Tạo nhóm</h2>
-          <button type="button" onClick={onClose} className="rounded-full p-1 text-slate-500 hover:bg-slate-100">
+      <section className="flex max-h-[90svh] w-full max-w-[540px] flex-col overflow-hidden rounded-md bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 sm:px-5">
+          <h2 className="text-base font-semibold text-foreground">Tạo nhóm</h2>
+          <button type="button" onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-muted">
             <X size={22} />
           </button>
         </header>
 
-        <div className="shrink-0 border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4">
+        <div className="shrink-0 border-b border-border px-4 py-3 sm:px-5 sm:py-4">
           <div className="flex items-center gap-3">
-            <button type="button" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-300 text-slate-600 hover:bg-slate-50">
+            <button type="button" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted/60">
               <Camera size={20} />
             </button>
             <input
@@ -140,12 +140,12 @@ export default function CreateGroupDialog({
           </div>
 
           <div className="relative mt-4">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Nhập tên hoặc username"
-              className="h-10 w-full rounded-full border border-slate-200 bg-white pl-9 pr-4 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              className="h-10 w-full rounded-full border border-border bg-card pl-9 pr-4 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20"
             />
           </div>
 
@@ -155,7 +155,7 @@ export default function CreateGroupDialog({
                 key={item}
                 type="button"
                 className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium ${
-                  index === 0 ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"
+                  index === 0 ? "bg-blue-600 text-white" : "bg-muted text-foreground"
                 }`}
               >
                 {item}
@@ -167,13 +167,13 @@ export default function CreateGroupDialog({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
-          <p className="mb-3 text-sm font-semibold text-slate-700">Danh sách bạn bè</p>
+          <p className="mb-3 text-sm font-semibold text-foreground">Danh sách bạn bè</p>
           {Object.keys(grouped).length === 0 ? (
-            <p className="py-12 text-center text-sm text-slate-500">Không tìm thấy bạn bè phù hợp</p>
+            <p className="py-12 text-center text-sm text-muted-foreground">Không tìm thấy bạn bè phù hợp</p>
           ) : (
             Object.entries(grouped).map(([letter, items]) => (
               <div key={letter} className="mb-5 last:mb-0">
-                <p className="mb-2 text-sm font-semibold text-slate-600">{letter}</p>
+                <p className="mb-2 text-sm font-semibold text-muted-foreground">{letter}</p>
                 <div className="space-y-1">
                   {items.map((friend) => {
                     const checked = selectedIds.includes(friend.userId);
@@ -182,13 +182,13 @@ export default function CreateGroupDialog({
                         key={friend.userId}
                         type="button"
                         onClick={() => toggleFriend(friend.userId)}
-                        className="flex h-14 w-full items-center gap-3 rounded-md px-2 text-left hover:bg-slate-50"
+                        className="flex h-14 w-full items-center gap-3 rounded-md px-2 text-left hover:bg-muted/60"
                       >
-                        <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${checked ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300"}`}>
+                        <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${checked ? "border-blue-600 bg-blue-600 text-white" : "border-border"}`}>
                           {checked && <Check size={13} />}
                         </span>
                         <FriendAvatar friend={friend} />
-                        <span className="font-medium text-slate-800">{friend.fullname || friend.username}</span>
+                        <span className="font-medium text-foreground">{friend.fullname || friend.username}</span>
                       </button>
                     );
                   })}
@@ -198,10 +198,10 @@ export default function CreateGroupDialog({
           )}
         </div>
 
-        <footer className="flex shrink-0 flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
-          <p className="text-sm text-slate-500">Đã chọn {selectedIds.length} thành viên</p>
+        <footer className="flex shrink-0 flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
+          <p className="text-sm text-muted-foreground">Đã chọn {selectedIds.length} thành viên</p>
           <div className="flex w-full gap-2 sm:w-auto">
-            <button type="button" onClick={onClose} className="h-10 flex-1 rounded-md bg-slate-100 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-200 sm:flex-none">
+            <button type="button" onClick={onClose} className="h-10 flex-1 rounded-md bg-muted px-5 text-sm font-semibold text-foreground hover:bg-muted/80 sm:flex-none">
               Hủy
             </button>
             <button

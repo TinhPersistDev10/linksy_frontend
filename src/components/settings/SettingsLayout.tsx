@@ -51,7 +51,7 @@ export default function SettingsLayout() {
               className={cn(
                 "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors md:w-full md:gap-3",
                 activeTab === item.id
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >

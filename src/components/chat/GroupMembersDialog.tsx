@@ -19,10 +19,15 @@ import type {
   ChatroomResponse,
 } from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ChatAvatar from "./ChatAvatar";
 import MemberProfileDialog from "./MemberProfileDialog";
 
 type MembersTab = "all" | "admins";
+
+type PendingConfirm =
+  | { type: "block"; member: ChatroomMemberResponse }
+  | { type: "remove"; member: ChatroomMemberResponse };
 
 type GroupMembersDialogProps = {
   open: boolean;
@@ -45,12 +50,12 @@ function requestMessage(error: unknown, fallback: string) {
 
 function memberSubtitle(member: ChatroomMemberResponse) {
   const parts: string[] = [];
-  if (member.memberRole === "admin") parts.push("Admin");
+  if (member.memberRole === "admin") parts.push("Quản trị viên");
   const addedBy =
     member.addedByFullname?.trim() ||
     member.addedByUsername?.trim() ||
     "";
-  if (addedBy) parts.push(`Added by ${addedBy}`);
+  if (addedBy) parts.push(`Thêm bởi ${addedBy}`);
   parts.push(`@${member.username}`);
   return parts.join(" · ");
 }
@@ -71,6 +76,9 @@ export default function GroupMembersDialog({
     useState<ChatroomMemberResponse | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
+  const [confirmAction, setConfirmAction] = useState<PendingConfirm | null>(
+    null,
+  );
 
   const isAdmin = chatroom.myMemberInfo?.memberRole === "admin";
   const canRemoveMembers =
@@ -128,36 +136,49 @@ export default function GroupMembersDialog({
     }
   };
 
-  const blockMember = async (member: ChatroomMemberResponse) => {
-    const name = member.fullname || member.username;
-    if (!window.confirm(`Chặn ${name}?`)) return;
-    setActionLoading(true);
+  const blockMember = (member: ChatroomMemberResponse) => {
     setMenuMemberId(null);
+    setConfirmAction({ type: "block", member });
+  };
+
+  const removeMember = (member: ChatroomMemberResponse) => {
+    setMenuMemberId(null);
+    setConfirmAction({ type: "remove", member });
+  };
+
+  const executeConfirmedAction = async () => {
+    if (!confirmAction) return;
+    setActionLoading(true);
     setError("");
     try {
-      await blockedUsersApi.blockUser(member.userId);
+      if (confirmAction.type === "remove") {
+        await chatroomsApi.removeMember(
+          chatroom.chatroomId,
+          confirmAction.member.userId,
+        );
+        onMembersChanged?.();
+      } else {
+        await blockedUsersApi.blockUser(confirmAction.member.userId);
+      }
+      setConfirmAction(null);
     } catch (requestError) {
-      setError(requestMessage(requestError, "Chặn người dùng thất bại."));
+      setError(
+        requestMessage(
+          requestError,
+          confirmAction.type === "remove"
+            ? "Xóa thành viên thất bại."
+            : "Chặn người dùng thất bại.",
+        ),
+      );
     } finally {
       setActionLoading(false);
     }
   };
 
-  const removeMember = async (member: ChatroomMemberResponse) => {
-    if (!window.confirm(`Xóa ${member.fullname || member.username} khỏi nhóm?`))
-      return;
-    setActionLoading(true);
-    setMenuMemberId(null);
-    setError("");
-    try {
-      await chatroomsApi.removeMember(chatroom.chatroomId, member.userId);
-      onMembersChanged?.();
-    } catch (requestError) {
-      setError(requestMessage(requestError, "Xóa thành viên thất bại."));
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const groupName = chatroom.roomName || "Nhóm chưa đặt tên";
+  const confirmMemberName = confirmAction
+    ? confirmAction.member.fullname || confirmAction.member.username
+    : "";
 
   if (!open) return null;
 
@@ -168,15 +189,15 @@ export default function GroupMembersDialog({
         onClick={onClose}
       >
         <section
-          className="flex max-h-[min(86vh,640px)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl shadow-slate-900/20"
+          className="flex max-h-[min(86vh,640px)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-card shadow-2xl shadow-slate-900/20"
           onClick={(event) => event.stopPropagation()}
         >
           <header className="relative flex shrink-0 items-center justify-center border-b px-4 py-3.5">
-            <h3 className="text-base font-bold text-slate-900">Members</h3>
+            <h3 className="text-base font-bold text-foreground">Thành viên</h3>
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-slate-100 p-1.5 text-slate-700 hover:bg-slate-200"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-muted p-1.5 text-foreground hover:bg-muted/80"
               aria-label="Đóng"
             >
               <X size={16} />
@@ -186,8 +207,8 @@ export default function GroupMembersDialog({
           <div className="flex shrink-0 border-b px-2">
             {(
               [
-                { id: "all", label: "All" },
-                { id: "admins", label: "Admins" },
+                { id: "all", label: "Tất cả" },
+                { id: "admins", label: "Quản trị viên" },
               ] as const
             ).map((item) => (
               <button
@@ -198,7 +219,7 @@ export default function GroupMembersDialog({
                   "flex-1 py-2.5 text-sm font-semibold transition-colors",
                   tab === item.id
                     ? "border-b-2 border-sky-500 text-sky-600"
-                    : "text-slate-400 hover:text-slate-600",
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {item.label}
@@ -214,7 +235,7 @@ export default function GroupMembersDialog({
 
           <div className="min-h-0 flex-1 overflow-y-auto py-1">
             {visibleMembers.length === 0 ? (
-              <p className="px-4 py-10 text-center text-sm text-slate-400">
+              <p className="px-4 py-10 text-center text-sm text-muted-foreground">
                 {tab === "admins"
                   ? "Chưa có quản trị viên"
                   : "Chưa có thành viên"}
@@ -227,7 +248,7 @@ export default function GroupMembersDialog({
                 return (
                   <div
                     key={member.userId}
-                    className="relative flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50"
+                    className="relative flex items-center gap-3 px-4 py-2.5 hover:bg-muted/60"
                   >
                     <button
                       type="button"
@@ -240,11 +261,11 @@ export default function GroupMembersDialog({
                         size={10}
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-slate-900">
+                        <span className="block truncate text-sm font-semibold text-foreground">
                           {displayName}
                           {isSelf ? " (Bạn)" : ""}
                         </span>
-                        <span className="block truncate text-xs text-slate-500">
+                        <span className="block truncate text-xs text-muted-foreground">
                           {memberSubtitle(member)}
                         </span>
                       </span>
@@ -258,7 +279,7 @@ export default function GroupMembersDialog({
                             current === member.userId ? null : member.userId,
                           )
                         }
-                        className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100"
+                        className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"
                         title="Tùy chọn"
                       >
                         <MoreHorizontal size={18} />
@@ -268,15 +289,15 @@ export default function GroupMembersDialog({
                     {menuMemberId === member.userId && !isSelf && (
                       <div
                         ref={menuRef}
-                        className="absolute right-4 top-12 z-20 w-52 overflow-hidden rounded-xl border bg-white py-1 shadow-xl"
+                        className="absolute right-4 top-12 z-20 w-52 overflow-hidden rounded-xl border bg-card py-1 shadow-xl"
                       >
                         <button
                           type="button"
                           disabled={actionLoading}
                           onClick={() => void messageMember(member)}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-slate-50 disabled:opacity-50"
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60 disabled:opacity-50"
                         >
-                          <MessageCircle size={17} /> Message
+                          <MessageCircle size={17} /> Nhắn tin
                         </button>
                         <button
                           type="button"
@@ -284,17 +305,17 @@ export default function GroupMembersDialog({
                             setMenuMemberId(null);
                             setSelectedMember(member);
                           }}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-slate-50"
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60"
                         >
-                          <UserRound size={17} /> View profile
+                          <UserRound size={17} /> Xem hồ sơ
                         </button>
                         <button
                           type="button"
                           disabled={actionLoading}
                           onClick={() => void blockMember(member)}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-slate-50 disabled:opacity-50"
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60 disabled:opacity-50"
                         >
-                          <UserX size={17} /> Block
+                          <UserX size={17} /> Chặn
                         </button>
                         <button
                           type="button"
@@ -302,9 +323,9 @@ export default function GroupMembersDialog({
                             setMenuMemberId(null);
                             onCallMember?.(member.userId, "audio");
                           }}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-slate-50"
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60"
                         >
-                          <Phone size={17} /> Audio call
+                          <Phone size={17} /> Gọi thoại
                         </button>
                         <button
                           type="button"
@@ -312,9 +333,9 @@ export default function GroupMembersDialog({
                             setMenuMemberId(null);
                             onCallMember?.(member.userId, "video");
                           }}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-slate-50"
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60"
                         >
-                          <Video size={17} /> Video chat
+                          <Video size={17} /> Gọi video
                         </button>
                         {canRemoveMembers && (
                           <button
@@ -367,6 +388,41 @@ export default function GroupMembersDialog({
               }
             : undefined
         }
+      />
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => {
+          if (!open && !actionLoading) setConfirmAction(null);
+        }}
+        title={
+          confirmAction?.type === "remove" ? "Xóa thành viên" : "Chặn người dùng"
+        }
+        description={
+          confirmAction?.type === "remove" ? (
+            <>
+              Bạn có chắc chắn muốn xóa{" "}
+              <span className="font-semibold text-foreground">
+                {confirmMemberName}
+              </span>{" "}
+              khỏi nhóm{" "}
+              <span className="font-semibold text-foreground">{groupName}</span>?
+            </>
+          ) : (
+            <>
+              Bạn có chắc chắn muốn chặn{" "}
+              <span className="font-semibold text-foreground">
+                {confirmMemberName}
+              </span>
+              ? Người này sẽ không thể nhắn tin cho bạn.
+            </>
+          )
+        }
+        confirmLabel={confirmAction?.type === "remove" ? "Xóa" : "Chặn"}
+        cancelLabel="Hủy"
+        variant="destructive"
+        loading={actionLoading}
+        onConfirm={() => void executeConfirmedAction()}
       />
     </>
   );

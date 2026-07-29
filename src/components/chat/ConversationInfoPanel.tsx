@@ -34,12 +34,23 @@ import type {
   ChatroomResponse,
 } from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import AddGroupMembersDialog from "./AddGroupMembersDialog";
 import ChatAvatar from "./ChatAvatar";
 import ConversationSharedContent from "./ConversationSharedContent";
 import MemberProfileDialog from "./MemberProfileDialog";
 
 type AccordionKey = "chatInfo" | "customize" | "members";
+
+type PendingConfirm =
+  | { type: "leave" }
+  | { type: "remove"; member: ChatroomMemberResponse }
+  | { type: "block"; member: ChatroomMemberResponse };
+
+type InfoNotice = {
+  title: string;
+  description: string;
+};
 
 interface ConversationInfoPanelProps {
   chatroom: ChatroomResponse;
@@ -82,8 +93,8 @@ function AccordionSection({
         type="button"
         onClick={onToggle}
         className={cn(
-          "flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold transition-colors",
-          open ? "bg-[#F0F2F5]" : "bg-background hover:bg-muted/50",
+          "flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-foreground transition-colors",
+          open ? "bg-muted" : "bg-background hover:bg-muted/50",
         )}
       >
         <span>{title}</span>
@@ -164,6 +175,10 @@ export default function ConversationInfoPanel({
   >({
     chatInfo: true,
   });
+  const [confirmAction, setConfirmAction] = useState<PendingConfirm | null>(
+    null,
+  );
+  const [infoNotice, setInfoNotice] = useState<InfoNotice | null>(null);
 
   useEffect(() => {
     setView("main");
@@ -267,21 +282,9 @@ export default function ConversationInfoPanel({
     }
   };
 
-  const removeMember = async (member: ChatroomMemberResponse) => {
-    if (!window.confirm(`Xóa ${member.fullname || member.username} khỏi nhóm?`))
-      return;
-    setActionLoading(true);
+  const removeMember = (member: ChatroomMemberResponse) => {
     setMenuMemberId(null);
-    setError("");
-    try {
-      await chatroomsApi.removeMember(chatroom.chatroomId, member.userId);
-      await refreshChatroom();
-      if (selectedMember?.userId === member.userId) setSelectedMember(null);
-    } catch (requestError) {
-      setError(requestMessage(requestError, "Xóa thành viên thất bại."));
-    } finally {
-      setActionLoading(false);
-    }
+    setConfirmAction({ type: "remove", member });
   };
 
   const messageMember = async (member: ChatroomMemberResponse) => {
@@ -299,19 +302,9 @@ export default function ConversationInfoPanel({
     }
   };
 
-  const blockMember = async (member: ChatroomMemberResponse) => {
-    const name = member.fullname || member.username;
-    if (!window.confirm(`Chặn ${name}?`)) return;
-    setActionLoading(true);
+  const blockMember = (member: ChatroomMemberResponse) => {
     setMenuMemberId(null);
-    setError("");
-    try {
-      await blockedUsersApi.blockUser(member.userId);
-    } catch (requestError) {
-      setError(requestMessage(requestError, "Chặn người dùng thất bại."));
-    } finally {
-      setActionLoading(false);
-    }
+    setConfirmAction({ type: "block", member });
   };
 
   const callMember = (
@@ -322,26 +315,110 @@ export default function ConversationInfoPanel({
     onCallMember?.(member.userId, callType);
   };
 
-  const leaveGroup = async () => {
-    if (!window.confirm("Bạn có chắc muốn rời khỏi nhóm này?")) return;
+  const leaveGroup = () => {
+    setConfirmAction({ type: "leave" });
+  };
+
+  const executeConfirmedAction = async () => {
+    if (!confirmAction) return;
     setActionLoading(true);
     setError("");
     try {
-      await chatroomsApi.leaveChatroom(chatroom.chatroomId);
-      if (user?.userId) {
-        queryClient.setQueryData<ChatroomResponse[]>(
-          chatroomQueryKeys.list(user.userId),
-          (current = []) =>
-            current.filter((item) => item.chatroomId !== chatroom.chatroomId),
-        );
+      if (confirmAction.type === "leave") {
+        await chatroomsApi.leaveChatroom(chatroom.chatroomId);
+        if (user?.userId) {
+          queryClient.setQueryData<ChatroomResponse[]>(
+            chatroomQueryKeys.list(user.userId),
+            (current = []) =>
+              current.filter((item) => item.chatroomId !== chatroom.chatroomId),
+          );
+        }
+        setConfirmAction(null);
+        onLeaveChatroom?.();
+        return;
       }
-      onLeaveChatroom?.();
+
+      if (confirmAction.type === "remove") {
+        await chatroomsApi.removeMember(
+          chatroom.chatroomId,
+          confirmAction.member.userId,
+        );
+        await refreshChatroom();
+        if (selectedMember?.userId === confirmAction.member.userId) {
+          setSelectedMember(null);
+        }
+        setConfirmAction(null);
+        return;
+      }
+
+      await blockedUsersApi.blockUser(confirmAction.member.userId);
+      setConfirmAction(null);
     } catch (requestError) {
-      setError(requestMessage(requestError, "Rời nhóm thất bại."));
+      const fallback =
+        confirmAction.type === "leave"
+          ? "Rời nhóm thất bại."
+          : confirmAction.type === "remove"
+            ? "Xóa thành viên thất bại."
+            : "Chặn người dùng thất bại.";
+      setError(requestMessage(requestError, fallback));
     } finally {
       setActionLoading(false);
     }
   };
+
+  const confirmDialogContent = (() => {
+    if (!confirmAction) {
+      return {
+        title: "",
+        description: null as ReactNode,
+        confirmLabel: "OK",
+      };
+    }
+
+    if (confirmAction.type === "leave") {
+      return {
+        title: "Rời nhóm",
+        description: (
+          <>
+            Bạn có chắc chắn muốn rời nhóm{" "}
+            <span className="font-semibold text-foreground">{displayName}</span>?
+            Bạn sẽ không còn nhận được tin nhắn từ nhóm này.
+          </>
+        ),
+        confirmLabel: "Rời nhóm",
+      };
+    }
+
+    const memberName =
+      confirmAction.member.fullname || confirmAction.member.username;
+
+    if (confirmAction.type === "remove") {
+      return {
+        title: "Xóa thành viên",
+        description: (
+          <>
+            Bạn có chắc chắn muốn xóa{" "}
+            <span className="font-semibold text-foreground">{memberName}</span>{" "}
+            khỏi nhóm{" "}
+            <span className="font-semibold text-foreground">{displayName}</span>?
+          </>
+        ),
+        confirmLabel: "Xóa",
+      };
+    }
+
+    return {
+      title: "Chặn người dùng",
+      description: (
+        <>
+          Bạn có chắc chắn muốn chặn{" "}
+          <span className="font-semibold text-foreground">{memberName}</span>?
+          Người này sẽ không thể nhắn tin cho bạn.
+        </>
+      ),
+      confirmLabel: "Chặn",
+    };
+  })();
 
   if (!open) return null;
 
@@ -406,20 +483,20 @@ export default function ConversationInfoPanel({
                         : "Tắt thông báo (chỉ trên thiết bị này)"
                     }
                   >
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E4E6EB]">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-foreground">
                       {mutedLocal ? <BellOff size={18} /> : <Bell size={18} />}
                     </span>
-                    {mutedLocal ? "Unmute" : "Mute"}
+                    {mutedLocal ? "Bật lại" : "Tắt thông báo"}
                   </button>
                   <button
                     type="button"
                     onClick={() => onSearchInChat?.()}
                     className="flex w-14 flex-col items-center gap-1.5 text-xs font-medium text-foreground"
                   >
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E4E6EB]">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-foreground">
                       <Search size={18} />
                     </span>
-                    Search
+                    Tìm kiếm
                   </button>
                 </div>
               </section>
@@ -431,7 +508,7 @@ export default function ConversationInfoPanel({
               )}
 
               <AccordionSection
-                title="Chat info"
+                title="Thông tin đoạn chat"
                 open={Boolean(openSections.chatInfo)}
                 onToggle={() => toggleSection("chatInfo")}
               >
@@ -439,8 +516,8 @@ export default function ConversationInfoPanel({
                   icon={<Pin size={18} />}
                   label={
                     pinnedCount > 0
-                      ? `View pinned messages (${pinnedCount})`
-                      : "View pinned messages"
+                      ? `Xem tin nhắn đã ghim (${pinnedCount})`
+                      : "Xem tin nhắn đã ghim"
                   }
                   onClick={() => onViewPinnedMessages?.()}
                 />
@@ -448,7 +525,7 @@ export default function ConversationInfoPanel({
 
               {!isDirect && (
                 <AccordionSection
-                  title="Customize chat"
+                  title="Tùy chỉnh đoạn chat"
                   open={Boolean(openSections.customize)}
                   onToggle={() => toggleSection("customize")}
                 >
@@ -456,7 +533,7 @@ export default function ConversationInfoPanel({
                     <>
                       <ActionRow
                         icon={<Pencil size={18} />}
-                        label="Change chat name"
+                        label="Đổi tên đoạn chat"
                         onClick={() => {
                           setDraftName(chatroom.roomName || "");
                           setDraftDescription(chatroom.description || "");
@@ -465,7 +542,7 @@ export default function ConversationInfoPanel({
                       />
                       <ActionRow
                         icon={<ImageIcon size={18} />}
-                        label="Change photo"
+                        label="Đổi ảnh nhóm"
                         disabled={avatarLoading}
                         onClick={() => fileInputRef.current?.click()}
                       />
@@ -473,16 +550,24 @@ export default function ConversationInfoPanel({
                   )}
                   <ActionRow
                     icon={<span className="text-lg leading-none">👍</span>}
-                    label="Change emoji"
+                    label="Đổi emoji"
                     onClick={() =>
-                      window.alert("Tính năng Change emoji đang phát triển.")
+                      setInfoNotice({
+                        title: "Tính năng đang phát triển",
+                        description:
+                          "Đổi emoji cho cuộc trò chuyện sẽ sớm được hỗ trợ.",
+                      })
                     }
                   />
                   <ActionRow
                     icon={<Type size={18} />}
-                    label="Edit nicknames"
+                    label="Chỉnh sửa biệt danh"
                     onClick={() =>
-                      window.alert("Tính năng Edit nicknames đang phát triển.")
+                      setInfoNotice({
+                        title: "Tính năng đang phát triển",
+                        description:
+                          "Chỉnh sửa biệt danh sẽ sớm được hỗ trợ.",
+                      })
                     }
                   />
                   <input
@@ -497,7 +582,7 @@ export default function ConversationInfoPanel({
 
               {!isDirect && (
                 <AccordionSection
-                  title="Chat members"
+                  title="Thành viên nhóm"
                   open={Boolean(openSections.members)}
                   onToggle={() => toggleSection("members")}
                 >
@@ -529,7 +614,7 @@ export default function ConversationInfoPanel({
                               </span>
                               <span className="block truncate text-xs text-muted-foreground">
                                 {member.memberRole === "admin"
-                                  ? `Admin · @${member.username}`
+                                  ? `Quản trị viên · @${member.username}`
                                   : `@${member.username}`}
                               </span>
                             </span>
@@ -563,7 +648,7 @@ export default function ConversationInfoPanel({
                                 onClick={() => void messageMember(member)}
                                 className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/70 disabled:opacity-50"
                               >
-                                <MessageCircle size={17} /> Message
+                                <MessageCircle size={17} /> Nhắn tin
                               </button>
                               <button
                                 type="button"
@@ -573,7 +658,7 @@ export default function ConversationInfoPanel({
                                 }}
                                 className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/70"
                               >
-                                <UserRound size={17} /> View profile
+                                <UserRound size={17} /> Xem hồ sơ
                               </button>
                               <button
                                 type="button"
@@ -581,21 +666,21 @@ export default function ConversationInfoPanel({
                                 onClick={() => void blockMember(member)}
                                 className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/70 disabled:opacity-50"
                               >
-                                <UserX size={17} /> Block
+                                <UserX size={17} /> Chặn
                               </button>
                               <button
                                 type="button"
                                 onClick={() => callMember(member, "audio")}
                                 className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/70"
                               >
-                                <Phone size={17} /> Audio call
+                                <Phone size={17} /> Gọi thoại
                               </button>
                               <button
                                 type="button"
                                 onClick={() => callMember(member, "video")}
                                 className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/70"
                               >
-                                <Video size={17} /> Video chat
+                                <Video size={17} /> Gọi video
                               </button>
                               {canRemoveThisMember && (
                                 <button
@@ -630,7 +715,7 @@ export default function ConversationInfoPanel({
                   onClick={() => setView("shared")}
                   className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-muted/50"
                 >
-                  <span>Media, files and links</span>
+                  <span>File phương tiện & liên kết</span>
                   <ChevronDown size={16} />
                 </button>
               </section>
@@ -648,7 +733,7 @@ export default function ConversationInfoPanel({
                     ) : (
                       <LogOut size={16} />
                     )}
-                    <span>Leave group</span>
+                    <span>Rời nhóm</span>
                   </button>
                 </section>
               )}
@@ -710,7 +795,7 @@ export default function ConversationInfoPanel({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-semibold">Change chat name</h3>
+              <h3 className="font-semibold">Đổi tên đoạn chat</h3>
               <button type="button" onClick={() => setEditing(false)}>
                 <X size={18} />
               </button>
@@ -759,6 +844,32 @@ export default function ConversationInfoPanel({
           </section>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => {
+          if (!open && !actionLoading) setConfirmAction(null);
+        }}
+        title={confirmDialogContent.title}
+        description={confirmDialogContent.description}
+        confirmLabel={confirmDialogContent.confirmLabel}
+        cancelLabel="Hủy"
+        variant="destructive"
+        loading={actionLoading}
+        onConfirm={() => void executeConfirmedAction()}
+      />
+
+      <ConfirmDialog
+        open={infoNotice !== null}
+        onOpenChange={(open) => {
+          if (!open) setInfoNotice(null);
+        }}
+        title={infoNotice?.title ?? ""}
+        description={infoNotice?.description ?? ""}
+        confirmLabel="Đã hiểu"
+        variant="info"
+        onConfirm={() => setInfoNotice(null)}
+      />
     </>
   );
 }

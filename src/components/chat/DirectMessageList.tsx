@@ -4,14 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
+  ArchiveRestore,
   Ban,
-  BellOff,
   Eye,
   LogOut,
   MailCheck,
   MessageCircle,
   MoreHorizontal,
-  TriangleAlert,
   UsersRound,
 } from "lucide-react";
 import { blockedUsersApi } from "@/lib/api/blocked-users";
@@ -28,6 +27,7 @@ import { getApiOrigin } from "@/lib/utils/apiUrl";
 import { cn } from "@/lib/utils/cn";
 import { formatConversationTime } from "@/lib/utils/datetime";
 import { formatCallLogPreview, parseCallLogPayload } from "@/lib/types/call";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 interface DirectMessageListProps {
   onSelectChat: (chatroom: ChatroomResponse) => void;
@@ -35,6 +35,10 @@ interface DirectMessageListProps {
   refreshTrigger?: number;
   searchQuery?: string;
 }
+
+type PendingConfirm =
+  | { type: "leave"; chatroom: ChatroomResponse }
+  | { type: "block"; chatroom: ChatroomResponse };
 
 function Avatar({
   src,
@@ -128,6 +132,8 @@ function getLastMessagePreview(
   return text;
 }
 
+type InboxView = "active" | "archived";
+
 export default function DirectMessageList({
   onSelectChat,
   selectedChatroomId,
@@ -136,23 +142,40 @@ export default function DirectMessageList({
 }: DirectMessageListProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [inboxView, setInboxView] = useState<InboxView>("active");
+  const includeArchived = inboxView === "archived";
   const { data: chatrooms = [], isLoading: loading } = useChatroomsQuery(
     user?.userId,
+    { includeArchived },
   );
   const chatroomListKey = useMemo(
-    () => chatroomQueryKeys.list(user?.userId ?? "anonymous"),
+    () =>
+      chatroomQueryKeys.list(user?.userId ?? "anonymous", includeArchived),
+    [includeArchived, user?.userId],
+  );
+  const activeListKey = useMemo(
+    () => chatroomQueryKeys.list(user?.userId ?? "anonymous", false),
+    [user?.userId],
+  );
+  const archivedListKey = useMemo(
+    () => chatroomQueryKeys.list(user?.userId ?? "anonymous", true),
     [user?.userId],
   );
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<PendingConfirm | null>(
+    null,
+  );
   const previousRefreshTrigger = useRef(refreshTrigger);
 
   useEffect(() => {
     if (previousRefreshTrigger.current === refreshTrigger) return;
     previousRefreshTrigger.current = refreshTrigger;
     if (!user?.userId) return;
-    void queryClient.invalidateQueries({ queryKey: chatroomListKey });
-  }, [chatroomListKey, queryClient, refreshTrigger, user?.userId]);
+    void queryClient.invalidateQueries({
+      queryKey: chatroomQueryKeys.all,
+    });
+  }, [queryClient, refreshTrigger, user?.userId]);
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return chatrooms;
@@ -201,83 +224,223 @@ export default function DirectMessageList({
   const handleArchive = async (chatroomId: string) => {
     await runAction(`archive-${chatroomId}`, async () => {
       await chatroomsApi.archiveChatroom(chatroomId, true);
+      const archivedRoom = chatrooms.find(
+        (item) => item.chatroomId === chatroomId,
+      );
       queryClient.setQueryData<ChatroomResponse[]>(
-        chatroomListKey,
+        activeListKey,
         (current = []) =>
           current.filter((item) => item.chatroomId !== chatroomId),
       );
+      if (archivedRoom) {
+        queryClient.setQueryData<ChatroomResponse[]>(
+          archivedListKey,
+          (current = []) => [
+            { ...archivedRoom, isArchived: true },
+            ...current.filter((item) => item.chatroomId !== chatroomId),
+          ],
+        );
+      } else {
+        void queryClient.invalidateQueries({ queryKey: archivedListKey });
+      }
     });
   };
 
-  const handleLeave = async (chatroomId: string) => {
-    if (!window.confirm("Rời khỏi cuộc trò chuyện này?")) return;
-
-    await runAction(`leave-${chatroomId}`, async () => {
-      await chatroomsApi.leaveChatroom(chatroomId);
+  const handleUnarchive = async (chatroomId: string) => {
+    await runAction(`unarchive-${chatroomId}`, async () => {
+      await chatroomsApi.archiveChatroom(chatroomId, false);
+      const restoredRoom = chatrooms.find(
+        (item) => item.chatroomId === chatroomId,
+      );
       queryClient.setQueryData<ChatroomResponse[]>(
-        chatroomListKey,
+        archivedListKey,
         (current = []) =>
           current.filter((item) => item.chatroomId !== chatroomId),
       );
+      if (restoredRoom) {
+        queryClient.setQueryData<ChatroomResponse[]>(
+          activeListKey,
+          (current = []) => [
+            { ...restoredRoom, isArchived: false },
+            ...current.filter((item) => item.chatroomId !== chatroomId),
+          ],
+        );
+      } else {
+        void queryClient.invalidateQueries({ queryKey: activeListKey });
+      }
     });
+  };
+
+  const handleLeave = async (chatroom: ChatroomResponse) => {
+    closeMenu();
+    setConfirmAction({ type: "leave", chatroom });
   };
 
   const handleBlock = async (chatroom: ChatroomResponse) => {
     const other = getOtherMember(chatroom, user?.userId);
     if (!other) return;
-    if (!window.confirm(`Chặn ${other.fullname}?`)) return;
-
-    await runAction(`block-${chatroom.chatroomId}`, async () => {
-      await blockedUsersApi.blockUser(other.userId);
-      queryClient.setQueryData<ChatroomResponse[]>(
-        chatroomListKey,
-        (current = []) =>
-          current.filter((item) => item.chatroomId !== chatroom.chatroomId),
-      );
-    });
+    closeMenu();
+    setConfirmAction({ type: "block", chatroom });
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-2 px-1">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="flex animate-pulse items-center gap-2 rounded-lg p-2"
-          >
-            <div className="h-8 w-8 rounded-full bg-muted" />
-            <div className="flex-1 space-y-1">
-              <div className="h-3 w-2/3 rounded bg-muted" />
-              <div className="h-2 w-1/2 rounded bg-muted" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const executeConfirmedAction = async () => {
+    if (!confirmAction) return;
+    const { chatroom } = confirmAction;
+    const key = `${confirmAction.type}-${chatroom.chatroomId}`;
 
-  if (chatrooms.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-2 px-2 py-8 text-center">
-        <MessageCircle size={20} className="text-muted-foreground/50" />
-        <p className="text-xs text-muted-foreground">
-          Chưa có cuộc hội thoại nào
-        </p>
-      </div>
-    );
-  }
+    try {
+      setPendingAction(key);
 
-  if (filtered.length === 0) {
+      if (confirmAction.type === "leave") {
+        await chatroomsApi.leaveChatroom(chatroom.chatroomId);
+        queryClient.setQueryData<ChatroomResponse[]>(
+          activeListKey,
+          (current = []) =>
+            current.filter((item) => item.chatroomId !== chatroom.chatroomId),
+        );
+        queryClient.setQueryData<ChatroomResponse[]>(
+          archivedListKey,
+          (current = []) =>
+            current.filter((item) => item.chatroomId !== chatroom.chatroomId),
+        );
+      } else {
+        const other = getOtherMember(chatroom, user?.userId);
+        if (!other) return;
+        await blockedUsersApi.blockUser(other.userId);
+        queryClient.setQueryData<ChatroomResponse[]>(
+          activeListKey,
+          (current = []) =>
+            current.filter((item) => item.chatroomId !== chatroom.chatroomId),
+        );
+        queryClient.setQueryData<ChatroomResponse[]>(
+          archivedListKey,
+          (current = []) =>
+            current.filter((item) => item.chatroomId !== chatroom.chatroomId),
+        );
+      }
+
+      setConfirmAction(null);
+    } catch (error) {
+      console.error("Chatroom action failed:", error);
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const confirmTitle =
+    confirmAction?.type === "leave"
+      ? isGroupChat(confirmAction.chatroom)
+        ? "Rời nhóm"
+        : "Rời cuộc trò chuyện"
+      : confirmAction?.type === "block"
+        ? "Chặn người dùng"
+        : "";
+
+  const confirmDescription = (() => {
+    if (!confirmAction) return null;
+    const other = getOtherMember(confirmAction.chatroom, user?.userId);
+    const name = getDisplayName(confirmAction.chatroom, other);
+
+    if (confirmAction.type === "leave") {
+      if (isGroupChat(confirmAction.chatroom)) {
+        return (
+          <>
+            Bạn có chắc chắn muốn rời nhóm{" "}
+            <span className="font-semibold text-foreground">{name}</span>? Bạn
+            sẽ không còn nhận được tin nhắn từ nhóm này.
+          </>
+        );
+      }
+      return (
+        <>
+          Bạn có chắc chắn muốn rời cuộc trò chuyện với{" "}
+          <span className="font-semibold text-foreground">{name}</span>?
+        </>
+      );
+    }
+
     return (
-      <div className="flex flex-col items-center justify-center gap-2 px-2 py-8 text-center">
-        <MessageCircle size={20} className="text-muted-foreground/50" />
-        <p className="text-xs text-muted-foreground">Không tìm thấy kết quả</p>
-      </div>
+      <>
+        Bạn có chắc chắn muốn chặn{" "}
+        <span className="font-semibold text-foreground">{name}</span>? Người
+        này sẽ không thể nhắn tin cho bạn.
+      </>
     );
-  }
+  })();
+
+  const confirmLabel =
+    confirmAction?.type === "leave"
+      ? isGroupChat(confirmAction.chatroom)
+        ? "Rời nhóm"
+        : "Rời cuộc trò chuyện"
+      : "Chặn";
 
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-2">
+      <div className="mx-1 flex rounded-lg bg-muted/60 p-1">
+        <button
+          type="button"
+          onClick={() => {
+            setInboxView("active");
+            closeMenu();
+          }}
+          className={cn(
+            "flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+            inboxView === "active"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Hội thoại
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setInboxView("archived");
+            closeMenu();
+          }}
+          className={cn(
+            "flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+            inboxView === "archived"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Đã lưu trữ
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2 px-1">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="flex animate-pulse items-center gap-2 rounded-lg p-2"
+            >
+              <div className="h-8 w-8 rounded-full bg-muted" />
+              <div className="flex-1 space-y-1">
+                <div className="h-3 w-2/3 rounded bg-muted" />
+                <div className="h-2 w-1/2 rounded bg-muted" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : chatrooms.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 px-2 py-8 text-center">
+          <MessageCircle size={20} className="text-muted-foreground/50" />
+          <p className="text-xs text-muted-foreground">
+            {includeArchived
+              ? "Chưa có cuộc trò chuyện nào được lưu trữ"
+              : "Chưa có cuộc hội thoại nào"}
+          </p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 px-2 py-8 text-center">
+          <MessageCircle size={20} className="text-muted-foreground/50" />
+          <p className="text-xs text-muted-foreground">Không tìm thấy kết quả</p>
+        </div>
+      ) : (
+        <div className="space-y-0.5">
       {filtered.map((chatroom) => {
         const other = getOtherMember(chatroom, user?.userId);
         const group = isGroupChat(chatroom);
@@ -379,26 +542,33 @@ export default function DirectMessageList({
                       onSelectChat(chatroom);
                     }}
                   />
-                  <MenuItem
-                    icon={BellOff}
-                    label="Tắt thông báo"
-                    disabled
-                    helper="Chưa có API"
-                  />
                   <div className="my-1 border-t" />
-                  <MenuItem
-                    icon={Archive}
-                    label="Lưu trữ cuộc trò chuyện"
-                    loading={pendingAction === `archive-${chatroom.chatroomId}`}
-                    onClick={() => void handleArchive(chatroom.chatroomId)}
-                  />
+                  {includeArchived ? (
+                    <MenuItem
+                      icon={ArchiveRestore}
+                      label="Bỏ lưu trữ"
+                      loading={
+                        pendingAction === `unarchive-${chatroom.chatroomId}`
+                      }
+                      onClick={() => void handleUnarchive(chatroom.chatroomId)}
+                    />
+                  ) : (
+                    <MenuItem
+                      icon={Archive}
+                      label="Lưu trữ cuộc trò chuyện"
+                      loading={
+                        pendingAction === `archive-${chatroom.chatroomId}`
+                      }
+                      onClick={() => void handleArchive(chatroom.chatroomId)}
+                    />
+                  )}
                   {group ? (
                     <MenuItem
                       icon={LogOut}
                       label="Rời nhóm"
                       destructive
                       loading={pendingAction === `leave-${chatroom.chatroomId}`}
-                      onClick={() => void handleLeave(chatroom.chatroomId)}
+                      onClick={() => void handleLeave(chatroom)}
                     />
                   ) : (
                     <MenuItem
@@ -409,18 +579,32 @@ export default function DirectMessageList({
                       onClick={() => void handleBlock(chatroom)}
                     />
                   )}
-                  <MenuItem
-                    icon={TriangleAlert}
-                    label="Báo cáo"
-                    disabled
-                    helper="Chưa có API"
-                  />
                 </div>
               </>
             )}
           </div>
         );
       })}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => {
+          if (!open && !pendingAction) setConfirmAction(null);
+        }}
+        title={confirmTitle}
+        description={confirmDescription}
+        confirmLabel={confirmLabel}
+        cancelLabel="Hủy"
+        variant="destructive"
+        loading={Boolean(
+          confirmAction &&
+            pendingAction ===
+              `${confirmAction.type}-${confirmAction.chatroom.chatroomId}`,
+        )}
+        onConfirm={() => void executeConfirmedAction()}
+      />
     </div>
   );
 }

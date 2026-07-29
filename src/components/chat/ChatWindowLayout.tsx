@@ -24,6 +24,7 @@ import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import ConversationInfoPanel from "./ConversationInfoPanel";
 import PinnedMessagesBanner from "./PinnedMessagesBanner";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { messagesApi } from "@/lib/api/messages";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import { chatroomQueryKeys } from "@/lib/queries/queryKeys";
@@ -60,6 +61,10 @@ export default function ChatWindowLayout({
     chatroom,
   );
   const [infoOpen, setInfoOpen] = useState(false);
+  const [notice, setNotice] = useState<{
+    title: string;
+    description: string;
+  } | null>(null);
 
   useEffect(() => {
     setActiveChatroom(chatroom);
@@ -601,7 +606,10 @@ export default function ChatWindowLayout({
                     error instanceof Error
                       ? error.message
                       : "Không thể bắt đầu cuộc gọi.";
-                  window.alert(message);
+                  setNotice({
+                    title: "Không thể gọi",
+                    description: message,
+                  });
                 });
             }}
             onMembersChanged={refreshChatroomMembers}
@@ -769,7 +777,11 @@ export default function ChatWindowLayout({
           }}
           onViewPinnedMessages={() => {
             if (pinnedMessages.length === 0) {
-              window.alert("Chưa có tin nhắn đã ghim.");
+              setNotice({
+                title: "Chưa có tin nhắn đã ghim",
+                description:
+                  "Hãy ghim một tin nhắn trong cuộc trò chuyện để xem tại đây.",
+              });
               return;
             }
             void jumpToMessage(pinnedMessages[0].messageId);
@@ -787,12 +799,26 @@ export default function ChatWindowLayout({
                   error instanceof Error
                     ? error.message
                     : "Không thể bắt đầu cuộc gọi.";
-                window.alert(message);
+                setNotice({
+                  title: "Không thể gọi",
+                  description: message,
+                });
               });
           }}
         />
       </div>
 
+      <ConfirmDialog
+        open={notice !== null}
+        onOpenChange={(open) => {
+          if (!open) setNotice(null);
+        }}
+        title={notice?.title ?? ""}
+        description={notice?.description ?? ""}
+        confirmLabel="Đã hiểu"
+        variant="info"
+        onConfirm={() => setNotice(null)}
+      />
     </>
   );
 }

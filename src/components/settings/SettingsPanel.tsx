@@ -94,24 +94,56 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                   onClick={() => setActiveTab(isActive ? null : item.id)}
                   className={cn(
                     "group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all",
-                    isActive ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-accent",
+                    isActive
+                      ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
+                      : "text-foreground hover:bg-accent",
                   )}
                 >
                   <div
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
-                      isActive ? "bg-white/20" : "bg-muted group-hover:bg-background",
+                      isActive
+                        ? "bg-sky-500/20 text-sky-700 dark:text-sky-300"
+                        : "bg-muted text-muted-foreground group-hover:bg-background",
                     )}
                   >
-                    <Icon size={18} className={isActive ? "text-primary-foreground" : "text-muted-foreground"} />
+                    <Icon
+                      size={18}
+                      className={
+                        isActive
+                          ? "text-sky-700 dark:text-sky-300"
+                          : "text-muted-foreground"
+                      }
+                    />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className={cn("text-sm font-medium", isActive ? "text-primary-foreground" : "")}>{item.label}</p>
-                    <p className={cn("truncate text-xs", isActive ? "text-primary-foreground/70" : "text-muted-foreground")}>{item.description}</p>
+                    <p
+                      className={cn(
+                        "text-sm font-medium",
+                        isActive && "text-sky-700 dark:text-sky-300",
+                      )}
+                    >
+                      {item.label}
+                    </p>
+                    <p
+                      className={cn(
+                        "truncate text-xs",
+                        isActive
+                          ? "text-sky-700/70 dark:text-sky-300/70"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {item.description}
+                    </p>
                   </div>
                   <ChevronRight
                     size={14}
-                    className={cn("shrink-0 transition-transform", isActive ? "rotate-90 text-primary-foreground" : "text-muted-foreground")}
+                    className={cn(
+                      "shrink-0 transition-transform",
+                      isActive
+                        ? "rotate-90 text-sky-700 dark:text-sky-300"
+                        : "text-muted-foreground",
+                    )}
                   />
                 </button>
               );
@@ -124,10 +156,12 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             <div className="flex shrink-0 items-center gap-3 border-b px-5 py-4">
               {activeItem && (
                 <>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/15">
                     {(() => {
                       const Icon = activeItem.icon;
-                      return <Icon size={16} className="text-primary" />;
+                      return (
+                        <Icon size={16} className="text-sky-700 dark:text-sky-300" />
+                      );
                     })()}
                   </div>
                   <div>

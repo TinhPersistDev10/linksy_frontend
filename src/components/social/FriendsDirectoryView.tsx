@@ -20,10 +20,15 @@ import { chatroomsApi } from "@/lib/api/chatrooms";
 import { friendsApi } from "@/lib/api/friends";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import type { ChatroomResponse, Friend, SearchUserResult } from "@/lib/types/chatroom";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 interface FriendsDirectoryViewProps {
   onSelectChat?: (chatroom: ChatroomResponse) => void;
 }
+
+type PendingConfirm =
+  | { type: "remove"; friend: Friend }
+  | { type: "block"; friend: Friend };
 
 function getInitials(name: string) {
   return (
@@ -122,32 +127,32 @@ function AddFriendDialog({ open, onClose, onFriendAdded }: { open: boolean; onCl
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
-      <section className="w-full max-w-lg rounded-lg bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <header className="flex h-14 items-center justify-between border-b border-slate-200 px-5">
-          <h2 className="text-base font-semibold text-slate-900">Thêm bạn</h2>
-          <button type="button" onClick={onClose} className="rounded-full p-1 text-slate-500 hover:bg-slate-100"><X size={22} /></button>
+      <section className="w-full max-w-lg rounded-lg bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <header className="flex h-14 items-center justify-between border-b border-border px-5">
+          <h2 className="text-base font-semibold text-foreground">Thêm bạn</h2>
+          <button type="button" onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-muted"><X size={22} /></button>
         </header>
         <div className="p-5">
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nhập username hoặc tên" className="h-11 w-full rounded-full border border-slate-200 bg-white pl-9 pr-4 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100" autoFocus />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nhập username hoặc tên" className="h-11 w-full rounded-full border border-border bg-card pl-9 pr-4 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20" autoFocus />
           </div>
           {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
           <div className="mt-4 min-h-[260px] max-h-[360px] overflow-y-auto">
             {searching ? (
-              <div className="flex h-40 items-center justify-center text-slate-400"><Loader2 size={22} className="animate-spin" /></div>
+              <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 size={22} className="animate-spin" /></div>
             ) : !query.trim() ? (
-              <p className="py-12 text-center text-sm text-slate-500">Nhập username hoặc tên để tìm kiếm người dùng</p>
+              <p className="py-12 text-center text-sm text-muted-foreground">Nhập username hoặc tên để tìm kiếm người dùng</p>
             ) : results.length === 0 ? (
-              <p className="py-12 text-center text-sm text-slate-500">Không tìm thấy người dùng phù hợp</p>
+              <p className="py-12 text-center text-sm text-muted-foreground">Không tìm thấy người dùng phù hợp</p>
             ) : (
               <div className="space-y-2">
                 {results.map((user) => (
-                  <div key={user.userId} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-3">
+                  <div key={user.userId} className="flex items-center gap-3 rounded-lg border border-border px-3 py-3">
                     <Avatar src={user.avatar} name={user.fullname || user.username} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-900">{user.fullname || user.username}</p>
-                      <p className="truncate text-xs text-slate-500">@{user.username}</p>
+                      <p className="truncate text-sm font-semibold text-foreground">{user.fullname || user.username}</p>
+                      <p className="truncate text-xs text-muted-foreground">@{user.username}</p>
                     </div>
                     {user.relationshipStatus === "friends" ? (
                       <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">Bạn bè</span>
@@ -157,7 +162,7 @@ function AddFriendDialog({ open, onClose, onFriendAdded }: { open: boolean; onCl
                       <button type="button" disabled={loadingId === user.userId} onClick={() => sendRequest(user)} className="flex h-9 items-center gap-2 rounded-md bg-sky-500 px-3 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-60">
                         {loadingId === user.userId ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Kết bạn
                       </button>
-                    ) : <span className="text-xs text-slate-400">Không khả dụng</span>}
+                    ) : <span className="text-xs text-muted-foreground">Không khả dụng</span>}
                   </div>
                 ))}
               </div>
@@ -178,6 +183,9 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [addFriendOpen, setAddFriendOpen] = useState(false);
   const [profileFriend, setProfileFriend] = useState<Friend | null>(null);
+  const [confirmAction, setConfirmAction] = useState<PendingConfirm | null>(
+    null,
+  );
 
   const loadFriends = async () => {
     setLoading(true);
@@ -216,33 +224,41 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
     }
   };
 
-  const removeFriend = async (friend: Friend) => {
-    if (!window.confirm(`Xóa ${friend.fullname || friend.username} khỏi danh sách bạn bè?`)) return;
+  const removeFriend = (friend: Friend) => {
+    setOpenMenuId(null);
+    setConfirmAction({ type: "remove", friend });
+  };
 
-    setPendingAction(`remove-${friend.userId}`);
+  const blockFriend = (friend: Friend) => {
+    setOpenMenuId(null);
+    setConfirmAction({ type: "block", friend });
+  };
+
+  const executeConfirmedAction = async () => {
+    if (!confirmAction) return;
+    const { friend } = confirmAction;
+    const key = `${confirmAction.type}-${friend.userId}`;
+    setPendingAction(key);
     try {
-      await friendsApi.removeFriend(friend.userId);
-      setFriends((current) => current.filter((item) => item.userId !== friend.userId));
-      setOpenMenuId(null);
+      if (confirmAction.type === "remove") {
+        await friendsApi.removeFriend(friend.userId);
+      } else {
+        await blockedUsersApi.blockUser(friend.userId);
+      }
+      setFriends((current) =>
+        current.filter((item) => item.userId !== friend.userId),
+      );
+      setConfirmAction(null);
     } finally {
       setPendingAction(null);
     }
   };
 
-  const blockFriend = async (friend: Friend) => {
-    if (!window.confirm(`Chặn ${friend.fullname || friend.username}?`)) return;
+  const confirmFriendName = confirmAction
+    ? confirmAction.friend.fullname || confirmAction.friend.username
+    : "";
 
-    setPendingAction(`block-${friend.userId}`);
-    try {
-      await blockedUsersApi.blockUser(friend.userId);
-      setFriends((current) => current.filter((item) => item.userId !== friend.userId));
-      setOpenMenuId(null);
-    } finally {
-      setPendingAction(null);
-    }
-  };
-
-  if (loading) return <div className="flex h-full items-center justify-center text-slate-400"><Loader2 size={22} className="animate-spin" /></div>;
+  if (loading) return <div className="flex h-full items-center justify-center text-muted-foreground"><Loader2 size={22} className="animate-spin" /></div>;
 
   return (
     <>
@@ -250,22 +266,22 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-semibold">Bạn bè ({filtered.length})</p>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setAddFriendOpen(true)} className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserPlus size={16} /> Thêm bạn</button>
+            <button type="button" onClick={() => setAddFriendOpen(true)} className="flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-semibold text-foreground hover:bg-muted/60"><UserPlus size={16} /> Thêm bạn</button>
           </div>
         </div>
         <div className="mb-5 grid gap-2 lg:grid-cols-[1fr_260px_260px]">
-          <div className="flex h-10 items-center gap-2 rounded-md bg-slate-50 px-3"><Search size={16} className="text-slate-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm bạn" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" /></div>
-          <button className="flex h-10 items-center justify-between rounded-md bg-slate-50 px-3 text-sm text-slate-700"><span className="flex items-center gap-2"><ArrowDownAZ size={16} /> Thứ tự (A-Z)</span></button>
-          <button className="flex h-10 items-center justify-between rounded-md bg-slate-50 px-3 text-sm text-slate-700"><span className="flex items-center gap-2"><SlidersHorizontal size={16} /> Tất cả</span></button>
+          <div className="flex h-10 items-center gap-2 rounded-md bg-muted/60 px-3"><Search size={16} className="text-muted-foreground" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm bạn" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" /></div>
+          <button className="flex h-10 items-center justify-between rounded-md bg-muted/60 px-3 text-sm text-foreground"><span className="flex items-center gap-2"><ArrowDownAZ size={16} /> Thứ tự (A-Z)</span></button>
+          <button className="flex h-10 items-center justify-between rounded-md bg-muted/60 px-3 text-sm text-foreground"><span className="flex items-center gap-2"><SlidersHorizontal size={16} /> Tất cả</span></button>
         </div>
-        <div className="rounded-md border border-slate-200 bg-white p-4">
-          {Object.keys(grouped).length === 0 ? <p className="py-10 text-center text-sm text-slate-400">Không tìm thấy bạn bè phù hợp</p> : Object.entries(grouped).map(([letter, items]) => (
+        <div className="rounded-md border border-border bg-card p-4">
+          {Object.keys(grouped).length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">Không tìm thấy bạn bè phù hợp</p> : Object.entries(grouped).map(([letter, items]) => (
             <div key={letter} className="mb-6 last:mb-0">
-              <p className="mb-3 text-sm font-semibold text-slate-700">{letter}</p>
+              <p className="mb-3 text-sm font-semibold text-foreground">{letter}</p>
               {items.map((friend) => (
                 <div
                   key={friend.userId}
-                  className="group relative flex h-16 w-full items-center justify-between rounded-md px-3 hover:bg-slate-50"
+                  className="group relative flex h-16 w-full items-center justify-between rounded-md px-3 hover:bg-muted/60"
                 >
                   <button
                     type="button"
@@ -275,8 +291,8 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
                   >
                     <FriendAvatar friend={friend} />
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-slate-900">{friend.fullname || friend.username}</p>
-                      <p className="truncate text-xs text-slate-500">@{friend.username}</p>
+                      <p className="truncate font-medium text-foreground">{friend.fullname || friend.username}</p>
+                      <p className="truncate text-xs text-muted-foreground">@{friend.username}</p>
                     </div>
                   </button>
 
@@ -286,7 +302,7 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
                       title="Nhắn tin"
                       disabled={openingId === friend.userId}
                       onClick={() => openDirectChat(friend)}
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-sky-50 hover:text-sky-600 disabled:opacity-60"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-sky-500/15 hover:text-sky-600 dark:hover:text-sky-400 disabled:opacity-60"
                     >
                       {openingId === friend.userId ? (
                         <Loader2 size={17} className="animate-spin" />
@@ -298,7 +314,7 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
                       type="button"
                       title="Tùy chọn"
                       onClick={() => setOpenMenuId(openMenuId === friend.userId ? null : friend.userId)}
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
                       <MoreHorizontal size={18} />
                     </button>
@@ -312,7 +328,7 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
                         className="fixed inset-0 z-20 cursor-default bg-transparent"
                         onClick={() => setOpenMenuId(null)}
                       />
-                      <div className="absolute right-2 top-12 z-30 w-52 rounded-xl border border-slate-200 bg-white p-2 text-sm shadow-xl">
+                      <div className="absolute right-2 top-12 z-30 w-52 rounded-xl border border-border bg-card p-2 text-sm shadow-xl">
                         <FriendMenuItem
                           icon={MessageCircle}
                           label="Nhắn tin"
@@ -327,20 +343,20 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
                             setProfileFriend(friend);
                           }}
                         />
-                        <div className="my-1 border-t border-slate-100" />
+                        <div className="my-1 border-t border-border" />
                         <FriendMenuItem
                           icon={UserX}
                           label="Xóa bạn"
                           destructive
                           loading={pendingAction === `remove-${friend.userId}`}
-                          onClick={() => void removeFriend(friend)}
+                          onClick={() => removeFriend(friend)}
                         />
                         <FriendMenuItem
                           icon={Ban}
                           label="Chặn"
                           destructive
                           loading={pendingAction === `block-${friend.userId}`}
-                          onClick={() => void blockFriend(friend)}
+                          onClick={() => blockFriend(friend)}
                         />
                       </div>
                     </>
@@ -369,6 +385,40 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
             : undefined
         }
       />
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => {
+          if (!open && !pendingAction) setConfirmAction(null);
+        }}
+        title={
+          confirmAction?.type === "remove" ? "Xóa bạn bè" : "Chặn người dùng"
+        }
+        description={
+          confirmAction?.type === "remove" ? (
+            <>
+              Bạn có chắc chắn muốn xóa{" "}
+              <span className="font-semibold text-foreground">
+                {confirmFriendName}
+              </span>{" "}
+              khỏi danh sách bạn bè?
+            </>
+          ) : (
+            <>
+              Bạn có chắc chắn muốn chặn{" "}
+              <span className="font-semibold text-foreground">
+                {confirmFriendName}
+              </span>
+              ? Người này sẽ không thể nhắn tin cho bạn.
+            </>
+          )
+        }
+        confirmLabel={confirmAction?.type === "remove" ? "Xóa bạn" : "Chặn"}
+        cancelLabel="Hủy"
+        variant="destructive"
+        loading={Boolean(pendingAction)}
+        onConfirm={() => void executeConfirmedAction()}
+      />
     </>
   );
 }
@@ -395,7 +445,7 @@ function FriendMenuItem({
       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
         destructive
           ? "text-red-600 hover:bg-red-50"
-          : "text-slate-700 hover:bg-slate-50"
+          : "text-foreground hover:bg-muted/60"
       } ${loading ? "cursor-not-allowed opacity-60" : ""}`}
     >
       <Icon size={17} className="shrink-0" />
