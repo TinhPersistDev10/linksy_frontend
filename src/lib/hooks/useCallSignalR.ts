@@ -8,7 +8,6 @@ import {
   type RefObject,
 } from "react";
 import { GroupWebRtcManager } from "./GroupWebRtcManager";
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 export type CallType = "audio" | "video";
 
@@ -51,7 +50,6 @@ const INITIAL: CallState = {
   participants: [],
 };
 
-// ── Payloads từ server — khớp với ChatHub.cs ─────────────────────────────────
 
 interface CallLogDto {
   id: string;
@@ -71,12 +69,12 @@ interface CallLogDto {
   }>;
 }
 
-/** InitiateCall → Clients.Caller.SendAsync("CallInitiated", CallLogDto) */
+
 type CallInitiatedPayload = CallLogDto;
 
 type GroupCallStartedPayload = CallLogDto;
 
-/** IncomingCall payload */
+
 interface IncomingCallPayload {
   callLogId: string;
   callerId: string;
@@ -92,20 +90,20 @@ interface IncomingGroupCallPayload {
   callType: CallType;
 }
 
-/** AnswerCall → { Call: CallLogDto, AnsweredBy, SdpAnswer } */
+
 interface CallAnsweredPayload {
   call: CallLogDto;
   answeredBy: string;
   sdpAnswer: string;
 }
 
-/** RejectCall → { Call: CallLogDto, RejectedBy } */
+
 interface CallRejectedPayload {
   call: CallLogDto;
   rejectedBy: string;
 }
 
-/** EndCall → { Call: CallLogDto, EndedBy } */
+
 interface CallEndedPayload {
   call: CallLogDto;
   endedBy: string;
@@ -140,7 +138,6 @@ interface IceRestartRequestedPayload {
   fromUserId: string;
 }
 
-// ── Hook ──────────────────────────────────────────────────────────────────────
 
 interface UseCallSignalROptions {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -182,13 +179,8 @@ export function useCallSignalR({
   const isInitiatorRef = useRef(false);
   const pendingOutgoingIceRef = useRef<Map<string, string[]>>(new Map());
   const pendingOffersRef = useRef<Map<string, string>>(new Map());
-  // Shared call start time (ms epoch) used to keep the elapsed timer in sync
-  // across every participant. Derived from the server's answeredAt timestamp.
   const callStartRef = useRef<number | null>(null);
 
-  // Deterministic mesh negotiation: for any pair of peers only ONE side creates
-  // the offer (the one with the greater userId). This removes offer glare and
-  // "missing" peer connections when several participants join simultaneously.
   const isOffererFor = useCallback(
     (remoteUserId: string) => _currentUserId > remoteUserId,
     [_currentUserId],
@@ -204,7 +196,6 @@ export function useCallSignalR({
         : Math.min(callStartRef.current, parsed);
   }, []);
 
-  // Resolve/reject của Promise chờ "CallInitiated" event
   const callInitiatedResolveRef = useRef<((id: string) => void) | null>(null);
   const callInitiatedRejectRef = useRef<((err: Error) => void) | null>(null);
   const groupCallStartedResolveRef = useRef<((call: CallLogDto) => void) | null>(
@@ -220,7 +211,6 @@ export function useCallSignalR({
     });
   }, []);
 
-  // ── Timer ─────────────────────────────────────────────────────────────────
 
   const startTimer = useCallback(() => {
     if (timerRef.current) return;
@@ -249,7 +239,6 @@ export function useCallSignalR({
     }
   }, []);
 
-  // ── Cleanup ───────────────────────────────────────────────────────────────
 
   const cleanup = useCallback(() => {
     stopTimer();
@@ -273,7 +262,6 @@ export function useCallSignalR({
     groupCallStartedRejectRef.current = null;
   }, [stopTimer, localVideoRef, remoteVideoRef]);
 
-  // ── createManager ─────────────────────────────────────────────────────────
 
   const attachStreamToVideo = useCallback(
     (video: HTMLVideoElement | null, stream: MediaStream | null) => {
@@ -403,6 +391,26 @@ export function useCallSignalR({
     [connectionRef],
   );
 
+  const requestIceRestart = useCallback(
+    async (remoteUserId: string) => {
+      const conn = connectionRef.current;
+      const { callLogId, status } = stateRef.current;
+      if (!conn || !callLogId) return;
+      if (status !== "active" && status !== "calling") return;
+      if (!isOffererFor(remoteUserId)) return;
+
+      try {
+        console.warn(
+          `[Call] ICE failed with ${remoteUserId} — requesting RestartIce`,
+        );
+        await conn.invoke("RestartIce", callLogId, remoteUserId);
+      } catch (err) {
+        console.error("[Call] RestartIce failed:", err);
+      }
+    },
+    [connectionRef, isOffererFor],
+  );
+
   const createManager = useCallback((): GroupWebRtcManager => {
     const manager = new GroupWebRtcManager({
       onIceCandidate: (recipientUserId, candidateJson) => {
@@ -412,16 +420,19 @@ export function useCallSignalR({
       onConnectionState: (userId, connectionState) => {
         updateParticipantConnectionState(userId, connectionState);
       },
+      onIceConnectionFailed: (userId) => {
+        void requestIceRestart(userId);
+      },
     });
     managerRef.current = manager;
     return manager;
   }, [
+    requestIceRestart,
     sendOrQueueIce,
     setRemoteParticipantStream,
     updateParticipantConnectionState,
   ]);
 
-  // ── activateCall ──────────────────────────────────────────────────────────
 
   const activateCall = useCallback(
     (answeredAtIso?: string | null) => {
@@ -436,7 +447,6 @@ export function useCallSignalR({
     [applyTimerBase, updateState, startTimer],
   );
 
-  // ── initiateCall ──────────────────────────────────────────────────────────
 
   const initiateCall = useCallback(
     async (
@@ -560,9 +570,6 @@ export function useCallSignalR({
           participants: syncParticipantsFromCall(call, localStream),
         });
 
-        // Do NOT pre-offer here. Peer connections are negotiated deterministically
-        // as each invitee joins (see onCallParticipantJoined / answerCall), which
-        // guarantees exactly one offer per pair and avoids glare.
       } catch (err) {
         manager.destroy();
         managerRef.current = null;
@@ -715,7 +722,6 @@ export function useCallSignalR({
     }
   }, [connectionRef, recoverSyncedCall, syncChatroomIds]);
 
-  // ── answerCall ────────────────────────────────────────────────────────────
 
   const answerCall = useCallback(async () => {
     const conn = connectionRef.current;
@@ -759,8 +765,6 @@ export function useCallSignalR({
         _pendingSdpOffer: undefined,
       });
 
-      // Go active first so any offer that arrives now is processed immediately
-      // (not queued), then reconcile queued offers + our deterministic offers.
       activateCall(joinedCall?.answeredAt);
 
       if (isGroup) {
@@ -776,7 +780,7 @@ export function useCallSignalR({
 
         for (const remoteUserId of joinedRemotes) {
           if (manager.hasPeer(remoteUserId)) continue;
-          if (!isOffererFor(remoteUserId)) continue; // the other side offers us
+          if (!isOffererFor(remoteUserId)) continue;
           try {
             const sdpOffer = await manager.createOffer(remoteUserId);
             await conn.invoke("SendCallOffer", callLogId, remoteUserId, sdpOffer);
@@ -805,7 +809,6 @@ export function useCallSignalR({
     _currentUserId,
     updateState,
   ]);
-  // ── rejectCall ────────────────────────────────────────────────────────────
 
   const rejectCall = useCallback(async () => {
     const conn = connectionRef.current;
@@ -820,15 +823,12 @@ export function useCallSignalR({
     }
   }, [connectionRef, cleanup]);
 
-  // ── endCall ───────────────────────────────────────────────────────────────
 
   const endCall = useCallback(async () => {
     const conn = connectionRef.current;
     const { callLogId, isGroup } = stateRef.current;
     if (!conn || !callLogId) return;
     try {
-      // Server ghi lại cuộc gọi thành message thật và phát qua ReceiveMessage,
-      // nên không cần tự tạo message giả ở đây nữa.
       await conn.invoke(isGroup ? "LeaveCall" : "EndCall", callLogId);
     } catch (err) {
       console.error("[Call] EndCall failed:", err);
@@ -849,7 +849,6 @@ export function useCallSignalR({
     }
   }, [connectionRef]);
 
-  // ── toggleMic / toggleCam ─────────────────────────────────────────────────
 
   const toggleMic = useCallback(() => {
     const next = !stateRef.current.isMicOn;
@@ -863,14 +862,12 @@ export function useCallSignalR({
     updateState({ isCamOn: next });
   }, [updateState]);
 
-  // ── SignalR event listeners ───────────────────────────────────────────────
 
   useEffect(() => {
     if (!isConnected) return;
     const conn = connectionRef.current;
     if (!conn) return;
 
-    // ✅ "CallInitiated" — server gửi CallLogDto thẳng (không wrap)
     const onCallInitiated = (payload: CallInitiatedPayload) => {
       const remoteMember = payload.participants.find(
         (p) => p.userId != _currentUserId,
@@ -888,7 +885,6 @@ export function useCallSignalR({
       groupCallStartedRejectRef.current = null;
     };
 
-    // IncomingCall
     const onIncomingCall = async (payload: IncomingCallPayload) => {
       if (stateRef.current.status !== "idle") {
         try {
@@ -897,7 +893,6 @@ export function useCallSignalR({
         return;
       }
 
-      // Chỉ lưu manager, CHƯA tạo PC và CHƯA lấy stream
       createManager();
       isInitiatorRef.current = false;
 
@@ -948,7 +943,6 @@ export function useCallSignalR({
       });
     };
 
-    // ✅ FIX: đọc payload.call.id thay vì payload.callLogId
     const onCallAnswered = async (payload: CallAnsweredPayload) => {
       const callLogId = payload.call?.id;
       if (!callLogId || stateRef.current.callLogId !== callLogId) return;
@@ -965,28 +959,24 @@ export function useCallSignalR({
         });
         updateState({ remoteUserId: payload.answeredBy });
         void flushOutgoingIce();
-        activateCall(payload.call?.answeredAt); // ✅ Caller active ngay
+        activateCall(payload.call?.answeredAt);
       } catch (err) {
         console.error("[Call] handleAnswer failed:", err);
         cleanup();
       }
     };
 
-    // ✅ FIX: đọc payload.call.id
     const onCallRejected = (payload: CallRejectedPayload) => {
       const callLogId = payload.call?.id;
       if (!callLogId || stateRef.current.callLogId !== callLogId) return;
       cleanup();
     };
 
-    // Server đã ghi lại cuộc gọi thành message thật (phát qua "ReceiveMessage"),
-    // nên ở đây chỉ cần dọn dẹp trạng thái/PeerConnection phía client.
     const onCallEnded = (payload: CallEndedPayload) => {
       const callLogId = payload.call?.id;
       if (!callLogId || stateRef.current.callLogId !== callLogId) return;
       cleanup();
     };
-    //call failed
     const onCallFailed = (payload: { callLogId: string; reason: string }) => {
       const currentCallLogId = stateRef.current.callLogId;
       if (currentCallLogId !== null && currentCallLogId !== payload.callLogId)
@@ -995,7 +985,6 @@ export function useCallSignalR({
       cleanup();
     };
 
-    // IceCandidate
     const onIceCandidate = async (payload: IceCandidatePayload) => {
       if (stateRef.current.callLogId !== payload.callLogId) return;
       const manager = managerRef.current;
@@ -1042,7 +1031,6 @@ export function useCallSignalR({
       if (!joinedBy || joinedBy === _currentUserId) return;
       if (stateRef.current.callLogId !== payload.call.id) return;
 
-      // Keep the timer aligned with the server's shared answeredAt.
       applyTimerBase(payload.call.answeredAt);
 
       updateState({
@@ -1052,8 +1040,6 @@ export function useCallSignalR({
         ),
       });
 
-      // As soon as the first participant joins, the caller is no longer just
-      // "ringing" — flip to active regardless of who ends up sending the offer.
       if (stateRef.current.status === "calling") {
         activateCall(payload.call.answeredAt);
       }
@@ -1062,8 +1048,6 @@ export function useCallSignalR({
       if (!manager || manager.hasPeer(joinedBy)) return;
       if (stateRef.current.status !== "active" && stateRef.current.status !== "calling")
         return;
-      // Deterministic negotiation: only offer if we are the designated offerer
-      // for this pair; otherwise the joining peer will offer us.
       if (!isOffererFor(joinedBy)) return;
 
       try {
@@ -1121,7 +1105,6 @@ export function useCallSignalR({
     conn.on("iceRestartRequested", onIceRestartRequested);
 
     return () => {
-      // Cleanup
       conn.off("callInitiated", onCallInitiated);
       conn.off("groupCallStarted", onGroupCallStarted);
       conn.off("incomingCall", onIncomingCall);
@@ -1139,8 +1122,8 @@ export function useCallSignalR({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isConnected, // ← trigger chính: chờ connection sẵn sàng
-    activateCall, // ← giữ lại để tránh stale closure
+    isConnected,
+    activateCall,
     applyTimerBase,
     cleanup,
     createManager,
