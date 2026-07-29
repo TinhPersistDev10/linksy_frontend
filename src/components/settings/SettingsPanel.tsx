@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, ChevronRight, Lock, Palette, User, X } from "lucide-react";
+import { Bell, ChevronRight, Lock, Palette, ShieldBan, User, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import AppearanceSettings from "./AppearanceSettings";
+import BlockedUsersSettings from "./BlockedUsersSettings";
 import NotificationSettings from "./NotificationSettings";
 import PasswordSettings from "./PasswordSettings";
 import ProfileSettings from "./ProfileSettings";
@@ -38,6 +39,12 @@ const navItems = [
     icon: Palette,
     description: "Dark mode, cỡ chữ",
   },
+  {
+    id: "blocked",
+    label: "Người đã chặn",
+    icon: ShieldBan,
+    description: "Xem và bỏ chặn",
+  },
 ];
 
 export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
@@ -53,6 +60,8 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
         return <NotificationSettings />;
       case "appearance":
         return <AppearanceSettings />;
+      case "blocked":
+        return <BlockedUsersSettings />;
       default:
         return null;
     }
