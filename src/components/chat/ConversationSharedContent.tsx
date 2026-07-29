@@ -228,7 +228,7 @@ export default function ConversationSharedContent({
             className={cn(
               "flex-1 py-2.5 text-sm font-medium transition-colors",
               tab === item.id
-                ? "border-b-2 border-sky-500 text-sky-600"
+                ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-400"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -325,11 +325,11 @@ export default function ConversationSharedContent({
                   }
                   className="flex w-full items-start gap-3 px-3 py-3 text-left hover:bg-muted/60"
                 >
-                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
+                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400">
                     <ExternalLink size={18} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-sky-700">
+                    <span className="block truncate text-sm font-medium text-sky-700 dark:text-sky-300">
                       {item.label}
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">

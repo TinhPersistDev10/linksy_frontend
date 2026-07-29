@@ -214,13 +214,13 @@ export default function MemberProfileDialog({
                     />
                     {member.isOnline ? "Đang hoạt động" : "Ngoại tuyến"}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
                     <Shield size={12} />
                     {roleLabel}
                   </span>
                 </>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
                   Bạn bè
                 </span>
               )}

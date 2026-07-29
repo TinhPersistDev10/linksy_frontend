@@ -201,12 +201,12 @@ export default function MessageItem({
             className={cn(
               "w-64 max-w-[calc(100vw-5rem)] overflow-hidden rounded-lg border text-sm shadow-sm sm:w-72",
               isOwn
-                ? "border-blue-200 bg-blue-50 text-slate-800"
-                : "border-border bg-background",
+                ? "border-blue-500/30 bg-blue-500/10 text-foreground dark:border-blue-400/25 dark:bg-blue-500/15"
+                : "border-border bg-card text-card-foreground",
             )}
           >
             <div className="px-3.5 pb-2.5 pt-3">
-              <p className="font-semibold text-slate-800">{callInfo.label}</p>
+              <p className="font-semibold text-foreground">{callInfo.label}</p>
               <div className="mt-2 flex items-center gap-2 text-muted-foreground">
                 <Icon size={17} className="shrink-0" />
                 <span className="min-w-0 truncate">
@@ -228,7 +228,7 @@ export default function MessageItem({
               <button
                 type="button"
                 onClick={() => onCallAgain?.(callInfo.callType)}
-                className="flex h-10 w-full items-center justify-center gap-2 font-medium text-blue-600 transition-colors hover:bg-blue-50"
+                className="flex h-10 w-full items-center justify-center gap-2 font-medium text-sky-600 transition-colors hover:bg-sky-500/10 dark:text-sky-400 dark:hover:bg-sky-500/15"
               >
                 <PhoneCall size={16} />
                 Gọi lại
@@ -363,7 +363,7 @@ export default function MessageItem({
                   )}
                 >
                   {mediaOnly && isPinned && (
-                    <div className="mb-1 flex items-center gap-1 px-1 text-[10px] font-medium text-sky-700">
+                    <div className="mb-1 flex items-center gap-1 px-1 text-[10px] font-medium text-sky-700 dark:text-sky-400">
                       <Pin size={10} />
                       Đã ghim
                     </div>
@@ -415,7 +415,7 @@ export default function MessageItem({
                     "mb-1 flex items-center gap-1 text-[10px] font-medium",
                     isOwn && !emojiTextClass
                       ? "text-white/80"
-                      : "text-sky-700",
+                      : "text-sky-700 dark:text-sky-400",
                   )}
                 >
                   <Pin size={10} />

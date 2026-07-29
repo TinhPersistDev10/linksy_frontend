@@ -71,7 +71,7 @@ export default function PinnedMessagesBanner({
         aria-haspopup="listbox"
         className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-muted/60"
       >
-        <Pin size={14} className="mt-0.5 shrink-0 text-sky-600" />
+        <Pin size={14} className="mt-0.5 shrink-0 text-sky-600 dark:text-sky-400" />
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-foreground">{countLabel}</p>
           <p className="truncate text-xs text-muted-foreground">

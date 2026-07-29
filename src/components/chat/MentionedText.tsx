@@ -58,10 +58,10 @@ export default function MentionedText({
                   segment.isSelf
                     ? isOwn
                       ? "bg-white/25 text-white"
-                      : "bg-amber-200/80 text-amber-950"
+                      : "bg-amber-200/80 text-amber-950 dark:bg-amber-400/25 dark:text-amber-100"
                     : isOwn
                       ? "bg-white/15 text-white"
-                      : "bg-sky-100 text-sky-800",
+                      : "bg-sky-100 text-sky-800 dark:bg-sky-400/20 dark:text-sky-200",
                 )}
               >
                 {segment.value}
@@ -90,7 +90,7 @@ export default function MentionedText({
                   "break-all underline underline-offset-2",
                   isOwn
                     ? "text-white/95 decoration-white/70 hover:text-white"
-                    : "text-sky-700 decoration-sky-400/70 hover:text-sky-800",
+                    : "text-sky-700 decoration-sky-400/70 hover:text-sky-800 dark:text-sky-400 dark:decoration-sky-500/60 dark:hover:text-sky-300",
                 )}
               >
                 {part.value}
