@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { useCreateAdminUserMutation } from "@/lib/hooks/useAdminQueries";
 import type { CreateAdminUserRequest } from "@/lib/types/admin";
 import { getApiErrorMessage } from "@/lib/utils/admin-errors";
+import { isValidPassword, PASSWORD_RULE_MESSAGE } from "@/lib/utils/validators";
 
 interface CreateAdminUserDialogProps {
   open: boolean;
@@ -62,8 +63,8 @@ export function CreateAdminUserDialog({
       return;
     }
 
-    if (form.password.length < 6) {
-      setError("Mật khẩu tối thiểu 6 ký tự.");
+    if (!isValidPassword(form.password)) {
+      setError(PASSWORD_RULE_MESSAGE);
       return;
     }
 

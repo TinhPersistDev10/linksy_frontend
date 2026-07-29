@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
   IdCard,
@@ -13,6 +14,8 @@ import {
 import { blockedUsersApi } from "@/lib/api/blocked-users";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import { friendsApi } from "@/lib/api/friends";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { friendQueryKeys } from "@/lib/queries/queryKeys";
 import type { ChatroomResponse, FriendRequest } from "@/lib/types/chatroom";
 
 interface FriendRequestsViewProps {
@@ -71,11 +74,21 @@ function requestName(request: FriendRequest, side: "sender" | "receiver") {
 }
 
 export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [received, setReceived] = useState<FriendRequest[]>([]);
   const [sent, setSent] = useState<FriendRequest[]>([]);
   const [profileRequest, setProfileRequest] = useState<FriendRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  const syncReceivedBadge = (requests: FriendRequest[]) => {
+    if (!user?.userId) return;
+    queryClient.setQueryData(
+      friendQueryKeys.receivedRequests(user.userId),
+      requests,
+    );
+  };
 
   const load = async () => {
     setLoading(true);
@@ -86,6 +99,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
       ]);
       setReceived(receivedRequests);
       setSent(sentRequests);
+      syncReceivedBadge(receivedRequests);
       setProfileRequest((current) => {
         if (!current) return null;
         return receivedRequests.find((request) => request.requestId === current.requestId) ?? null;

@@ -2,9 +2,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { chatroomsApi } from "@/lib/api/chatrooms";
+import { friendsApi } from "@/lib/api/friends";
 import { notificationsApi } from "@/lib/api/notifications";
 import {
   chatroomQueryKeys,
+  friendQueryKeys,
   notificationQueryKeys,
 } from "@/lib/queries/queryKeys";
 import type { NotificationResponse } from "@/lib/types/notification";
@@ -54,5 +56,16 @@ export function useChatroomsQuery(userId: string | undefined) {
     },
     enabled: Boolean(userId),
     staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useReceivedFriendRequestsQuery(userId: string | undefined) {
+  return useQuery({
+    queryKey: friendQueryKeys.receivedRequests(userId ?? "anonymous"),
+    queryFn: friendsApi.getReceivedRequests,
+    enabled: Boolean(userId),
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
   });
 }

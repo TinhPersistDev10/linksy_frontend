@@ -35,10 +35,12 @@ import NotificationList from "../notification/NotificationList";
 import { useSidebarRealtime } from "@/lib/hooks/useSidebarRealtime";
 import {
   useChatroomsQuery,
+  useReceivedFriendRequestsQuery,
   useUnreadNotificationCountQuery,
 } from "@/lib/hooks/useServerStateQueries";
 import {
   chatroomQueryKeys,
+  friendQueryKeys,
   notificationQueryKeys,
 } from "@/lib/queries/queryKeys";
 import type { NotificationResponse } from "@/lib/types/notification";
@@ -90,11 +92,13 @@ function SocialMenuButton({
   active,
   icon: Icon,
   label,
+  badge,
   onClick,
 }: {
   active: boolean;
   icon: React.ElementType;
   label: string;
+  badge?: number;
   onClick: () => void;
 }) {
   return (
@@ -110,6 +114,11 @@ function SocialMenuButton({
     >
       <Icon size={18} />
       <span className="truncate">{label}</span>
+      {typeof badge === "number" && badge > 0 && (
+        <span className="ml-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -133,6 +142,9 @@ export function AppSidebar({
   const { data: chatrooms = [] } = useChatroomsQuery(user?.userId);
   const { data: notificationUnreadCount = 0 } =
     useUnreadNotificationCountQuery(user?.userId);
+  const { data: receivedFriendRequests = [] } =
+    useReceivedFriendRequestsQuery(user?.userId);
+  const friendRequestCount = receivedFriendRequests.length;
   const receivedNotificationIdsRef = React.useRef(new Set<string>());
   const previousExternalRefreshRef = React.useRef(externalRefreshTrigger);
 
@@ -151,6 +163,12 @@ export function AppSidebar({
         return;
       }
       receivedNotificationIdsRef.current.add(notification.notificationId);
+
+      if (notification.notificationType === "friend_request") {
+        void queryClient.invalidateQueries({
+          queryKey: friendQueryKeys.receivedRequests(user.userId),
+        });
+      }
 
       const listKey = notificationQueryKeys.list(user.userId, 1, 20);
       const countKey = notificationQueryKeys.unreadCount(user.userId);
@@ -200,6 +218,9 @@ export function AppSidebar({
       }),
       queryClient.invalidateQueries({
         queryKey: notificationQueryKeys.list(user.userId, 1, 20),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: friendQueryKeys.receivedRequests(user.userId),
       }),
     ]);
   }, [queryClient, user?.userId]);
@@ -335,6 +356,12 @@ export function AppSidebar({
                   </span>
                 )}
 
+                {id === "friends" && friendRequestCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                    {friendRequestCount > 99 ? "99+" : friendRequestCount}
+                  </span>
+                )}
+
                 {id === "notifications" && notificationUnreadCount > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
                     {notificationUnreadCount > 99
@@ -450,6 +477,11 @@ export function AppSidebar({
                       {messageUnreadCount > 99 ? "99+" : messageUnreadCount}
                     </span>
                   )}
+                  {id === "friends" && friendRequestCount > 0 && (
+                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                      {friendRequestCount > 99 ? "99+" : friendRequestCount}
+                    </span>
+                  )}
                   {id === "notifications" && notificationUnreadCount > 0 && (
                     <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
                       {notificationUnreadCount > 99
@@ -497,6 +529,7 @@ export function AppSidebar({
                   active={currentSocialView === "friend-requests"}
                   icon={UserPlus}
                   label="Lời mời kết bạn"
+                  badge={friendRequestCount}
                   onClick={() => {
                     setActiveTab("friends");
                     setFriendView("requests");
