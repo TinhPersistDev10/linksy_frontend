@@ -231,7 +231,7 @@ export default function NotificationList({
   if (isError) {
     return (
       <div className="px-3 py-8 text-center text-xs text-red-500">
-        KhÃ´ng thá»ƒ táº£i thÃ´ng bÃ¡o.
+        Không thể tải thông báo.
       </div>
     );
   }
@@ -303,17 +303,19 @@ export default function NotificationList({
           const clickable = item.notificationType === "friend_request";
 
           return (
-            <button
+            <div
               key={item.notificationId}
-              type="button"
-              onClick={() => handleOpenNotification(item)}
-              className={`group w-full rounded-xl border px-3 py-3 text-left transition hover:border-sky-500/30 hover:bg-sky-500/10 ${
+              className={`group flex w-full items-start gap-1 rounded-xl border px-2 py-2 transition hover:border-sky-500/30 hover:bg-sky-500/10 ${
                 item.isRead
                   ? "border-border/60 bg-card opacity-90"
                   : "border-sky-500/25 bg-sky-500/10"
               }`}
             >
-              <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => handleOpenNotification(item)}
+                className="flex min-w-0 flex-1 gap-3 rounded-lg px-1 py-1 text-left"
+              >
                 <div className="relative shrink-0">
                   <NotificationIcon item={item} />
                   {!item.isRead && (
@@ -348,20 +350,19 @@ export default function NotificationList({
                     )}
                   </div>
                 </div>
+              </button>
 
-                <button
-                  type="button"
-                  title="Xóa thông báo"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void deleteNotification(item.notificationId);
-                  }}
-                  className="shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition hover:bg-red-500/10 hover:text-red-600 group-hover:opacity-100 dark:hover:text-red-400"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </button>
+              <button
+                type="button"
+                title="Xóa thông báo"
+                onClick={() => {
+                  void deleteNotification(item.notificationId);
+                }}
+                className="mt-1 shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition hover:bg-red-500/10 hover:text-red-600 group-hover:opacity-100 dark:hover:text-red-400"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           );
         })
       )}

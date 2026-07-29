@@ -79,17 +79,7 @@ export default function RegisterForm() {
           type="text"
           placeholder="Nguyễn Văn A"
           error={errors.fullname?.message}
-          {...register("fullname", {
-            required: "Họ và tên là bắt buộc",
-            minLength: {
-              value: 2,
-              message: "Họ và tên phải có ít nhất 2 ký tự",
-            },
-            maxLength: {
-              value: 100,
-              message: "Họ và tên không được quá 100 ký tự",
-            },
-          })}
+          {...register("fullname", validators.fullname)}
         />
 
         {/* Tên người dùng */}
@@ -98,21 +88,7 @@ export default function RegisterForm() {
           type="text"
           placeholder="username"
           error={errors.username?.message}
-          {...register("username", {
-            required: "Tên người dùng là bắt buộc",
-            minLength: {
-              value: 3,
-              message: "Tên người dùng phải có ít nhất 3 ký tự",
-            },
-            maxLength: {
-              value: 50,
-              message: "Tên người dùng không được quá 50 ký tự",
-            },
-            pattern: {
-              value: /^[a-zA-Z0-9_]+$/,
-              message: "Tên người dùng chỉ được chứa chữ, số và dấu gạch dưới",
-            },
-          })}
+          {...register("username", validators.username)}
         />
 
         {/* Email */}
@@ -121,13 +97,7 @@ export default function RegisterForm() {
           type="email"
           placeholder="example@email.com"
           error={errors.email?.message}
-          {...register("email", {
-            required: "Email là bắt buộc",
-            pattern: {
-              value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-              message: "Email không hợp lệ",
-            },
-          })}
+          {...register("email", validators.email)}
         />
 
         {/* Ngày sinh */}

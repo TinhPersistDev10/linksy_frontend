@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils/cn";
 import type { MessageAttachment } from "@/lib/types/message";
+import type { GalleryImage } from "./MediaGalleryViewer";
 
 type ImageItem = {
   key: string;
@@ -13,6 +14,10 @@ type MessageImageGridProps = {
   images: ImageItem[];
   isOwn?: boolean;
   className?: string;
+  /** Opens in-app gallery instead of a new browser tab. */
+  onOpenImage?: (images: GalleryImage[], startIndex: number) => void;
+  senderName?: string;
+  sentAt?: string;
 };
 
 function getAttachmentUrl(attachment: MessageAttachment) {
@@ -42,22 +47,38 @@ export function collectImageAttachments(
   return items;
 }
 
+function toGalleryImages(
+  images: ImageItem[],
+  senderName?: string,
+  sentAt?: string,
+): GalleryImage[] {
+  return images.map((item) => ({
+    key: item.key,
+    url: item.url,
+    type: "image" as const,
+    fileName: item.fileName,
+    senderName,
+    sentAt,
+  }));
+}
+
 function ImageTile({
   item,
   className,
   overlay,
+  onOpen,
 }: {
   item: ImageItem;
   className?: string;
   overlay?: string;
+  onOpen: () => void;
 }) {
   return (
-    <a
-      href={item.url}
-      target="_blank"
-      rel="noreferrer"
-      title={`Mở ${item.fileName}`}
-      aria-label={`Mở ảnh ${item.fileName}`}
+    <button
+      type="button"
+      onClick={onOpen}
+      title={`Xem ${item.fileName}`}
+      aria-label={`Xem ảnh ${item.fileName}`}
       className={cn(
         "relative block overflow-hidden bg-muted/80 outline-none ring-offset-1 focus-visible:ring-2 focus-visible:ring-sky-400",
         className,
@@ -75,7 +96,7 @@ function ImageTile({
           {overlay}
         </span>
       )}
-    </a>
+    </button>
   );
 }
 
@@ -86,8 +107,19 @@ export default function MessageImageGrid({
   images,
   isOwn = false,
   className,
+  onOpenImage,
+  senderName,
+  sentAt,
 }: MessageImageGridProps) {
   if (images.length === 0) return null;
+
+  const openAt = (startIndex: number) => {
+    if (onOpenImage) {
+      onOpenImage(toGalleryImages(images, senderName, sentAt), startIndex);
+      return;
+    }
+    window.open(images[startIndex]?.url, "_blank", "noopener,noreferrer");
+  };
 
   const count = images.length;
   const shell = cn(
@@ -99,13 +131,12 @@ export default function MessageImageGrid({
   if (count === 1) {
     return (
       <div className={cn(shell, "max-w-[280px] sm:max-w-[320px]")}>
-        <a
-          href={images[0].url}
-          target="_blank"
-          rel="noreferrer"
-          title={`Mở ${images[0].fileName}`}
-          aria-label={`Mở ảnh ${images[0].fileName}`}
-          className="block outline-none ring-offset-1 focus-visible:ring-2 focus-visible:ring-sky-400"
+        <button
+          type="button"
+          onClick={() => openAt(0)}
+          title={`Xem ${images[0].fileName}`}
+          aria-label={`Xem ảnh ${images[0].fileName}`}
+          className="block w-full outline-none ring-offset-1 focus-visible:ring-2 focus-visible:ring-sky-400"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -114,7 +145,7 @@ export default function MessageImageGrid({
             className="max-h-[360px] w-full object-cover"
             loading="lazy"
           />
-        </a>
+        </button>
       </div>
     );
   }
@@ -127,11 +158,12 @@ export default function MessageImageGrid({
           "grid w-[min(100%,280px)] grid-cols-2 gap-0.5 sm:w-[300px]",
         )}
       >
-        {images.map((item) => (
+        {images.map((item, index) => (
           <ImageTile
             key={item.key}
             item={item}
             className="aspect-square min-h-0"
+            onOpen={() => openAt(index)}
           />
         ))}
       </div>
@@ -149,9 +181,10 @@ export default function MessageImageGrid({
         <ImageTile
           item={images[0]}
           className="row-span-2 min-h-0"
+          onOpen={() => openAt(0)}
         />
-        <ImageTile item={images[1]} className="min-h-0" />
-        <ImageTile item={images[2]} className="min-h-0" />
+        <ImageTile item={images[1]} className="min-h-0" onOpen={() => openAt(1)} />
+        <ImageTile item={images[2]} className="min-h-0" onOpen={() => openAt(2)} />
       </div>
     );
   }
@@ -164,18 +197,18 @@ export default function MessageImageGrid({
           "grid w-[min(100%,280px)] grid-cols-2 gap-0.5 sm:w-[300px]",
         )}
       >
-        {images.map((item) => (
+        {images.map((item, index) => (
           <ImageTile
             key={item.key}
             item={item}
             className="aspect-square min-h-0"
+            onOpen={() => openAt(index)}
           />
         ))}
       </div>
     );
   }
 
-  // 5+: show first 4 in 2x2 with +N on the last cell
   const visible = images.slice(0, 4);
   const extra = count - 4;
 
@@ -192,6 +225,7 @@ export default function MessageImageGrid({
           item={item}
           className="aspect-square min-h-0"
           overlay={index === 3 && extra > 0 ? `+${extra}` : undefined}
+          onOpen={() => openAt(index === 3 && extra > 0 ? 3 : index)}
         />
       ))}
     </div>
