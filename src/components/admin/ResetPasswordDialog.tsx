@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminResetPasswordMutation } from "@/lib/hooks/useAdminQueries";
 import { getApiErrorMessage } from "@/lib/utils/admin-errors";
+import { isValidPassword, PASSWORD_RULE_MESSAGE } from "@/lib/utils/validators";
 
 interface ResetPasswordDialogProps {
   open: boolean;
@@ -46,8 +47,8 @@ export function ResetPasswordDialog({
     event.preventDefault();
     setError("");
 
-    if (password.length < 6) {
-      setError("Mật khẩu tối thiểu 6 ký tự.");
+    if (!isValidPassword(password)) {
+      setError(PASSWORD_RULE_MESSAGE);
       return;
     }
 

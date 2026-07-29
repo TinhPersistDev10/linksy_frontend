@@ -6,6 +6,7 @@ import { Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { usersApi } from "@/lib/api/users";
+import { validators } from "@/lib/utils/validators";
 
 interface PasswordFormData {
   currentPassword: string;
@@ -111,10 +112,7 @@ export default function PasswordSettings() {
             type={showNew ? "text" : "password"}
             placeholder="********"
             error={errors.newPassword?.message}
-            {...register("newPassword", {
-              required: "Vui lòng nhập mật khẩu mới",
-              minLength: { value: 6, message: "Ít nhất 6 ký tự" },
-            })}
+            {...register("newPassword", validators.password)}
           />
           <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-9 text-gray-500 hover:text-gray-700">
             {showNew ? <EyeOff size={16} /> : <Eye size={16} />}

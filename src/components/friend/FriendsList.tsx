@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { friendsApi } from "@/lib/api/friends";
 import { chatroomsApi } from "@/lib/api/chatrooms";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { friendQueryKeys } from "@/lib/queries/queryKeys";
 import type { Friend, FriendRequest, Chatroom } from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
 import FriendRow from "./FriendRow";
@@ -26,6 +29,8 @@ export default function FriendsList({
   initialView = "friends",
   onViewChange,
 }: FriendsListProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -73,7 +78,14 @@ export default function FriendsList({
   const loadReceivedRequests = async () => {
     setRequestsLoading(true);
     try {
-      setReceivedRequests(await friendsApi.getReceivedRequests());
+      const requests = await friendsApi.getReceivedRequests();
+      setReceivedRequests(requests);
+      if (user?.userId) {
+        queryClient.setQueryData(
+          friendQueryKeys.receivedRequests(user.userId),
+          requests,
+        );
+      }
     } finally {
       setRequestsLoading(false);
     }

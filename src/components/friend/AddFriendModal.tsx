@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Search, UserPlus, Check, X, Clock, Users, Bell } from "lucide-react";
 import { friendsApi } from "@/lib/api/friends";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { friendQueryKeys } from "@/lib/queries/queryKeys";
 import type { SearchUserResult, FriendRequest } from "@/lib/types/chatroom";
 import { getApiOrigin } from "@/lib/utils/apiUrl";
 import { cn } from "@/lib/utils/cn";
@@ -128,6 +131,8 @@ export default function AddFriendModal({
   onClose,
   onFriendAdded,
 }: AddFriendModalProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("search");
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchUserResult[]>([]);
@@ -136,6 +141,14 @@ export default function AddFriendModal({
   const [searching, setSearching] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+
+  const syncReceivedBadge = (requests: FriendRequest[]) => {
+    if (!user?.userId) return;
+    queryClient.setQueryData(
+      friendQueryKeys.receivedRequests(user.userId),
+      requests,
+    );
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -153,6 +166,7 @@ export default function AddFriendModal({
       ]);
       setReceivedRequests(received);
       setSentRequests(sent);
+      syncReceivedBadge(received);
     } catch (e) {
       console.error("Load requests error:", e);
     }
@@ -214,9 +228,11 @@ export default function AddFriendModal({
     setLoadingId(requestId);
     try {
       await friendsApi.acceptRequest(requestId);
-      setReceivedRequests((prev) =>
-        prev.filter((r) => r.requestId !== requestId),
-      );
+      setReceivedRequests((prev) => {
+        const next = prev.filter((r) => r.requestId !== requestId);
+        syncReceivedBadge(next);
+        return next;
+      });
       onFriendAdded?.();
     } catch (e: unknown) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -231,9 +247,11 @@ export default function AddFriendModal({
     setLoadingId(requestId);
     try {
       await friendsApi.rejectRequest(requestId);
-      setReceivedRequests((prev) =>
-        prev.filter((r) => r.requestId !== requestId),
-      );
+      setReceivedRequests((prev) => {
+        const next = prev.filter((r) => r.requestId !== requestId);
+        syncReceivedBadge(next);
+        return next;
+      });
     } catch (e: unknown) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const error = (e as any);
