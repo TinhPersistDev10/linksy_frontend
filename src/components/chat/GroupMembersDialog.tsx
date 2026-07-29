@@ -218,7 +218,7 @@ export default function GroupMembersDialog({
                 className={cn(
                   "flex-1 py-2.5 text-sm font-semibold transition-colors",
                   tab === item.id
-                    ? "border-b-2 border-sky-500 text-sky-600"
+                    ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-400"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -228,7 +228,7 @@ export default function GroupMembersDialog({
           </div>
 
           {error && (
-            <p className="mx-4 mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+            <p className="mx-4 mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-500/15 dark:text-red-300">
               {error}
             </p>
           )}
@@ -342,7 +342,7 @@ export default function GroupMembersDialog({
                             type="button"
                             disabled={actionLoading}
                             onClick={() => void removeMember(member)}
-                            className="flex w-full items-center gap-3 border-t px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            className="flex w-full items-center gap-3 border-t px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-500/10"
                           >
                             <UserMinus size={17} /> Xóa khỏi nhóm
                           </button>

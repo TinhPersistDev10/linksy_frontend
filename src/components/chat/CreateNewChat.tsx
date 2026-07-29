@@ -172,7 +172,7 @@ export default function CreateNewChat({
         </div>
 
         {error && (
-          <div className="mx-4 mb-2 p-2.5 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+          <div className="mx-4 mb-2 p-2.5 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg dark:bg-red-500/15 dark:border-red-500/30 dark:text-red-300">
             {error}
           </div>
         )}

@@ -39,7 +39,7 @@ export default function MessageReactions({
           className={cn(
             "inline-flex h-7 items-center gap-1 rounded-full border px-2 text-sm transition-colors",
             reaction.reactedByMe
-              ? "border-sky-400/70 bg-sky-50 text-sky-800"
+              ? "border-sky-400/70 bg-sky-50 text-sky-800 dark:bg-sky-500/20 dark:text-sky-200"
               : "border-border bg-background text-foreground hover:bg-muted",
             disabled && "pointer-events-none opacity-50",
           )}
