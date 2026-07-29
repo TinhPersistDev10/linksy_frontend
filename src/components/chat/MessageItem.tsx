@@ -10,6 +10,7 @@ import {
   PhoneCall,
   Pin,
   PinOff,
+  Play,
   Reply,
   Smile,
   SmilePlus,
@@ -43,6 +44,7 @@ import MentionedText from "./MentionedText";
 import MessageImageGrid, {
   collectImageAttachments,
 } from "./MessageImageGrid";
+import type { GalleryImage } from "./MediaGalleryViewer";
 import MessageReactions from "./MessageReactions";
 import EmojiPickerPopover, {
   QUICK_REACTION_EMOJIS,
@@ -64,6 +66,7 @@ interface MessageItemProps {
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
   onToggleReaction?: (messageId: string, emojiCode: string) => void;
+  onOpenGallery?: (images: GalleryImage[], startIndex: number) => void;
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
@@ -155,6 +158,7 @@ export default function MessageItem({
   onPin,
   onUnpin,
   onToggleReaction,
+  onOpenGallery,
 }: MessageItemProps) {
   const [reactionOpen, setReactionOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -368,7 +372,13 @@ export default function MessageItem({
                       Đã ghim
                     </div>
                   )}
-                  <MessageImageGrid images={imageAttachments} isOwn={isOwn} />
+                  <MessageImageGrid
+                    images={imageAttachments}
+                    isOwn={isOwn}
+                    senderName={msg.senderFullname || msg.senderUsername}
+                    sentAt={msg.sentAt}
+                    onOpenImage={onOpenGallery}
+                  />
                 </div>
               )}
 
@@ -379,17 +389,48 @@ export default function MessageItem({
                     if (!url) return null;
                     const key = attachment.attachmentId ?? url;
                     return (
-                      <video
+                      <button
                         key={key}
-                        src={url}
-                        controls
+                        type="button"
+                        onClick={() =>
+                          onOpenGallery?.(
+                            [
+                              {
+                                key,
+                                url,
+                                type: "video",
+                                fileName: attachment.fileName,
+                                senderName:
+                                  msg.senderFullname || msg.senderUsername,
+                                sentAt: msg.sentAt,
+                                thumbnailUrl: attachment.thumbnailUrl,
+                              },
+                            ],
+                            0,
+                          )
+                        }
                         className={cn(
-                          "max-h-72 max-w-full bg-black",
+                          "relative max-h-72 max-w-full overflow-hidden bg-black outline-none focus-visible:ring-2 focus-visible:ring-sky-400",
                           isOwn
                             ? "rounded-2xl rounded-br-md"
                             : "rounded-2xl rounded-bl-md",
                         )}
-                      />
+                        aria-label={`Xem video ${attachment.fileName}`}
+                      >
+                        <video
+                          src={url}
+                          poster={attachment.thumbnailUrl ?? undefined}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="max-h-72 w-full object-cover"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/25">
+                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white">
+                            <Play size={22} className="ml-0.5 fill-white" />
+                          </span>
+                        </span>
+                      </button>
                     );
                   })}
                 </div>

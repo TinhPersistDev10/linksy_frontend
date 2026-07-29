@@ -54,14 +54,14 @@ export default function MentionedText({
               <span
                 key={`m-${segment.userId}-${index}`}
                 className={cn(
-                  "rounded px-0.5 font-semibold",
+                  "mx-0.5 inline rounded-md px-1 py-0.5 text-[0.95em] font-medium leading-none",
                   segment.isSelf
                     ? isOwn
-                      ? "bg-white/25 text-white"
-                      : "bg-amber-200/80 text-amber-950 dark:bg-amber-400/25 dark:text-amber-100"
+                      ? "bg-white/25 text-white ring-1 ring-inset ring-white/25"
+                      : "bg-amber-500/15 text-amber-800 ring-1 ring-inset ring-amber-500/20 dark:bg-amber-400/15 dark:text-amber-100 dark:ring-amber-300/20"
                     : isOwn
-                      ? "bg-white/15 text-white"
-                      : "bg-sky-100 text-sky-800 dark:bg-sky-400/20 dark:text-sky-200",
+                      ? "bg-white/15 text-white/95 ring-1 ring-inset ring-white/15"
+                      : "bg-sky-500/10 text-sky-700 ring-1 ring-inset ring-sky-500/15 dark:bg-sky-400/15 dark:text-sky-200 dark:ring-sky-300/20",
                 )}
               >
                 {segment.value}

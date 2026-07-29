@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import MediaGalleryViewer, { type GalleryImage } from "./MediaGalleryViewer";
 
 type SharedTab = "media" | "files" | "links";
 
@@ -32,6 +33,7 @@ type SharedMediaItem = {
   fileName: string;
   durationMs?: number | null;
   sentAt: string;
+  senderName: string;
 };
 
 type SharedFileItem = {
@@ -88,6 +90,8 @@ export default function ConversationSharedContent({
     href: string;
     label: string;
   } | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const loadShared = useCallback(async () => {
     setLoading(true);
@@ -139,6 +143,7 @@ export default function ConversationSharedContent({
             fileName: att.fileName,
             durationMs: att.durationMs ?? att.duration,
             sentAt: msg.sentAt,
+            senderName: msg.senderFullname || msg.senderUsername,
           });
         }
       }
@@ -199,6 +204,26 @@ export default function ConversationSharedContent({
     return Array.from(map.entries());
   }, [mediaItems]);
 
+  const galleryImages = useMemo<GalleryImage[]>(
+    () =>
+      mediaItems.map((item) => ({
+        key: item.id,
+        url: item.url,
+        type: item.type,
+        fileName: item.fileName,
+        senderName: item.senderName,
+        sentAt: item.sentAt,
+        thumbnailUrl: item.thumbnailUrl,
+      })),
+    [mediaItems],
+  );
+
+  const openMediaItem = (item: SharedMediaItem) => {
+    const index = galleryImages.findIndex((image) => image.key === item.id);
+    setGalleryIndex(index >= 0 ? index : 0);
+    setGalleryOpen(true);
+  };
+
   const tabs: { id: SharedTab; label: string }[] = [
     { id: "media", label: "Phương tiện" },
     { id: "files", label: "Tệp" },
@@ -254,12 +279,16 @@ export default function ConversationSharedContent({
                   <h4 className="mb-2 px-3 text-sm font-semibold">{month}</h4>
                   <div className="grid grid-cols-3 gap-0.5">
                     {items.map((item) => (
-                      <a
+                      <button
                         key={item.id}
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="relative aspect-square overflow-hidden bg-muted"
+                        type="button"
+                        onClick={() => openMediaItem(item)}
+                        className="relative aspect-square overflow-hidden bg-muted outline-none ring-offset-1 focus-visible:ring-2 focus-visible:ring-sky-400"
+                        aria-label={
+                          item.type === "video"
+                            ? `Xem video ${item.fileName}`
+                            : `Xem ảnh ${item.fileName}`
+                        }
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
@@ -272,7 +301,7 @@ export default function ConversationSharedContent({
                             {formatDuration(item.durationMs) ?? "Video"}
                           </span>
                         )}
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </section>
@@ -381,6 +410,13 @@ export default function ConversationSharedContent({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MediaGalleryViewer
+        open={galleryOpen}
+        images={galleryImages}
+        initialIndex={galleryIndex}
+        onClose={() => setGalleryOpen(false)}
+      />
     </div>
   );
 }

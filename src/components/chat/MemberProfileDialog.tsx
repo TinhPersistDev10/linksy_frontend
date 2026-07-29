@@ -20,6 +20,7 @@ import type { ChatroomMemberResponse } from "@/lib/types/chatroom";
 import type { User } from "@/lib/types/user";
 import { cn } from "@/lib/utils/cn";
 import ChatAvatar from "./ChatAvatar";
+import AvatarViewer from "@/components/ui/AvatarViewer";
 
 type MemberProfileDialogProps = {
   open: boolean;
@@ -103,11 +104,13 @@ export default function MemberProfileDialog({
   const [profile, setProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [avatarViewerOpen, setAvatarViewerOpen] = useState(false);
 
   useEffect(() => {
     if (!open || !member?.userId) {
       setProfile(null);
       setError("");
+      setAvatarViewerOpen(false);
       return;
     }
 
@@ -150,39 +153,44 @@ export default function MemberProfileDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <article
-        className="relative max-h-[min(92vh,760px)] w-full max-w-[440px] overflow-y-auto rounded-2xl bg-card shadow-2xl shadow-slate-900/20"
+        className="relative max-h-[min(92vh,760px)] w-full max-w-[440px] overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="relative h-28 bg-gradient-to-br from-sky-500 via-sky-600 to-indigo-600">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.28),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.18),transparent_40%)]" />
+        <header className="sticky top-0 z-10 flex items-center justify-end bg-card/95 px-3 py-2 backdrop-blur-sm">
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-3 top-3 rounded-full bg-black/20 p-1.5 text-white backdrop-blur-sm transition hover:bg-black/35"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
             aria-label="Đóng"
           >
             <X size={18} />
           </button>
-        </div>
+        </header>
 
-        <div className="px-6 pb-6">
-          <div className="-mt-12 flex flex-col items-center text-center">
+        <div className="px-6 pb-6 pt-1">
+          <div className="flex flex-col items-center text-center">
             <div className="relative">
-              <div className="rounded-full bg-card p-1 shadow-md">
+              <button
+                type="button"
+                onClick={() => setAvatarViewerOpen(true)}
+                className="rounded-full bg-card p-1 shadow-md ring-1 ring-border transition hover:ring-sky-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                title="Xem ảnh đại diện"
+                aria-label="Xem ảnh đại diện"
+              >
                 <ChatAvatar
                   src={avatar ?? undefined}
                   name={displayName}
                   size={24}
                 />
-              </div>
+              </button>
               {showGroupInfo && (
                 <span
                   className={cn(
-                    "absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-white",
+                    "pointer-events-none absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-card",
                     member.isOnline ? "bg-emerald-500" : "bg-muted-foreground/40",
                   )}
                   title={member.isOnline ? "Đang hoạt động" : "Ngoại tuyến"}
@@ -396,6 +404,13 @@ export default function MemberProfileDialog({
           </div>
         </div>
       </article>
+
+      <AvatarViewer
+        open={avatarViewerOpen}
+        src={avatar}
+        name={displayName}
+        onClose={() => setAvatarViewerOpen(false)}
+      />
     </div>
   );
 }

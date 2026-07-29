@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, ChevronRight, Lock, Palette, ShieldBan, User, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import AppearanceSettings from "./AppearanceSettings";
@@ -12,6 +12,8 @@ import ProfileSettings from "./ProfileSettings";
 interface SettingsPanelProps {
   open: boolean;
   onClose: () => void;
+  /** When opening, jump straight into this settings section (e.g. "profile"). */
+  initialTab?: string | null;
 }
 
 const navItems = [
@@ -47,8 +49,20 @@ const navItems = [
   },
 ];
 
-export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
+export default function SettingsPanel({
+  open,
+  onClose,
+  initialTab = null,
+}: SettingsPanelProps) {
   const [activeTab, setActiveTab] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setActiveTab(null);
+      return;
+    }
+    setActiveTab(initialTab);
+  }, [open, initialTab]);
 
   const renderContent = () => {
     switch (activeTab) {

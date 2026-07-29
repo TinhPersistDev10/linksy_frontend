@@ -11,11 +11,13 @@ import {
   LogOut,
   Bell,
   Hash,
+  User,
   UserPlus,
   UserRoundPlus,
   UsersRound,
 } from "lucide-react";
 import SettingsPanel from "../settings/SettingsPanel";
+import AccountInfoDialog from "../settings/AccountInfoDialog";
 import DirectMessageList from "../chat/DirectMessageList";
 import StartChatModal from "../chat/StartChatModal";
 
@@ -60,12 +62,11 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   mobileHidden?: boolean;
 }
 
-type NavTab = "messages" | "friends" | "groups" | "notifications";
+type NavTab = "messages" | "friends" | "groups";
 const navItems: { id: NavTab; icon: React.ElementType; label: string }[] = [
   { id: "messages", icon: MessageCircle, label: "Tin nhắn" },
   { id: "friends", icon: Users, label: "Bạn bè" },
   { id: "groups", icon: Hash, label: "Nhóm" },
-  { id: "notifications", icon: Bell, label: "Thông báo" },
 ];
 
 function Avatar({ src, name }: { src?: string; name: string }) {
@@ -135,7 +136,12 @@ export function AppSidebar({
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = React.useState<
+    string | null
+  >(null);
+  const [accountInfoOpen, setAccountInfoOpen] = React.useState(false);
   const [startChatOpen, setStartChatOpen] = React.useState(false);
+  const [notificationsOpen, setNotificationsOpen] = React.useState(false);
   const [refreshTrigger, setRefreshTrigger] = React.useState(0);
   const [activeTab, setActiveTab] = React.useState<NavTab>("messages");
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -293,6 +299,7 @@ export function AppSidebar({
   const handleTabChange = (tab: NavTab) => {
     setActiveTab(tab);
     setSearchQuery("");
+    setNotificationsOpen(false);
 
     if (tab === "messages") {
       openSocialView("messages");
@@ -306,10 +313,21 @@ export function AppSidebar({
     if (tab === "groups") {
       openSocialView("groups-directory");
     }
+  };
 
-    if (tab === "notifications") {
-      openSocialView("messages");
-    }
+  const openSettings = (tab: string | null = null) => {
+    setSettingsInitialTab(tab);
+    setSettingsOpen(true);
+    setAccountInfoOpen(false);
+    setAvatarMenuOpen(false);
+    setNotificationsOpen(false);
+  };
+
+  const openAccountInfo = () => {
+    setAccountInfoOpen(true);
+    setSettingsOpen(false);
+    setAvatarMenuOpen(false);
+    setNotificationsOpen(false);
   };
 
   const handleFriendAdded = () => setRefreshTrigger((p) => p + 1);
@@ -362,14 +380,6 @@ export function AppSidebar({
                   </span>
                 )}
 
-                {id === "notifications" && notificationUnreadCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
-                    {notificationUnreadCount > 99
-                      ? "99+"
-                      : notificationUnreadCount}
-                  </span>
-                )}
-
                 <span className="absolute left-full ml-2 px-2 py-1 bg-foreground text-background text-xs rounded-md whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
                   {label}
                 </span>
@@ -378,6 +388,18 @@ export function AppSidebar({
           </div>
 
           <div className="relative mt-auto flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={openAccountInfo}
+              title="Thông tin cá nhân"
+              className={cn(
+                "relative w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+              )}
+            >
+              <User size={18} />
+            </button>
+
             <button
               type="button"
               onClick={() => setAvatarMenuOpen((open) => !open)}
@@ -398,10 +420,7 @@ export function AppSidebar({
                 <div className="absolute bottom-0 left-full z-50 ml-2 w-44 rounded-lg border border-border bg-background p-1 shadow-lg">
                   <button
                     type="button"
-                    onClick={() => {
-                      setAvatarMenuOpen(false);
-                      setSettingsOpen(true);
-                    }}
+                    onClick={() => openSettings(null)}
                     className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted"
                   >
                     <Settings size={15} />
@@ -430,17 +449,83 @@ export function AppSidebar({
           {...props}
         >
           <SidebarHeader className="px-4 py-3 border-b border-sidebar-border">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <h2 className="text-base font-semibold text-sidebar-foreground">
                 {tabLabel}
               </h2>
-              <button
-                onClick={() => setStartChatOpen(true)}
-                title="Tìm bạn / Tạo chat mới"
-                className="w-8 h-8 rounded-lg bg-sky-500 text-white flex items-center justify-center hover:bg-sky-600 transition-colors shadow-sm"
-              >
-                <PenSquare size={14} />
-              </button>
+              <div className="relative flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAvatarMenuOpen(false);
+                    setNotificationsOpen((open) => !open);
+                  }}
+                  title="Thông báo"
+                  aria-label="Thông báo"
+                  aria-expanded={notificationsOpen}
+                  className={cn(
+                    "relative flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+                    notificationsOpen
+                      ? "bg-sky-500 text-white shadow-sm"
+                      : "bg-muted/70 text-sidebar-foreground/80 hover:bg-muted hover:text-sidebar-foreground",
+                  )}
+                >
+                  <Bell size={15} />
+                  {notificationUnreadCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                      {notificationUnreadCount > 99
+                        ? "99+"
+                        : notificationUnreadCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotificationsOpen(false);
+                    setStartChatOpen(true);
+                  }}
+                  title="Tìm bạn / Tạo chat mới"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500 text-white shadow-sm transition-colors hover:bg-sky-600"
+                >
+                  <PenSquare size={14} />
+                </button>
+
+                {notificationsOpen && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Đóng thông báo"
+                      className="fixed inset-0 z-40 cursor-default bg-transparent"
+                      onClick={() => setNotificationsOpen(false)}
+                    />
+                    <div className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-xl border border-border bg-background shadow-xl sm:w-80">
+                      <div className="flex items-center justify-between border-b px-3 py-2.5">
+                        <h3 className="text-sm font-semibold">Thông báo</h3>
+                        <button
+                          type="button"
+                          onClick={() => setNotificationsOpen(false)}
+                          className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          Đóng
+                        </button>
+                      </div>
+                      <div className="max-h-[min(70vh,28rem)] overflow-y-auto p-2">
+                        <NotificationList
+                          onOpenFriendRequests={() => {
+                            setNotificationsOpen(false);
+                            setFriendView("requests");
+                            setActiveTab("friends");
+                            setSearchQuery("");
+                            openSocialView("friend-requests");
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             <div className="relative mt-2">
               <Search
@@ -456,7 +541,7 @@ export function AppSidebar({
               />
             </div>
 
-            <div className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-muted/50 p-1 md:hidden">
+            <div className="mt-3 grid grid-cols-3 gap-1 rounded-xl bg-muted/50 p-1 md:hidden">
               {navItems.map(({ id, icon: Icon, label }) => (
                 <button
                   key={id}
@@ -480,13 +565,6 @@ export function AppSidebar({
                   {id === "friends" && friendRequestCount > 0 && (
                     <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
                       {friendRequestCount > 99 ? "99+" : friendRequestCount}
-                    </span>
-                  )}
-                  {id === "notifications" && notificationUnreadCount > 0 && (
-                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
-                      {notificationUnreadCount > 99
-                        ? "99+"
-                        : notificationUnreadCount}
                     </span>
                   )}
                 </button>
@@ -547,17 +625,6 @@ export function AppSidebar({
                 />
               </div>
             )}
-
-            {activeTab === "notifications" && (
-              <NotificationList
-                onOpenFriendRequests={() => {
-                  setFriendView("requests");
-                  setActiveTab("friends");
-                  setSearchQuery("");
-                  openSocialView("friend-requests");
-                }}
-              />
-            )}
           </SidebarContent>
 
           <SidebarFooter className="border-t md:hidden px-3 py-2">
@@ -577,7 +644,16 @@ export function AppSidebar({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => setSettingsOpen(true)}
+                  onClick={openAccountInfo}
+                  className="cursor-pointer"
+                >
+                  <User size={16} />
+                  <span>Thông tin cá nhân</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => openSettings(null)}
                   className="cursor-pointer"
                 >
                   <Settings size={16} />
@@ -600,7 +676,15 @@ export function AppSidebar({
 
       <SettingsPanel
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        initialTab={settingsInitialTab}
+        onClose={() => {
+          setSettingsOpen(false);
+          setSettingsInitialTab(null);
+        }}
+      />
+      <AccountInfoDialog
+        open={accountInfoOpen}
+        onClose={() => setAccountInfoOpen(false)}
       />
       <StartChatModal
         open={startChatOpen}

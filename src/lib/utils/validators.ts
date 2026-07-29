@@ -5,6 +5,10 @@ export const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).+$/;
 export const PASSWORD_RULE_MESSAGE =
   "Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ và số";
 
+export const BIO_MAX_LENGTH = 500;
+
+export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
 export function isValidPassword(password: string): boolean {
   return (
     password.length >= PASSWORD_MIN_LENGTH && PASSWORD_PATTERN.test(password)
@@ -61,6 +65,13 @@ export const validators = {
     maxLength: {
       value: 100,
       message: "Họ và tên không được quá 100 ký tự",
+    },
+  },
+
+  bio: {
+    maxLength: {
+      value: BIO_MAX_LENGTH,
+      message: `Giới thiệu không được quá ${BIO_MAX_LENGTH} ký tự`,
     },
   },
 
