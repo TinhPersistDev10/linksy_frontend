@@ -1,11 +1,11 @@
 // src/components/chat/window/MessageInput.tsx
-import { Paperclip, Send, Smile, X } from "lucide-react";
+import { Mic, Paperclip, Send, Smile, Trash2, X } from "lucide-react";
 import type { MessageResponse, PendingMention } from "@/lib/types/message";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import { cn } from "@/lib/utils/cn";
 import Button from "../ui/Button";
 import { Textarea } from "../ui/textarea";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ChatAvatar from "./ChatAvatar";
 import {
   filterMentionMembers,
@@ -15,6 +15,11 @@ import {
   syncPendingMentions,
 } from "@/lib/utils/mentions";
 import EmojiPickerPopover from "./EmojiPickerPopover";
+import {
+  formatVoiceDuration,
+  useVoiceRecorder,
+  type VoiceFile,
+} from "@/lib/hooks/useVoiceRecorder";
 
 interface MessageInputProps {
   value: string;
@@ -37,12 +42,25 @@ interface MessageInputProps {
   currentUserId?: string;
   pendingMentions?: PendingMention[];
   onPendingMentionsChange?: (mentions: PendingMention[]) => void;
+
+  canSendVoice?: boolean;
+  onSendVoice?: (file: File) => void | Promise<void>;
 }
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function replyPreviewText(message?: MessageResponse | null) {
+  if (!message) return "";
+  if (message.messageType === "audio" || message.messageType === "voice")
+    return "Tin nhắn thoại";
+  if (message.messageType === "image") return "Ảnh";
+  if (message.messageType === "video") return "Video";
+  if (message.messageType === "file") return "Tệp đính kèm";
+  return message.messageText || "Tin nhắn";
 }
 
 export default function MessageInput({
@@ -64,6 +82,8 @@ export default function MessageInput({
   currentUserId,
   pendingMentions = [],
   onPendingMentionsChange,
+  canSendVoice = true,
+  onSendVoice,
 }: MessageInputProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -72,8 +92,42 @@ export default function MessageInput({
   const [dismissedMentionStart, setDismissedMentionStart] = useState<
     number | null
   >(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
-  const canSend = value.trim().length > 0 || selectedFiles.length > 0;
+  const canSendText = value.trim().length > 0 || selectedFiles.length > 0;
+  const showMic =
+    canSendVoice &&
+    Boolean(onSendVoice) &&
+    !canSendText &&
+    !editingMessage;
+
+  const handleAutoStop = useCallback(
+    (file: VoiceFile | null) => {
+      if (!file || !onSendVoice) return;
+      void onSendVoice(file);
+    },
+    [onSendVoice],
+  );
+
+  const {
+    isRecording,
+    elapsedMs,
+    formattedElapsed,
+    maxDurationMs,
+    start,
+    stopAndGetFile,
+    cancel,
+    status,
+  } = useVoiceRecorder({
+    onError: (message) => setVoiceError(message),
+    onAutoStop: handleAutoStop,
+  });
+
+  useEffect(() => {
+    if (!voiceError) return;
+    const t = setTimeout(() => setVoiceError(null), 4000);
+    return () => clearTimeout(t);
+  }, [voiceError]);
 
   const mentionQuery = useMemo(() => {
     if (!enableMentions) return null;
@@ -118,10 +172,10 @@ export default function MessageInput({
       onInsertEmoji(emoji);
       return;
     }
-    const start = textareaRef.current?.selectionStart ?? value.length;
-    const end = textareaRef.current?.selectionEnd ?? start;
-    const nextValue = value.slice(0, start) + emoji + value.slice(end);
-    applyTextChange(nextValue, start + emoji.length);
+    const startPos = textareaRef.current?.selectionStart ?? value.length;
+    const end = textareaRef.current?.selectionEnd ?? startPos;
+    const nextValue = value.slice(0, startPos) + emoji + value.slice(end);
+    applyTextChange(nextValue, startPos + emoji.length);
   };
 
   const selectMention = (member: ChatroomMemberResponse) => {
@@ -157,6 +211,11 @@ export default function MessageInput({
   const handleKeyDownInternal = (
     e: React.KeyboardEvent<HTMLTextAreaElement>,
   ) => {
+    if (isRecording) {
+      e.preventDefault();
+      return;
+    }
+
     const dropdownOpen =
       suggestions.length > 0 &&
       mentionQuery != null &&
@@ -207,15 +266,15 @@ export default function MessageInput({
 
         if (mentionBefore) {
           e.preventDefault();
-          const { start, token, mention } = mentionBefore;
-          const end = start + token.length;
+          const { start: tokenStart, token, mention } = mentionBefore;
+          const end = tokenStart + token.length;
           const eatSpace =
             value[end] === " " && pos >= end ? end + 1 : Math.max(pos, end);
-          const nextText = value.slice(0, start) + value.slice(eatSpace);
+          const nextText = value.slice(0, tokenStart) + value.slice(eatSpace);
           const nextMentions = pendingMentions.filter(
             (m) => m.userId !== mention.userId,
           );
-          applyTextChange(nextText, start, nextMentions);
+          applyTextChange(nextText, tokenStart, nextMentions);
           return;
         }
       }
@@ -239,9 +298,34 @@ export default function MessageInput({
     mentionQuery != null &&
     dismissedMentionStart !== mentionQuery.start;
 
+  const handleStartVoice = async () => {
+    setVoiceError(null);
+    if (status === "unsupported") {
+      setVoiceError("Trình duyệt không hỗ trợ ghi âm.");
+      return;
+    }
+    await start();
+  };
+
+  const handleCancelVoice = () => {
+    cancel();
+  };
+
+  const handleSendVoice = async () => {
+    if (!onSendVoice) return;
+    const file = await stopAndGetFile();
+    if (!file) {
+      setVoiceError("Tin nhắn thoại quá ngắn. Giữ lâu hơn một chút.");
+      return;
+    }
+    await onSendVoice(file);
+  };
+
+  const recordProgress = Math.min(1, elapsedMs / maxDurationMs);
+
   return (
     <div className="shrink-0 border-t bg-background px-2 py-2 sm:px-4 sm:py-3">
-      {(replyTo || editingMessage) && (
+      {(replyTo || editingMessage) && !isRecording && (
         <div className="mb-2 flex items-center justify-between gap-3 rounded-md border bg-muted/50 px-3 py-2">
           <div className="min-w-0">
             <p className="text-xs font-medium">
@@ -250,7 +334,7 @@ export default function MessageInput({
                 : `Trả lời ${replyTo?.senderFullname ?? "tin nhắn"}`}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {editingMessage?.messageText ?? replyTo?.messageText}
+              {replyPreviewText(editingMessage ?? replyTo)}
             </p>
           </div>
 
@@ -266,7 +350,7 @@ export default function MessageInput({
         </div>
       )}
 
-      {selectedFiles.length > 0 && (
+      {selectedFiles.length > 0 && !isRecording && (
         <div className="mb-2 flex max-h-24 flex-wrap gap-2 overflow-y-auto">
           {selectedFiles.map((file, index) => (
             <div
@@ -280,8 +364,8 @@ export default function MessageInput({
               <button
                 type="button"
                 onClick={() => onRemoveFile?.(index)}
-                title="Xoa tep"
-                aria-label="Xoa tep"
+                title="Xóa tệp"
+                aria-label="Xóa tệp"
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X size={13} />
@@ -291,8 +375,12 @@ export default function MessageInput({
         </div>
       )}
 
+      {voiceError && (
+        <p className="mb-2 text-center text-xs text-destructive">{voiceError}</p>
+      )}
+
       <div className="relative">
-        {showSuggestions && (
+        {showSuggestions && !isRecording && (
           <div className="absolute bottom-full left-0 right-0 z-20 mb-1 max-h-56 overflow-y-auto rounded-lg border bg-background py-1 shadow-lg">
             {suggestions.map((member, index) => {
               const displayName = getMemberDisplayName(member);
@@ -326,88 +414,157 @@ export default function MessageInput({
           </div>
         )}
 
-        <div className="flex items-end gap-1.5 rounded-2xl border bg-muted/50 px-2 py-2 sm:items-center sm:gap-2 sm:px-3">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            hidden
-            disabled={attachmentsDisabled}
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? []);
-              onFilesSelected?.(files);
-              e.currentTarget.value = "";
-            }}
-          />
-          <Button
-            type="button"
-            onClick={() => {
-              if (!attachmentsDisabled) fileInputRef.current?.click();
-            }}
-            disabled={attachmentsDisabled}
-            variant="ghost"
-            size="icon"
-            className="mb-0.5 h-8 w-8 shrink-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Paperclip size={18} />
-          </Button>
+        {isRecording ? (
+          <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-2 py-2 dark:border-red-900/50 dark:bg-red-950/40 sm:gap-3 sm:px-3">
+            <button
+              type="button"
+              onClick={handleCancelVoice}
+              disabled={sending}
+              title="Hủy ghi âm"
+              aria-label="Hủy ghi âm"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/40"
+            >
+              <Trash2 size={18} />
+            </button>
 
-          <Textarea
-            ref={textareaRef}
-            value={value}
-            onChange={handleChange}
-            onKeyDown={handleKeyDownInternal}
-            onClick={handleSelect}
-            onSelect={handleSelect}
-            onKeyUp={handleSelect}
-            placeholder={
-              editingMessage
-                ? "Chỉnh sửa tin nhắn..."
-                : enableMentions
-                  ? "Nhắn tin... dùng @ để tag"
-                  : "Nhắn tin..."
-            }
-            rows={1}
-            className={cn(
-              "min-h-0 min-w-0 flex-1 resize-none border-0 bg-transparent py-0.5 text-sm shadow-none",
-              "focus-visible:ring-0 focus-visible:ring-offset-0",
-              "max-h-32 placeholder:text-muted-foreground",
-              "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-            )}
-          />
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                </span>
+                <span className="text-sm font-medium tabular-nums text-red-700 dark:text-red-300">
+                  {formattedElapsed}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  / {formatVoiceDuration(maxDurationMs)}
+                </span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-red-200 dark:bg-red-900/60">
+                <div
+                  className="h-full rounded-full bg-red-500 transition-[width] duration-200"
+                  style={{ width: `${recordProgress * 100}%` }}
+                />
+              </div>
+            </div>
 
-          <EmojiPickerPopover side="top" align="end" onSelect={handleInsertEmoji}>
             <Button
               type="button"
-              title="Emoji"
-              aria-label="Chọn emoji"
+              onClick={() => void handleSendVoice()}
+              disabled={sending || elapsedMs < 400}
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-full bg-blue-500 text-white hover:bg-blue-600"
+              title="Gửi tin nhắn thoại"
+              aria-label="Gửi tin nhắn thoại"
+            >
+              <Send size={16} />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-end gap-1.5 rounded-2xl border bg-muted/50 px-2 py-2 sm:items-center sm:gap-2 sm:px-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              hidden
+              disabled={attachmentsDisabled}
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                onFilesSelected?.(files);
+                e.currentTarget.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              onClick={() => {
+                if (!attachmentsDisabled) fileInputRef.current?.click();
+              }}
+              disabled={attachmentsDisabled}
               variant="ghost"
               size="icon"
-              className="mb-0.5 inline-flex h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+              className="mb-0.5 h-8 w-8 shrink-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
             >
-              <Smile size={18} />
+              <Paperclip size={18} />
             </Button>
-          </EmojiPickerPopover>
 
-          <Button
-            onClick={onSend}
-            disabled={!canSend || sending}
-            size="icon"
-            className={cn(
-              "mb-0.5 h-7 w-7 shrink-0 rounded-xl transition-all",
-              canSend
-                ? "bg-blue-500 text-white hover:bg-blue-600"
-                : "bg-transparent text-muted-foreground hover:bg-transparent",
+            <Textarea
+              ref={textareaRef}
+              value={value}
+              onChange={handleChange}
+              onKeyDown={handleKeyDownInternal}
+              onClick={handleSelect}
+              onSelect={handleSelect}
+              onKeyUp={handleSelect}
+              placeholder={
+                editingMessage
+                  ? "Chỉnh sửa tin nhắn..."
+                  : enableMentions
+                    ? "Nhắn tin... dùng @ để tag"
+                    : "Nhắn tin..."
+              }
+              rows={1}
+              className={cn(
+                "min-h-0 min-w-0 flex-1 resize-none border-0 bg-transparent py-0.5 text-sm shadow-none",
+                "focus-visible:ring-0 focus-visible:ring-offset-0",
+                "max-h-32 placeholder:text-muted-foreground",
+                "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              )}
+            />
+
+            <EmojiPickerPopover
+              side="top"
+              align="end"
+              onSelect={handleInsertEmoji}
+            >
+              <Button
+                type="button"
+                title="Emoji"
+                aria-label="Chọn emoji"
+                variant="ghost"
+                size="icon"
+                className="mb-0.5 inline-flex h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <Smile size={18} />
+              </Button>
+            </EmojiPickerPopover>
+
+            {showMic ? (
+              <Button
+                type="button"
+                onClick={() => void handleStartVoice()}
+                disabled={sending}
+                size="icon"
+                title="Ghi âm tin nhắn thoại"
+                aria-label="Ghi âm tin nhắn thoại"
+                className="mb-0.5 h-8 w-8 shrink-0 rounded-full bg-blue-500 text-white hover:bg-blue-600"
+              >
+                <Mic size={16} />
+              </Button>
+            ) : (
+              <Button
+                onClick={onSend}
+                disabled={!canSendText || sending}
+                size="icon"
+                className={cn(
+                  "mb-0.5 h-7 w-7 shrink-0 rounded-xl transition-all",
+                  canSendText
+                    ? "bg-blue-500 text-white hover:bg-blue-600"
+                    : "bg-transparent text-muted-foreground hover:bg-transparent",
+                )}
+              >
+                <Send size={16} />
+              </Button>
             )}
-          >
-            <Send size={16} />
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
       <p className="mt-1.5 hidden text-center text-[10px] text-muted-foreground sm:block">
-        Enter để gửi · Shift+Enter xuống dòng
-        {enableMentions ? " · @ để tag thành viên" : ""}
+        {isRecording
+          ? "Đang ghi âm · Bấm gửi để gửi tin nhắn thoại · Thùng rác để hủy"
+          : `Enter để gửi · Shift+Enter xuống dòng${
+              enableMentions ? " · @ để tag thành viên" : ""
+            }${showMic ? " · Micro để ghi âm" : ""}`}
       </p>
     </div>
   );

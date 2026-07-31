@@ -85,6 +85,103 @@ export function useSendMessage({
     await signalRStopTyping(chatroomId);
   }, [chatroomId, signalRStopTyping]);
 
+  const handleSendVoice = useCallback(
+    async (
+      file: File,
+      options?: { parentMessageId?: string | null },
+    ) => {
+      if (!chatroomId || sending || !user) return;
+
+      await stopTypingNow();
+      setSending(true);
+
+      const recordedMs =
+        "recordedDurationMs" in file &&
+        typeof (file as File & { recordedDurationMs?: number })
+          .recordedDurationMs === "number"
+          ? (file as File & { recordedDurationMs?: number }).recordedDurationMs
+          : undefined;
+
+      const tempId = `temp-${Math.random().toString(36).slice(2)}`;
+      const localUrl = URL.createObjectURL(file);
+
+      appendOptimistic({
+        messageId: tempId,
+        chatroomId,
+        senderId: user.userId,
+        senderUsername: user.username,
+        senderFullname: user.fullname,
+        senderAvatar: user.avatar || null,
+        senderNickname: null,
+        messageType: "audio",
+        messageText: "",
+        parentMessageId: options?.parentMessageId ?? null,
+        parentMessage: null,
+        isEdited: false,
+        isDeleted: false,
+        isOwn: true,
+        sentAt: new Date().toISOString(),
+        editedAt: null,
+        deletedAt: null,
+        attachments: [
+          {
+            fileName: file.name,
+            fileUrl: localUrl,
+            cdnUrl: localUrl,
+            attachmentType: "audio",
+            fileType: "audio",
+            fileSize: file.size,
+            mimeType: file.type || "audio/webm",
+            durationMs: recordedMs ?? null,
+          },
+        ],
+        deliveryStatus: "sent",
+        recipientCount: 0,
+        deliveredCount: 0,
+        readCount: 0,
+        mentions: null,
+      });
+
+      try {
+        const uploaded = await messagesApi.uploadAttachment(
+          file,
+          chatroomId,
+          "audio",
+        );
+        if (
+          uploaded.durationMs == null &&
+          recordedMs != null &&
+          recordedMs > 0
+        ) {
+          uploaded.durationMs = recordedMs;
+        }
+
+        const sent = await messagesApi.sendMessage({
+          chatroomId,
+          messageText: "",
+          messageType: "audio",
+          attachments: [uploaded],
+          parentMessageId: options?.parentMessageId,
+        });
+        replaceOptimistic(tempId, sent);
+      } catch {
+        removeOptimistic(tempId);
+      } finally {
+        URL.revokeObjectURL(localUrl);
+        setSending(false);
+      }
+    },
+    [
+      chatroomId,
+      sending,
+      user,
+      stopTypingNow,
+      appendOptimistic,
+      replaceOptimistic,
+      removeOptimistic,
+    ],
+  );
+
   const handleSend = useCallback(
     async (options?: {
       parentMessageId?: string | null;
@@ -220,6 +317,7 @@ export function useSendMessage({
     setInput,
     sending,
     handleSend,
+    handleSendVoice,
     notifyTyping,
     selectedFiles,
     addSelectedFiles,

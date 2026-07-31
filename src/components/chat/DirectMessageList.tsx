@@ -124,6 +124,17 @@ function getLastMessagePreview(
   if (lastMsg.messageType === "call_log") {
     const payload = parseCallLogPayload(lastMsg.messageText ?? "");
     text = payload ? formatCallLogPreview(payload, isOwn) : "Cuộc gọi";
+  } else if (
+    lastMsg.messageType === "audio" ||
+    lastMsg.messageType === "voice"
+  ) {
+    text = "Tin nhắn thoại";
+  } else if (lastMsg.messageType === "image") {
+    text = "Ảnh";
+  } else if (lastMsg.messageType === "video") {
+    text = "Video";
+  } else if (lastMsg.messageType === "file") {
+    text = "Tệp đính kèm";
   }
 
   if (isOwn) return `Bạn: ${text}`;

@@ -77,7 +77,7 @@ export interface GetMessagesAroundData {
 export interface SendMessageRequest {
   chatroomId: string;
   messageText: string;
-  messageType?: "text" | "image" | "file" | string;
+  messageType?: "text" | "image" | "video" | "file" | "audio" | string;
   parentMessageId?: string | null;
   attachments?: SendMessageAttachmentRequest[] | null;
   mentions?: string[] | null;

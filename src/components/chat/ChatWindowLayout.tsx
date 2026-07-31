@@ -307,6 +307,7 @@ export default function ChatWindowLayout({
     setInput,
     sending,
     handleSend,
+    handleSendVoice,
     notifyTyping,
     selectedFiles,
     addSelectedFiles,
@@ -334,6 +335,8 @@ export default function ChatWindowLayout({
     isDirectChat ||
     currentChatroom?.myMemberInfo?.memberRole === "admin" ||
     Boolean(currentChatroom?.myMemberInfo?.permissions?.canPinMessages);
+  const canSendVoice =
+    currentChatroom?.myMemberInfo?.permissions?.canSendVoice !== false;
   const pinnedMessageIds = useMemo(
     () => new Set(pinnedMessages.map((p) => p.messageId)),
     [pinnedMessages],
@@ -708,7 +711,7 @@ export default function ChatWindowLayout({
             selectedFiles={selectedFiles}
             onFilesSelected={addSelectedFiles}
             onRemoveFile={removeSelectedFile}
-            attachmentsDisabled={Boolean(replyTo || editingMessage)}
+            attachmentsDisabled={Boolean(editingMessage)}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onSend={() => void handleSubmit()}
@@ -725,6 +728,19 @@ export default function ChatWindowLayout({
             currentUserId={user?.userId}
             pendingMentions={pendingMentions}
             onPendingMentionsChange={setPendingMentions}
+            canSendVoice={canSendVoice && !editingMessage}
+            onSendVoice={async (file) => {
+              if (composerSubmitting) return;
+              setComposerSubmitting(true);
+              try {
+                await handleSendVoice(file, {
+                  parentMessageId: replyTo?.messageId,
+                });
+                setReplyTo(null);
+              } finally {
+                setComposerSubmitting(false);
+              }
+            }}
           />
 
           {deliveryOpen && deliveryStatus && (

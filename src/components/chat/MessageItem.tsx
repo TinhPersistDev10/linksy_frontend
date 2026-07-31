@@ -50,6 +50,16 @@ import EmojiPickerPopover, {
   QUICK_REACTION_EMOJIS,
 } from "./EmojiPickerPopover";
 import { emojiOnlyTextClass } from "@/lib/utils/emojiText";
+import VoiceMessageBubble from "./VoiceMessageBubble";
+
+function getMessagePreviewLabel(message: MessageResponse) {
+  if (message.messageType === "audio" || message.messageType === "voice")
+    return "Tin nhắn thoại";
+  if (message.messageType === "image") return "Ảnh";
+  if (message.messageType === "video") return "Video";
+  if (message.messageType === "file") return "Tệp đính kèm";
+  return message.messageText || "Tin nhắn";
+}
 
 interface MessageItemProps {
   msg: MessageResponse;
@@ -477,7 +487,7 @@ export default function MessageItem({
                   </p>
 
                   <p className="line-clamp-1 opacity-80">
-                    {msg.parentMessage.messageText}
+                    {getMessagePreviewLabel(msg.parentMessage)}
                   </p>
                 </div>
               )}
@@ -493,11 +503,13 @@ export default function MessageItem({
 
                     if (attachmentType === "audio") {
                       return (
-                        <audio
+                        <VoiceMessageBubble
                           key={key}
                           src={url}
-                          controls
-                          className="max-w-full"
+                          durationMs={
+                            attachment.durationMs ?? attachment.duration
+                          }
+                          isOwn={isOwn}
                         />
                       );
                     }
@@ -664,10 +676,13 @@ export default function MessageItem({
 
                       {isOwn && (
                         <>
-                          <DropdownMenuItem onSelect={() => onEdit(msg)}>
-                            <Pencil />
-                            Chỉnh sửa
-                          </DropdownMenuItem>
+                          {msg.messageType !== "audio" &&
+                            msg.messageType !== "voice" && (
+                              <DropdownMenuItem onSelect={() => onEdit(msg)}>
+                                <Pencil />
+                                Chỉnh sửa
+                              </DropdownMenuItem>
+                            )}
 
                           {onShowDelivery && (
                             <DropdownMenuItem

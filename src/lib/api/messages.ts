@@ -154,7 +154,7 @@ export const messagesApi = {
   uploadAttachment: async (
     file: File,
     chatroomId: string,
-    attachmentType: "image" | "video" | "file",
+    attachmentType: "image" | "video" | "file" | "audio",
   ): Promise<SendMessageAttachmentRequest> => {
     const formData = new FormData();
     formData.append("File", file);
