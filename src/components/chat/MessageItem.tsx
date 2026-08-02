@@ -51,10 +51,13 @@ import EmojiPickerPopover, {
 } from "./EmojiPickerPopover";
 import { emojiOnlyTextClass } from "@/lib/utils/emojiText";
 import VoiceMessageBubble from "./VoiceMessageBubble";
+import PollMessageBubble from "./PollMessageBubble";
 
 function getMessagePreviewLabel(message: MessageResponse) {
   if (message.messageType === "audio" || message.messageType === "voice")
     return "Tin nhắn thoại";
+  if (message.messageType === "poll")
+    return message.poll?.question || message.messageText || "Bình chọn";
   if (message.messageType === "image") return "Ảnh";
   if (message.messageType === "video") return "Video";
   if (message.messageType === "file") return "Tệp đính kèm";
@@ -77,6 +80,8 @@ interface MessageItemProps {
   onUnpin?: (messageId: string) => void;
   onToggleReaction?: (messageId: string, emojiCode: string) => void;
   onOpenGallery?: (images: GalleryImage[], startIndex: number) => void;
+  onVotePoll?: (messageId: string, optionId: string) => void;
+  onClosePoll?: (messageId: string) => void;
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
@@ -169,6 +174,8 @@ export default function MessageItem({
   onUnpin,
   onToggleReaction,
   onOpenGallery,
+  onVotePoll,
+  onClosePoll,
 }: MessageItemProps) {
   const [reactionOpen, setReactionOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -270,6 +277,97 @@ export default function MessageItem({
           <span className="rounded-full bg-muted px-3 py-1 text-center text-xs text-muted-foreground">
             {msg.messageText}
           </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (msg.messageType === "poll" && msg.poll) {
+    return (
+      <div data-msg-id={msg.messageId}>
+        {showDateDivider && (
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="px-2 text-xs text-muted-foreground">
+              {formatDateDivider(msg.sentAt)}
+            </span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        )}
+        <div className="group/message my-4 flex justify-center px-3">
+          <div
+            className={cn(
+              "relative w-full max-w-sm rounded-2xl border bg-background px-4 py-3 shadow-sm",
+              isTemp && "opacity-60",
+              msg.isDeleted && "opacity-50",
+              isPinned && "ring-1 ring-sky-400/60",
+            )}
+          >
+            {isPinned && (
+              <div className="mb-2 flex items-center gap-1 text-[10px] font-medium text-sky-700 dark:text-sky-400">
+                <Pin size={10} />
+                Đã ghim
+              </div>
+            )}
+            {!msg.isDeleted ? (
+              <PollMessageBubble
+                poll={msg.poll}
+                isOwn={false}
+                centered
+                disabled={isTemp || msg.isDeleted}
+                onVote={(optionId) => onVotePoll?.(msg.messageId, optionId)}
+                onClose={
+                  msg.poll.canClose
+                    ? () => onClosePoll?.(msg.messageId)
+                    : undefined
+                }
+              />
+            ) : (
+              <p className="text-center text-sm text-muted-foreground">
+                Bình chọn đã bị xóa
+              </p>
+            )}
+
+            {showActions && (
+              <div className="mt-2 flex items-center justify-center gap-1 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
+                <button
+                  type="button"
+                  title="Trả lời"
+                  aria-label="Trả lời"
+                  onClick={() => onReply(msg)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground"
+                >
+                  <Reply size={14} />
+                </button>
+                {canPin && (
+                  <button
+                    type="button"
+                    title={isPinned ? "Bỏ ghim" : "Ghim"}
+                    aria-label={isPinned ? "Bỏ ghim" : "Ghim"}
+                    onClick={() =>
+                      isPinned
+                        ? onUnpin?.(msg.messageId)
+                        : onPin?.(msg.messageId)
+                    }
+                    className="flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground"
+                  >
+                    {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                  </button>
+                )}
+                {isOwn && (
+                  <button
+                    type="button"
+                    title="Xóa"
+                    aria-label="Xóa"
+                    onClick={() => onDelete(msg.messageId)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border bg-background text-red-600 shadow-sm hover:bg-red-50 dark:hover:bg-red-950/40"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -677,7 +775,8 @@ export default function MessageItem({
                       {isOwn && (
                         <>
                           {msg.messageType !== "audio" &&
-                            msg.messageType !== "voice" && (
+                            msg.messageType !== "voice" &&
+                            msg.messageType !== "poll" && (
                               <DropdownMenuItem onSelect={() => onEdit(msg)}>
                                 <Pencil />
                                 Chỉnh sửa

@@ -1,5 +1,5 @@
 // src/components/chat/window/MessageInput.tsx
-import { Mic, Paperclip, Send, Smile, Trash2, X } from "lucide-react";
+import { ImagePlus, Mic, Paperclip, Send, Smile, Trash2, X } from "lucide-react";
 import type { MessageResponse, PendingMention } from "@/lib/types/message";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import { cn } from "@/lib/utils/cn";
@@ -57,6 +57,8 @@ function replyPreviewText(message?: MessageResponse | null) {
   if (!message) return "";
   if (message.messageType === "audio" || message.messageType === "voice")
     return "Tin nhắn thoại";
+  if (message.messageType === "poll")
+    return message.poll?.question || message.messageText || "Bình chọn";
   if (message.messageType === "image") return "Ảnh";
   if (message.messageType === "video") return "Video";
   if (message.messageType === "file") return "Tệp đính kèm";
@@ -86,6 +88,7 @@ export default function MessageInput({
   onSendVoice,
 }: MessageInputProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [cursor, setCursor] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -467,6 +470,7 @@ export default function MessageInput({
               type="file"
               multiple
               hidden
+              accept=".pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.json,.csv,.xml,.yaml,.yml,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip"
               disabled={attachmentsDisabled}
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []);
@@ -474,6 +478,35 @@ export default function MessageInput({
                 e.currentTarget.value = "";
               }}
             />
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
+              hidden
+              disabled={attachmentsDisabled}
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []).filter((file) =>
+                  file.type.startsWith("image/"),
+                );
+                if (files.length > 0) onFilesSelected?.(files);
+                e.currentTarget.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              onClick={() => {
+                if (!attachmentsDisabled) imageInputRef.current?.click();
+              }}
+              disabled={attachmentsDisabled}
+              variant="ghost"
+              size="icon"
+              title="Gửi ảnh"
+              aria-label="Gửi ảnh"
+              className="mb-0.5 h-8 w-8 shrink-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ImagePlus size={18} />
+            </Button>
             <Button
               type="button"
               onClick={() => {
@@ -482,6 +515,8 @@ export default function MessageInput({
               disabled={attachmentsDisabled}
               variant="ghost"
               size="icon"
+              title="Đính kèm tệp"
+              aria-label="Đính kèm tệp"
               className="mb-0.5 h-8 w-8 shrink-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
             >
               <Paperclip size={18} />

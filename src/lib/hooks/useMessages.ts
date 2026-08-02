@@ -10,6 +10,8 @@ import type {
   MessageEditedEvent,
   MessageReadEvent,
   MessageResponse,
+  PollResponse,
+  PollUpdatedEvent,
   ReactionSummary,
   ReactionUpdatedEvent,
 } from "../types/message";
@@ -65,7 +67,67 @@ function scrollToMessageElement(messageId: string): boolean {
   return true;
 }
 
-export function useMessages(chatroomId: string | undefined) {
+function resolveCanClosePoll(
+  poll: Pick<PollResponse, "isClosed" | "createdByUserId">,
+  currentUserId?: string,
+  isGroupAdmin = false,
+): boolean {
+  if (poll.isClosed || !currentUserId) return false;
+  return poll.createdByUserId === currentUserId || isGroupAdmin;
+}
+
+function personalizePoll(
+  poll: PollResponse,
+  currentUserId?: string,
+  isGroupAdmin = false,
+  myVotedOptionId?: string | null,
+): PollResponse {
+  const votedOptionId = myVotedOptionId ?? poll.myVotedOptionId ?? null;
+  return {
+    ...poll,
+    myVotedOptionId: votedOptionId,
+    canClose: resolveCanClosePoll(poll, currentUserId, isGroupAdmin),
+    options: (poll.options ?? []).map((option) => ({
+      ...option,
+      votedByMe: Boolean(votedOptionId && option.optionId === votedOptionId),
+    })),
+  };
+}
+
+function mergePollUpdate(
+  previous: PollResponse | null | undefined,
+  event: PollUpdatedEvent,
+  currentUserId?: string,
+  isGroupAdmin = false,
+): PollResponse {
+  const incoming = event.poll;
+  let myVotedOptionId = previous?.myVotedOptionId ?? null;
+
+  if (
+    currentUserId &&
+    event.actorUserId &&
+    event.actorUserId === currentUserId &&
+    event.actorOptionId
+  ) {
+    myVotedOptionId = event.actorOptionId;
+  }
+
+  return personalizePoll(
+    {
+      ...incoming,
+      totalVotes: incoming.totalVotes,
+    },
+    currentUserId,
+    isGroupAdmin,
+    myVotedOptionId,
+  );
+}
+
+export function useMessages(
+  chatroomId: string | undefined,
+  currentUserId?: string,
+  isGroupAdmin = false,
+) {
   const [messages, setMessages] = useState<MessageResponse[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -95,6 +157,9 @@ export function useMessages(chatroomId: string | undefined) {
         data.messages.map((m) => ({
           ...m,
           reactions: (m.reactions ?? []).map(normalizeReactionSummary),
+          poll: m.poll
+            ? personalizePoll(m.poll, currentUserId, isGroupAdmin)
+            : m.poll,
         })),
       );
       setHasMore(data.hasMore);
@@ -103,7 +168,7 @@ export function useMessages(chatroomId: string | undefined) {
     } finally {
       setLoadingInitial(false);
     }
-  }, [chatroomId]);
+  }, [chatroomId, currentUserId, isGroupAdmin]);
 
   const loadMore = useCallback(async () => {
     if (!chatroomId || loadingMore || !hasMore) return;
@@ -189,23 +254,50 @@ export function useMessages(chatroomId: string | undefined) {
     return () => cancelAnimationFrame(frame);
   }, [messages, jumping, loadingInitial]);
 
-  const receiveMessage = useCallback((msg: MessageResponse) => {
-    setMessages((prev) => {
-      // Xóa optimistic message khi server xác nhận message của chính user.
-      const base = msg.isOwn
-        ? prev.filter((message) => !message.messageId.startsWith("temp-"))
-        : prev;
+  const receiveMessage = useCallback(
+    (msg: MessageResponse) => {
+      const incoming =
+        msg.poll != null
+          ? {
+              ...msg,
+              poll: personalizePoll(msg.poll, currentUserId, isGroupAdmin),
+            }
+          : msg;
 
-      // SignalR có thể gửi lại cùng event khi reconnect.
-      // Kiểm tra trước để không tăng replyCount nhiều lần.
-      if (base.some((message) => message.messageId === msg.messageId)) {
-        return base;
-      }
-      return [...base, msg];
-    });
+      setMessages((prev) => {
+        // Only clear matching optimistic temp for non-system own messages.
+        // System announce ("đã tạo một bình chọn") must not wipe voice/text temps.
+        const base =
+          incoming.isOwn && incoming.messageType !== "system"
+            ? prev.filter((message) => !message.messageId.startsWith("temp-"))
+            : prev;
 
-    shouldScrollToBottomRef.current = true;
-  }, []);
+        if (base.some((message) => message.messageId === incoming.messageId)) {
+          return base.map((message) =>
+            message.messageId === incoming.messageId
+              ? {
+                  ...message,
+                  ...incoming,
+                  poll: incoming.poll
+                    ? personalizePoll(
+                        incoming.poll,
+                        currentUserId,
+                        isGroupAdmin,
+                        incoming.poll.myVotedOptionId ??
+                          message.poll?.myVotedOptionId,
+                      )
+                    : message.poll,
+                }
+              : message,
+          );
+        }
+        return [...base, incoming];
+      });
+
+      shouldScrollToBottomRef.current = true;
+    },
+    [currentUserId, isGroupAdmin],
+  );
 
   const onMessageDeleted = useCallback((event: MessageDeletedEvent) => {
     setMessages((previous) => {
@@ -332,6 +424,99 @@ export function useMessages(chatroomId: string | undefined) {
     );
   }, []);
 
+  const onPollUpdated = useCallback(
+    (event: PollUpdatedEvent) => {
+      const raw = event as unknown as Record<string, unknown>;
+      const messageId = String(
+        event.messageId ?? raw.MessageId ?? raw.messageId ?? "",
+      );
+      const pollPayload = (event.poll ?? raw.Poll ?? raw.poll) as
+        | PollResponse
+        | undefined;
+      if (!messageId || !pollPayload) return;
+
+      const normalizedEvent: PollUpdatedEvent = {
+        messageId,
+        chatroomId: String(
+          event.chatroomId ?? raw.ChatroomId ?? raw.chatroomId ?? "",
+        ),
+        actorUserId: (event.actorUserId ??
+          raw.ActorUserId ??
+          raw.actorUserId ??
+          null) as string | null,
+        actorOptionId: (event.actorOptionId ??
+          raw.ActorOptionId ??
+          raw.actorOptionId ??
+          null) as string | null,
+        poll: {
+          ...pollPayload,
+          messageId: String(
+            pollPayload.messageId ??
+              (pollPayload as unknown as { MessageId?: string }).MessageId ??
+              messageId,
+          ),
+          question: String(
+            pollPayload.question ??
+              (pollPayload as unknown as { Question?: string }).Question ??
+              "",
+          ),
+          isClosed: Boolean(
+            pollPayload.isClosed ??
+              (pollPayload as unknown as { IsClosed?: boolean }).IsClosed,
+          ),
+          createdByUserId: String(
+            pollPayload.createdByUserId ??
+              (pollPayload as unknown as { CreatedByUserId?: string })
+                .CreatedByUserId ??
+              "",
+          ),
+          totalVotes: Number(
+            pollPayload.totalVotes ??
+              (pollPayload as unknown as { TotalVotes?: number }).TotalVotes ??
+              0,
+          ),
+          options: (pollPayload.options ??
+            (pollPayload as unknown as { Options?: PollResponse["options"] })
+              .Options ??
+            []) as PollResponse["options"],
+        },
+      };
+
+      setMessages((previous) =>
+        previous.map((message) =>
+          message.messageId === messageId
+            ? {
+                ...message,
+                poll: mergePollUpdate(
+                  message.poll,
+                  normalizedEvent,
+                  currentUserId,
+                  isGroupAdmin,
+                ),
+              }
+            : message,
+        ),
+      );
+    },
+    [currentUserId, isGroupAdmin],
+  );
+
+  const applyPollUpdate = useCallback(
+    (messageId: string, poll: PollResponse) => {
+      setMessages((previous) =>
+        previous.map((message) =>
+          message.messageId === messageId
+            ? {
+                ...message,
+                poll: personalizePoll(poll, currentUserId, isGroupAdmin),
+              }
+            : message,
+        ),
+      );
+    },
+    [currentUserId, isGroupAdmin],
+  );
+
   /** Patch chips immediately after REST/hub toggle (UI must not depend only on SignalR). */
   const applyReactionToggleResult = useCallback(
     (messageId: string, emojiCode: string, added: boolean) => {
@@ -431,7 +616,9 @@ export function useMessages(chatroomId: string | undefined) {
     onMessageDelivered,
     onAllMessagesRead,
     onReactionUpdated,
+    onPollUpdated,
     applyReactionToggleResult,
+    applyPollUpdate,
     appendOptimistic,
     replaceOptimistic,
     removeOptimistic,

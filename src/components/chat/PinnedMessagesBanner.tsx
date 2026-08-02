@@ -18,6 +18,8 @@ function getPreview(pin: PinnedMessageResponse) {
   if (pin.messageType === "video") return "Video";
   if (pin.messageType === "audio" || pin.messageType === "voice")
     return "Tin nhắn thoại";
+  if (pin.messageType === "poll")
+    return pin.messageText ? `Bình chọn: ${pin.messageText}` : "Bình chọn";
   return pin.messageText || "Tin nhắn";
 }
 

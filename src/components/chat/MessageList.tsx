@@ -37,6 +37,8 @@ interface MessageListProps {
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
   onToggleReaction?: (messageId: string, emojiCode: string) => void;
+  onVotePoll?: (messageId: string, optionId: string) => void;
+  onClosePoll?: (messageId: string) => void;
 }
 
 export default function MessageList({
@@ -61,6 +63,8 @@ export default function MessageList({
   onPin,
   onUnpin,
   onToggleReaction,
+  onVotePoll,
+  onClosePoll,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -264,6 +268,8 @@ export default function MessageList({
               onUnpin={onUnpin}
               onToggleReaction={onToggleReaction}
               onOpenGallery={handleOpenGallery}
+              onVotePoll={onVotePoll}
+              onClosePoll={onClosePoll}
             />
           ))}
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  BarChart3,
   Bell,
   BellOff,
   Check,
@@ -63,6 +64,7 @@ interface ConversationInfoPanelProps {
   onSearchInChat?: () => void;
   onOpenDirectChat?: (chatroom: ChatroomResponse) => void;
   onCallMember?: (userId: string, callType: "audio" | "video") => void;
+  onCreatePoll?: () => void;
   pinnedCount?: number;
 }
 
@@ -147,6 +149,7 @@ export default function ConversationInfoPanel({
   onSearchInChat,
   onOpenDirectChat,
   onCallMember,
+  onCreatePoll,
   pinnedCount = 0,
 }: ConversationInfoPanelProps) {
   const { user } = useAuth();
@@ -521,6 +524,13 @@ export default function ConversationInfoPanel({
                   }
                   onClick={() => onViewPinnedMessages?.()}
                 />
+                {!isDirect && (
+                  <ActionRow
+                    icon={<BarChart3 size={18} />}
+                    label="Tạo bình chọn"
+                    onClick={() => onCreatePoll?.()}
+                  />
+                )}
               </AccordionSection>
 
               {!isDirect && (

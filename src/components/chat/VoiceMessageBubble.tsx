@@ -29,6 +29,11 @@ export default function VoiceMessageBubble({
     setProgress(0);
     setCurrentMs(0);
     setPlaying(false);
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
   }, [src, durationMs]);
 
   useEffect(() => {
@@ -62,6 +67,7 @@ export default function VoiceMessageBubble({
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
     return () => {
+      audio.pause();
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("play", onPlay);

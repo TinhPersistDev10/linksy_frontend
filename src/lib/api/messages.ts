@@ -1,10 +1,12 @@
 import type { ApiResponse } from "../types/common";
 import type {
+  CreatePollRequest,
   EditMessageRequest,
   GetMessagesAroundData,
   GetMessagesData,
   MessageDeliveryStatusResponse,
   MessageResponse,
+  PollResponse,
   PinnedMessageResponse,
   SearchMessagesData,
   SendMessageAttachmentRequest,
@@ -172,5 +174,35 @@ export const messagesApi = {
     );
 
     return requireData(res.data, "Không thể tải tệp đính kèm");
+  },
+
+  createPoll: async (
+    chatroomId: string,
+    poll: CreatePollRequest,
+  ): Promise<MessageResponse> => {
+    return messagesApi.sendMessage({
+      chatroomId,
+      messageText: poll.question,
+      messageType: "poll",
+      poll,
+    });
+  },
+
+  votePoll: async (
+    messageId: string,
+    optionId: string,
+  ): Promise<PollResponse> => {
+    const res = await apiClient.post<ApiResponse<PollResponse>>(
+      `/messages/${messageId}/poll/vote`,
+      { optionId },
+    );
+    return requireData(res.data, "Không thể bình chọn");
+  },
+
+  closePoll: async (messageId: string): Promise<PollResponse> => {
+    const res = await apiClient.post<ApiResponse<PollResponse>>(
+      `/messages/${messageId}/poll/close`,
+    );
+    return requireData(res.data, "Không thể đóng bình chọn");
   },
 };

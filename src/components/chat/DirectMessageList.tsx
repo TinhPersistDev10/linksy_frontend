@@ -129,6 +129,12 @@ function getLastMessagePreview(
     lastMsg.messageType === "voice"
   ) {
     text = "Tin nhắn thoại";
+  } else if (lastMsg.messageType === "poll") {
+    text = lastMsg.poll?.question
+      ? `Bình chọn: ${lastMsg.poll.question}`
+      : lastMsg.messageText
+        ? `Bình chọn: ${lastMsg.messageText}`
+        : "Bình chọn";
   } else if (lastMsg.messageType === "image") {
     text = "Ảnh";
   } else if (lastMsg.messageType === "video") {
