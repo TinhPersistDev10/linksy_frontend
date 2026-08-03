@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { RegisterRequest } from "@/lib/types/auth";
+import { matchPassword, validators } from "@/lib/utils/validators";
 import { Eye, EyeOff, MessageCircle } from "lucide-react";
 
 export default function RegisterForm() {
@@ -48,7 +49,7 @@ export default function RegisterForm() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-8 bg-white rounded-xl shadow-lg">
+    <div className="mx-auto w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-lg [&_input]:bg-white [&_input]:text-gray-900 [&_input]:caret-gray-900 [&_input]:placeholder:text-gray-400">
       {/* Logo và Title */}
       <div className="text-center mb-8">
         <div className="flex justify-center mb-4">
@@ -78,17 +79,7 @@ export default function RegisterForm() {
           type="text"
           placeholder="Nguyễn Văn A"
           error={errors.fullname?.message}
-          {...register("fullname", {
-            required: "Họ và tên là bắt buộc",
-            minLength: {
-              value: 2,
-              message: "Họ và tên phải có ít nhất 2 ký tự",
-            },
-            maxLength: {
-              value: 100,
-              message: "Họ và tên không được quá 100 ký tự",
-            },
-          })}
+          {...register("fullname", validators.fullname)}
         />
 
         {/* Tên người dùng */}
@@ -97,21 +88,7 @@ export default function RegisterForm() {
           type="text"
           placeholder="username"
           error={errors.username?.message}
-          {...register("username", {
-            required: "Tên người dùng là bắt buộc",
-            minLength: {
-              value: 3,
-              message: "Tên người dùng phải có ít nhất 3 ký tự",
-            },
-            maxLength: {
-              value: 50,
-              message: "Tên người dùng không được quá 50 ký tự",
-            },
-            pattern: {
-              value: /^[a-zA-Z0-9_]+$/,
-              message: "Tên người dùng chỉ được chứa chữ, số và dấu gạch dưới",
-            },
-          })}
+          {...register("username", validators.username)}
         />
 
         {/* Email */}
@@ -120,13 +97,7 @@ export default function RegisterForm() {
           type="email"
           placeholder="example@email.com"
           error={errors.email?.message}
-          {...register("email", {
-            required: "Email là bắt buộc",
-            pattern: {
-              value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-              message: "Email không hợp lệ",
-            },
-          })}
+          {...register("email", validators.email)}
         />
 
         {/* Ngày sinh */}
@@ -134,7 +105,7 @@ export default function RegisterForm() {
           label="Ngày sinh (không bắt buộc)"
           type="date"
           error={errors.dateOfBirth?.message}
-          {...register("dateOfBirth")}
+          {...register("dateOfBirth", validators.dateOfBirth)}
         />
 
         {/* Mật khẩu */}
@@ -142,19 +113,9 @@ export default function RegisterForm() {
           <Input
             label="Mật khẩu"
             type={showPassword ? "text" : "password"}
-            placeholder="••••••••"
+            placeholder="Ít nhất 8 ký tự, có chữ và số"
             error={errors.password?.message}
-            {...register("password", {
-              required: "Mật khẩu là bắt buộc",
-              minLength: {
-                value: 6,
-                message: "Mật khẩu phải có ít nhất 6 ký tự",
-              },
-              maxLength: {
-                value: 100,
-                message: "Mật khẩu không được quá 100 ký tự",
-              },
-            })}
+            {...register("password", validators.password)}
           />
           <button
             type="button"
@@ -174,8 +135,7 @@ export default function RegisterForm() {
             error={errors.confirmPassword?.message}
             {...register("confirmPassword", {
               required: "Vui lòng xác nhận mật khẩu",
-              validate: (value) =>
-                value === password || "Mật khẩu xác nhận không khớp",
+              validate: matchPassword(password),
             })}
           />
           <button

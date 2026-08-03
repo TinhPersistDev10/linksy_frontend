@@ -1,0 +1,43 @@
+---
+description: Admin console UI — routes, API client, role guard (frontend repo)
+globs: src/app/(admin)/**/*,src/lib/api/admin.ts,src/lib/types/user.ts,src/contexts/**/*
+alwaysApply: false
+---
+
+# Admin Frontend — Linksy
+
+## Scope
+- System Admin console at `/admin` — JWT role `Admin` in `user.roles`
+- Group chat admin (`memberRole: admin`) is separate — do not reuse for system admin
+
+## PRD (source of truth)
+- Master PRD: **backend repo** `docs/admin-prd.md`
+- Stub in this repo: `docs/admin-prd.md` (links to backend)
+- When implementing, `@` backend PRD via multi-root workspace or paste AC from section 6–7
+
+## Allowed paths (MVP)
+- `src/app/(admin)/` — layout, pages, guard
+- `src/lib/api/admin.ts` — Admin API client
+- `src/lib/types/user.ts` — add `roles?: string[]`
+- `src/lib/hooks/` — admin hooks if needed
+
+## Do not (MVP)
+- Embed admin UI in `SocialWorkspace` or chat components
+- Add SignalR for admin CRUD
+- Change backend C# files (frontend repo only)
+
+## Patterns to follow
+- Axios: `src/lib/api/axios.ts` + `withCredentials`
+- API modules: copy style from `src/lib/api/auth.ts`
+- Auth guard: mirror `(main)/layout.tsx` + check `roles.includes("Admin")`
+- UI: existing shadcn components in `src/components/ui/`
+
+## Tickets (this repo)
+- M3: types + `admin.ts` client
+- M4: `(admin)` layout + redirect non-admins to `/dashboard`
+- M5: users list, detail, create, toggle, reset password
+
+## Security (UI)
+- Hide admin nav unless system Admin
+- Confirm dialogs for reset password / delete
+- Prefer deactivate over delete in UI

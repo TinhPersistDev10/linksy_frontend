@@ -10,6 +10,12 @@ export interface User {
   isEmailVerified: boolean;
   createdAt: string;
   lastLoginAt: string;
+  roles?: string[];
+}
+
+/** System admin (JWT role `Admin`), not group chat admin. */
+export function isSystemAdmin(user: User | null | undefined): boolean {
+  return Boolean(user?.roles?.includes("Admin"));
 }
 export interface UserLookup {
   userId: string;

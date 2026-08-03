@@ -1,11 +1,12 @@
 ﻿"use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import MessageItem from "./MessageItem";
 import TypingIndicator from "./TypingIndicator";
 import ChatAvatar from "./ChatAvatar";
+import MediaGalleryViewer, { type GalleryImage } from "./MediaGalleryViewer";
 import type { MessageResponse } from "@/lib/types/message";
 import { messagesApi } from "@/lib/api/messages";
 
@@ -36,6 +37,8 @@ interface MessageListProps {
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
   onToggleReaction?: (messageId: string, emojiCode: string) => void;
+  onVotePoll?: (messageId: string, optionId: string) => void;
+  onClosePoll?: (messageId: string) => void;
 }
 
 export default function MessageList({
@@ -60,9 +63,70 @@ export default function MessageList({
   onPin,
   onUnpin,
   onToggleReaction,
+  onVotePoll,
+  onClosePoll,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+
+  const galleryImages = useMemo<GalleryImage[]>(
+    () =>
+      messages.flatMap((msg) => {
+        const senderName = msg.senderFullname || msg.senderUsername;
+        const items: GalleryImage[] = [];
+
+        for (const attachment of msg.attachments ?? []) {
+          const url = attachment.cdnUrl ?? attachment.fileUrl ?? "";
+          if (!url) continue;
+          const type = (
+            attachment.attachmentType ??
+            attachment.fileType ??
+            (attachment.mimeType?.startsWith("video/")
+              ? "video"
+              : attachment.mimeType?.startsWith("image/")
+                ? "image"
+                : "")
+          ).toLowerCase();
+          if (type !== "image" && type !== "video") continue;
+          items.push({
+            key: `${msg.messageId}:${attachment.attachmentId ?? url}`,
+            url,
+            type: type === "video" ? "video" : "image",
+            fileName: attachment.fileName,
+            senderName,
+            sentAt: msg.sentAt,
+            thumbnailUrl: attachment.thumbnailUrl,
+          });
+        }
+
+        return items;
+      }),
+    [messages],
+  );
+
+  const handleOpenGallery = useCallback(
+    (localImages: GalleryImage[], startIndex: number) => {
+      const target = localImages[startIndex];
+      if (!target) return;
+
+      // Match by URL + approximate identity within conversation gallery
+      let globalIndex = galleryImages.findIndex(
+        (image) =>
+          image.url === target.url &&
+          (image.fileName === target.fileName ||
+            image.sentAt === target.sentAt),
+      );
+      if (globalIndex < 0) {
+        globalIndex = galleryImages.findIndex((image) => image.url === target.url);
+      }
+
+      setGalleryIndex(globalIndex >= 0 ? globalIndex : 0);
+      setGalleryOpen(true);
+    },
+    [galleryImages],
+  );
 
   // Scroll-anchor refs - keep position when prepending old messages
   const anchorIdRef = useRef<string | null>(null);
@@ -203,6 +267,9 @@ export default function MessageList({
               onPin={onPin}
               onUnpin={onUnpin}
               onToggleReaction={onToggleReaction}
+              onOpenGallery={handleOpenGallery}
+              onVotePoll={onVotePoll}
+              onClosePoll={onClosePoll}
             />
           ))}
 
@@ -217,6 +284,13 @@ export default function MessageList({
           <div ref={bottomRef} />
         </>
       )}
+
+      <MediaGalleryViewer
+        open={galleryOpen}
+        images={galleryImages}
+        initialIndex={galleryIndex}
+        onClose={() => setGalleryOpen(false)}
+      />
     </div>
   );
 }

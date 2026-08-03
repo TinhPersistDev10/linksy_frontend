@@ -55,20 +55,35 @@ function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const Comp = asChild ? Slot.Root : "button";
+  const classNames = cn(buttonVariants({ variant, size, className }));
+
+  // Slot requires exactly one React element child — never inject siblings when asChild.
+  if (asChild) {
+    return (
+      <Slot.Root
+        data-slot="button"
+        data-variant={variant}
+        data-size={size}
+        className={classNames}
+        {...props}
+      >
+        {children}
+      </Slot.Root>
+    );
+  }
 
   return (
-    <Comp
+    <button
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={classNames}
       disabled={disabled || isLoading}
       {...props}
     >
       {isLoading && <Loader2 className="size-4 animate-spin" />}
       {children}
-    </Comp>
+    </button>
   );
 }
 

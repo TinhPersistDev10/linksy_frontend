@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { AppProviders } from './providers';
+import { THEME_BOOTSTRAP_SCRIPT } from '@/lib/theme';
 
 export const metadata: Metadata = {
   title: 'Linksy - Ứng dụng chat',
@@ -14,11 +16,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi">
-      <body>
+    <html lang="vi" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
+      </head>
+      <body suppressHydrationWarning>
         <AppProviders>
           <AuthProvider>
-            {children}
+            <ThemeProvider>
+              {children}
+            </ThemeProvider>
           </AuthProvider>
         </AppProviders>
       </body>

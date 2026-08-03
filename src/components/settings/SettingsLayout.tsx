@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Lock, Palette, User } from "lucide-react";
+import Link from "next/link";
+import { Bell, Lock, Palette, Shield, ShieldBan, User } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { isSystemAdmin } from "@/lib/types/user";
 import AppearanceSettings from "./AppearanceSettings";
+import BlockedUsersSettings from "./BlockedUsersSettings";
 import NotificationSettings from "./NotificationSettings";
 import PasswordSettings from "./PasswordSettings";
 import ProfileSettings from "./ProfileSettings";
@@ -13,10 +17,13 @@ const navItems = [
   { id: "password", label: "Đổi mật khẩu", icon: Lock },
   { id: "notifications", label: "Thông báo", icon: Bell },
   { id: "appearance", label: "Giao diện", icon: Palette },
+  { id: "blocked", label: "Người đã chặn", icon: ShieldBan },
 ];
 
 export default function SettingsLayout() {
   const [activeTab, setActiveTab] = useState("profile");
+  const { user } = useAuth();
+  const showAdminLink = isSystemAdmin(user);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -28,6 +35,8 @@ export default function SettingsLayout() {
         return <NotificationSettings />;
       case "appearance":
         return <AppearanceSettings />;
+      case "blocked":
+        return <BlockedUsersSettings />;
       default:
         return <ProfileSettings />;
     }
@@ -46,7 +55,7 @@ export default function SettingsLayout() {
               className={cn(
                 "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors md:w-full md:gap-3",
                 activeTab === item.id
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
@@ -55,6 +64,15 @@ export default function SettingsLayout() {
             </button>
           );
         })}
+        {showAdminLink ? (
+          <Link
+            href="/admin"
+            className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:w-full md:gap-3"
+          >
+            <Shield size={18} />
+            <span className="whitespace-nowrap">Admin Console</span>
+          </Link>
+        ) : null}
       </nav>
 
       <main className="min-w-0 flex-1 overflow-y-auto p-3 sm:p-6 md:max-w-2xl">

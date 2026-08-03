@@ -16,6 +16,7 @@ import type {
   MessagePinnedEvent,
   MessageReadEvent,
   MessageUnpinnedEvent,
+  PollUpdatedEvent,
   ReactionUpdatedEvent,
 } from "../types/message";
 
@@ -42,6 +43,7 @@ interface UseChatSignalROptions {
   onMessagePinned?: (event: MessagePinnedEvent) => void;
   onMessageUnpinned?: (event: MessageUnpinnedEvent) => void;
   onReactionUpdated?: (event: ReactionUpdatedEvent) => void;
+  onPollUpdated?: (event: PollUpdatedEvent) => void;
 }
 
 export function useChatSignalR({
@@ -58,6 +60,7 @@ export function useChatSignalR({
   onMessagePinned,
   onMessageUnpinned,
   onReactionUpdated,
+  onPollUpdated,
 }: UseChatSignalROptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -82,6 +85,7 @@ export function useChatSignalR({
     onMessagePinned,
     onMessageUnpinned,
     onReactionUpdated,
+    onPollUpdated,
   });
   cbRef.current = {
     onReceiveMessage,
@@ -96,6 +100,7 @@ export function useChatSignalR({
     onMessagePinned,
     onMessageUnpinned,
     onReactionUpdated,
+    onPollUpdated,
   };
 
   useEffect(() => {
@@ -167,6 +172,9 @@ export function useChatSignalR({
       );
       connection.on("ReactionUpdated", (event: ReactionUpdatedEvent) =>
         cbRef.current.onReactionUpdated?.(event),
+      );
+      connection.on("PollUpdated", (event: PollUpdatedEvent) =>
+        cbRef.current.onPollUpdated?.(event),
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       connection.on("Error", (err: any) =>
@@ -325,6 +333,18 @@ export function useChatSignalR({
     [],
   );
 
+  const votePoll = useCallback(async (messageId: string, optionId: string) => {
+    const connection = connectionRef.current;
+    if (!connection) throw new Error("SignalR not connected");
+    await connection.invoke("VotePoll", messageId, optionId);
+  }, []);
+
+  const closePoll = useCallback(async (messageId: string) => {
+    const connection = connectionRef.current;
+    if (!connection) throw new Error("SignalR not connected");
+    await connection.invoke("ClosePoll", messageId);
+  }, []);
+
   const editMessage = useCallback(
     async (messageId: string, newText: string) => {
       const connection = connectionRef.current;
@@ -360,5 +380,7 @@ export function useChatSignalR({
     pinMessage,
     unpinMessage,
     toggleReaction,
+    votePoll,
+    closePoll,
   };
 }

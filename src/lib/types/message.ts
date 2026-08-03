@@ -4,6 +4,38 @@ export interface MentionDto {
   avatarUrl?: string | null;
 }
 
+export interface PollOptionResponse {
+  optionId: string;
+  text: string;
+  sortOrder: number;
+  voteCount: number;
+  votedByMe: boolean;
+}
+
+export interface PollResponse {
+  messageId: string;
+  question: string;
+  isClosed: boolean;
+  createdByUserId: string;
+  totalVotes: number;
+  myVotedOptionId?: string | null;
+  canClose: boolean;
+  options: PollOptionResponse[];
+}
+
+export interface PollUpdatedEvent {
+  messageId: string;
+  chatroomId: string;
+  actorUserId?: string | null;
+  actorOptionId?: string | null;
+  poll: PollResponse;
+}
+
+export interface CreatePollRequest {
+  question: string;
+  options: string[];
+}
+
 export interface MessageResponse {
   messageId: string;
   chatroomId: string;
@@ -29,6 +61,7 @@ export interface MessageResponse {
   readCount: number;
   mentions?: MentionDto[] | null;
   reactions?: ReactionSummary[] | null;
+  poll?: PollResponse | null;
 }
 
 export interface ReactionUser {
@@ -77,10 +110,11 @@ export interface GetMessagesAroundData {
 export interface SendMessageRequest {
   chatroomId: string;
   messageText: string;
-  messageType?: "text" | "image" | "file" | string;
+  messageType?: "text" | "image" | "video" | "file" | "audio" | "poll" | string;
   parentMessageId?: string | null;
   attachments?: SendMessageAttachmentRequest[] | null;
   mentions?: string[] | null;
+  poll?: CreatePollRequest | null;
 }
 
 export interface PendingMention {

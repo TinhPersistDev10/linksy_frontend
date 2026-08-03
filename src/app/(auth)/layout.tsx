@@ -23,13 +23,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   if (loading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="auth-light flex h-screen w-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
       </div>
     );
   }
 
   if (isAuthenticated && user?.isEmailVerified) return null;
 
-  return <>{children}</>;
+  return <div className="auth-light min-h-screen">{children}</div>;
 }

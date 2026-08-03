@@ -2,12 +2,17 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { chatroomsApi } from "@/lib/api/chatrooms";
+import { friendsApi } from "@/lib/api/friends";
 import { notificationsApi } from "@/lib/api/notifications";
+import { settingsApi } from "@/lib/api/settings";
 import {
   chatroomQueryKeys,
+  friendQueryKeys,
   notificationQueryKeys,
+  settingsQueryKeys,
 } from "@/lib/queries/queryKeys";
 import type { NotificationResponse } from "@/lib/types/notification";
+import type { NotificationSettingsData } from "@/lib/types/settings";
 
 async function getVisibleNotifications(
   page: number,
@@ -20,6 +25,14 @@ async function getVisibleNotifications(
     (notification) => notification.notificationType !== "new_message",
   );
 }
+
+export const defaultNotificationSettings: Omit<NotificationSettingsData, "id"> =
+  {
+    notificationsEnabled: true,
+    notificationSoundEnabled: true,
+    messagePreviewEnabled: true,
+    emailNotifications: false,
+  };
 
 export function useNotificationsQuery(
   userId: string | undefined,
@@ -45,14 +58,49 @@ export function useUnreadNotificationCountQuery(userId: string | undefined) {
   });
 }
 
-export function useChatroomsQuery(userId: string | undefined) {
+export function useNotificationSettingsQuery(userId: string | undefined) {
   return useQuery({
-    queryKey: chatroomQueryKeys.list(userId ?? "anonymous"),
+    queryKey: settingsQueryKeys.detail(userId ?? "anonymous"),
+    queryFn: async (): Promise<NotificationSettingsData> => {
+      const all = await settingsApi.getAll();
+      const notif = all.notificationSettings;
+      if (!notif) {
+        return { id: "local", ...defaultNotificationSettings };
+      }
+      return notif;
+    },
+    enabled: Boolean(userId),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useChatroomsQuery(
+  userId: string | undefined,
+  options?: { includeArchived?: boolean },
+) {
+  const includeArchived = options?.includeArchived ?? false;
+
+  return useQuery({
+    queryKey: chatroomQueryKeys.list(userId ?? "anonymous", includeArchived),
     queryFn: async () => {
-      const chatrooms = await chatroomsApi.getChatrooms();
-      return chatrooms.filter((chatroom) => chatroom.isActive !== false);
+      const chatrooms = await chatroomsApi.getChatrooms(includeArchived);
+      return chatrooms.filter((chatroom) => {
+        if (chatroom.isActive === false) return false;
+        return includeArchived ? chatroom.isArchived === true : !chatroom.isArchived;
+      });
     },
     enabled: Boolean(userId),
     staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useReceivedFriendRequestsQuery(userId: string | undefined) {
+  return useQuery({
+    queryKey: friendQueryKeys.receivedRequests(userId ?? "anonymous"),
+    queryFn: friendsApi.getReceivedRequests,
+    enabled: Boolean(userId),
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
   });
 }

@@ -124,7 +124,7 @@ export default function ForgotPasswordForm() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
+    <div className="mx-auto w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-lg [&_input]:bg-white [&_input]:text-gray-900 [&_input]:caret-gray-900 [&_input]:placeholder:text-gray-400">
       <div className="mb-8 text-center">
         <div className="mb-4 flex justify-center">
           <div className="rounded-full bg-blue-100 p-3">

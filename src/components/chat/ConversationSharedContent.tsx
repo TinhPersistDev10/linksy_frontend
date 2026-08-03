@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import MediaGalleryViewer, { type GalleryImage } from "./MediaGalleryViewer";
 
 type SharedTab = "media" | "files" | "links";
 
@@ -32,6 +33,7 @@ type SharedMediaItem = {
   fileName: string;
   durationMs?: number | null;
   sentAt: string;
+  senderName: string;
 };
 
 type SharedFileItem = {
@@ -88,6 +90,8 @@ export default function ConversationSharedContent({
     href: string;
     label: string;
   } | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const loadShared = useCallback(async () => {
     setLoading(true);
@@ -139,6 +143,7 @@ export default function ConversationSharedContent({
             fileName: att.fileName,
             durationMs: att.durationMs ?? att.duration,
             sentAt: msg.sentAt,
+            senderName: msg.senderFullname || msg.senderUsername,
           });
         }
       }
@@ -199,10 +204,30 @@ export default function ConversationSharedContent({
     return Array.from(map.entries());
   }, [mediaItems]);
 
+  const galleryImages = useMemo<GalleryImage[]>(
+    () =>
+      mediaItems.map((item) => ({
+        key: item.id,
+        url: item.url,
+        type: item.type,
+        fileName: item.fileName,
+        senderName: item.senderName,
+        sentAt: item.sentAt,
+        thumbnailUrl: item.thumbnailUrl,
+      })),
+    [mediaItems],
+  );
+
+  const openMediaItem = (item: SharedMediaItem) => {
+    const index = galleryImages.findIndex((image) => image.key === item.id);
+    setGalleryIndex(index >= 0 ? index : 0);
+    setGalleryOpen(true);
+  };
+
   const tabs: { id: SharedTab; label: string }[] = [
-    { id: "media", label: "Media" },
-    { id: "files", label: "Files" },
-    { id: "links", label: "Links" },
+    { id: "media", label: "Phương tiện" },
+    { id: "files", label: "Tệp" },
+    { id: "links", label: "Liên kết" },
   ];
 
   return (
@@ -216,7 +241,7 @@ export default function ConversationSharedContent({
         >
           <ArrowLeft size={18} />
         </button>
-        <h3 className="text-sm font-semibold">Media, files and links</h3>
+        <h3 className="text-sm font-semibold">File phương tiện & liên kết</h3>
       </div>
 
       <div className="flex shrink-0 border-b">
@@ -228,7 +253,7 @@ export default function ConversationSharedContent({
             className={cn(
               "flex-1 py-2.5 text-sm font-medium transition-colors",
               tab === item.id
-                ? "border-b-2 border-sky-500 text-sky-600"
+                ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-400"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -254,12 +279,16 @@ export default function ConversationSharedContent({
                   <h4 className="mb-2 px-3 text-sm font-semibold">{month}</h4>
                   <div className="grid grid-cols-3 gap-0.5">
                     {items.map((item) => (
-                      <a
+                      <button
                         key={item.id}
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="relative aspect-square overflow-hidden bg-muted"
+                        type="button"
+                        onClick={() => openMediaItem(item)}
+                        className="relative aspect-square overflow-hidden bg-muted outline-none ring-offset-1 focus-visible:ring-2 focus-visible:ring-sky-400"
+                        aria-label={
+                          item.type === "video"
+                            ? `Xem video ${item.fileName}`
+                            : `Xem ảnh ${item.fileName}`
+                        }
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
@@ -272,7 +301,7 @@ export default function ConversationSharedContent({
                             {formatDuration(item.durationMs) ?? "Video"}
                           </span>
                         )}
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </section>
@@ -325,11 +354,11 @@ export default function ConversationSharedContent({
                   }
                   className="flex w-full items-start gap-3 px-3 py-3 text-left hover:bg-muted/60"
                 >
-                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
+                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400">
                     <ExternalLink size={18} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-sky-700">
+                    <span className="block truncate text-sm font-medium text-sky-700 dark:text-sky-300">
                       {item.label}
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
@@ -381,6 +410,13 @@ export default function ConversationSharedContent({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MediaGalleryViewer
+        open={galleryOpen}
+        images={galleryImages}
+        initialIndex={galleryIndex}
+        onClose={() => setGalleryOpen(false)}
+      />
     </div>
   );
 }

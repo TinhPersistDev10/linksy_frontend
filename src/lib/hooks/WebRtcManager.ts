@@ -1,24 +1,40 @@
-/**
- * WebRtcManager
- * Pure class – không phụ thuộc React.
- * Quản lý RTCPeerConnection, media stream, SDP và ICE cho cuộc gọi 1-1.
- *
- * Đặt file tại: src/lib/hooks/WebRtcManager.ts
- */
-
 const DEFAULT_STUN_URLS = [
   "stun:stun.l.google.com:19302",
   "stun:stun1.l.google.com:19302",
   "stun:stun2.l.google.com:19302",
 ];
 
-/**
- * ICE servers are read from env so a real TURN server can be plugged in
- * without a code change. Without TURN, calls only work when both peers can
- * reach each other with STUN alone (typically same network/NAT) — this is
- * the most common reason two peers on different networks connect but never
- * see each other's media.
- */
+function expandTurnUrls(primaryUrl: string): string[] {
+  const urls = new Set<string>([primaryUrl]);
+
+  try {
+    const match = primaryUrl.match(/^(turns?):([^:?]+)(?::(\d+))?/i);
+    if (!match) return [...urls];
+
+    const scheme = match[1].toLowerCase();
+    const host = match[2];
+    const port = match[3];
+
+    if (scheme === "turn") {
+      if (port) {
+        urls.add(`turn:${host}:${port}`);
+        urls.add(`turn:${host}:${port}?transport=tcp`);
+      }
+      urls.add(`turn:${host}:80`);
+      urls.add(`turn:${host}:80?transport=tcp`);
+      urls.add(`turn:${host}:443`);
+      urls.add(`turn:${host}:443?transport=tcp`);
+      urls.add(`turns:${host}:443`);
+      urls.add(`turns:${host}:443?transport=tcp`);
+    } else {
+      urls.add(`turns:${host}:${port ?? "443"}`);
+      urls.add(`turns:${host}:${port ?? "443"}?transport=tcp`);
+    }
+  } catch {}
+
+  return [...urls];
+}
+
 export function buildIceServers(): RTCIceServer[] {
   const stunUrls = (process.env.NEXT_PUBLIC_STUN_URLS?.trim() || "")
     .split(",")
@@ -29,13 +45,24 @@ export function buildIceServers(): RTCIceServer[] {
     { urls: stunUrls.length > 0 ? stunUrls : DEFAULT_STUN_URLS },
   ];
 
-  const turnUrl = process.env.NEXT_PUBLIC_TURN_URL?.trim();
   const turnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME?.trim();
   const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL?.trim();
+  const turnUrlsList = (process.env.NEXT_PUBLIC_TURN_URLS?.trim() || "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
+  const turnUrl = process.env.NEXT_PUBLIC_TURN_URL?.trim();
 
-  if (turnUrl) {
+  let turnUrls: string[] = [];
+  if (turnUrlsList.length > 0) {
+    turnUrls = turnUrlsList;
+  } else if (turnUrl) {
+    turnUrls = expandTurnUrls(turnUrl);
+  }
+
+  if (turnUrls.length > 0) {
     servers.push({
-      urls: turnUrl,
+      urls: turnUrls,
       username: turnUsername,
       credential: turnCredential,
     });
@@ -66,8 +93,6 @@ export class WebRtcManager {
     private readonly onConnectionState: OnConnectionStateFn,
   ) {}
 
-  // ── Media ─────────────────────────────────────────────────────────────────
-
   async getLocalStream(callType: "audio" | "video"): Promise<MediaStream> {
     if (callType !== "video") {
       this.localStream = await navigator.mediaDevices.getUserMedia({
@@ -76,12 +101,6 @@ export class WebRtcManager {
       return this.localStream;
     }
 
-    // Thử lần 1: video + audio với constraint cụ thể.
-    // facingMode dùng { ideal } (không phải giá trị "exact" trần) vì nhiều
-    // webcam laptop/PC không khai báo facingMode — nếu coi đây là bắt buộc,
-    // getUserMedia sẽ ném OverconstrainedError trên desktop trong khi máy
-    // di động (luôn có facingMode "user"/"environment") vẫn xin quyền bình
-    // thường, đúng như triệu chứng "desktop không ra hình, mobile ra hình".
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -100,7 +119,6 @@ export class WebRtcManager {
       );
     }
 
-    // Thử lần 2: video boolean đơn giản nhất
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -115,7 +133,6 @@ export class WebRtcManager {
       );
     }
 
-    // Thử lần 3: audio only — vẫn cho phép gọi tiếp, chỉ mất video
     this.localStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
     });
@@ -159,7 +176,6 @@ export class WebRtcManager {
   }
 
   private pendingCandidates: string[] = [];
-  // ── PeerConnection ────────────────────────────────────────────────────────
 
   createPeerConnection(): RTCPeerConnection {
     this.pc = new RTCPeerConnection({ iceServers: buildIceServers() });
@@ -193,9 +209,6 @@ export class WebRtcManager {
       if (this.pc) console.info(`[WebRTC] iceConnectionState=${this.pc.iceConnectionState}`);
     };
 
-    // Gắn local tracks vào peer connection — log rõ track camera/mic có
-    // thật sự được thêm vào PC hay không (nguyên nhân phổ biến khiến bên
-    // kia không thấy hình: track bị "ended"/"muted" ngay từ máy gửi).
     const localTracks = this.localStream?.getTracks() ?? [];
     if (localTracks.length === 0) {
       console.warn("[WebRTC] createPeerConnection: no local tracks to attach.");
@@ -210,17 +223,13 @@ export class WebRtcManager {
     return this.pc;
   }
 
-  // ── SDP ───────────────────────────────────────────────────────────────────
-
-  /** Caller: tạo offer, set local description, trả về SDP string */
   async createOffer(): Promise<string> {
     if (!this.pc) throw new Error("PeerConnection chưa được tạo.");
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
-    return offer.sdp!;
+    return this.pc.localDescription?.sdp ?? offer.sdp!;
   }
 
-  /** Callee: nhận offer → tạo answer → set cả hai, trả về SDP answer string */
   async handleOffer(sdpOffer: string): Promise<string> {
     if (!this.pc) throw new Error("PeerConnection chưa được tạo.");
 
@@ -234,7 +243,6 @@ export class WebRtcManager {
     return answer.sdp!;
   }
 
-  /** Caller: nhận answer từ callee */
   async handleAnswer(sdpAnswer: string): Promise<void> {
     if (!this.pc) throw new Error("PeerConnection chưa được tạo.");
     await this.pc.setRemoteDescription({ type: "answer", sdp: sdpAnswer });
@@ -243,7 +251,6 @@ export class WebRtcManager {
     this.pendingCandidates = [];
   }
 
-  /** Cả hai: nhận ICE candidate từ đối phương */
   async addIceCandidate(candidateJson: string): Promise<void> {
     if (!this.pc) return;
     if (!this.pc.remoteDescription) {
@@ -254,8 +261,6 @@ export class WebRtcManager {
       new RTCIceCandidate(JSON.parse(candidateJson)),
     );
   }
-
-  // ── Cleanup ───────────────────────────────────────────────────────────────
 
   destroy() {
     this.pendingCandidates = [];

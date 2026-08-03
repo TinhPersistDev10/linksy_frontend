@@ -24,16 +24,19 @@ import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import ConversationInfoPanel from "./ConversationInfoPanel";
 import PinnedMessagesBanner from "./PinnedMessagesBanner";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { messagesApi } from "@/lib/api/messages";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import { chatroomQueryKeys } from "@/lib/queries/queryKeys";
 import type {
+  CreatePollRequest,
   MessageDeliveryStatusResponse,
   MessagePinnedEvent,
   MessageResponse,
   MessageUnpinnedEvent,
   PinnedMessageResponse,
 } from "@/lib/types/message";
+import CreatePollDialog from "./CreatePollDialog";
 
 interface ChatWindowLayoutProps {
   chatroom: ChatroomResponse | null;
@@ -60,6 +63,10 @@ export default function ChatWindowLayout({
     chatroom,
   );
   const [infoOpen, setInfoOpen] = useState(false);
+  const [notice, setNotice] = useState<{
+    title: string;
+    description: string;
+  } | null>(null);
 
   useEffect(() => {
     setActiveChatroom(chatroom);
@@ -127,6 +134,7 @@ export default function ChatWindowLayout({
   }, [onReadChatroom]);
 
   const [composerSubmitting, setComposerSubmitting] = useState(false);
+  const [pollDialogOpen, setPollDialogOpen] = useState(false);
 
   const onUserTyping = useCallback(
     ({
@@ -168,11 +176,17 @@ export default function ChatWindowLayout({
     onMessageDelivered,
     onAllMessagesRead,
     onReactionUpdated,
+    onPollUpdated,
     applyReactionToggleResult,
+    applyPollUpdate,
     appendOptimistic,
     replaceOptimistic,
     removeOptimistic,
-  } = useMessages(chatroomId);
+  } = useMessages(
+    chatroomId,
+    user?.userId,
+    currentChatroom?.myMemberInfo?.memberRole === "admin",
+  );
 
   const markChatroomReadInCache = useCallback(() => {
     if (!chatroomId || !user?.userId) return;
@@ -280,6 +294,8 @@ export default function ChatWindowLayout({
     pinMessage: signalRPin,
     unpinMessage: signalRUnpin,
     toggleReaction: signalRToggleReaction,
+    votePoll: signalRVotePoll,
+    closePoll: signalRClosePoll,
   } = useChatSignalR({
     chatroomId: chatroomId ?? null,
     onReceiveMessage: handleReceiveMessage,
@@ -294,6 +310,7 @@ export default function ChatWindowLayout({
     onMessagePinned: handleMessagePinned,
     onMessageUnpinned: handleMessageUnpinned,
     onReactionUpdated,
+    onPollUpdated,
   });
 
   // ── Send + typing ──────────────────────────────────────────────────────────
@@ -302,6 +319,7 @@ export default function ChatWindowLayout({
     setInput,
     sending,
     handleSend,
+    handleSendVoice,
     notifyTyping,
     selectedFiles,
     addSelectedFiles,
@@ -329,6 +347,8 @@ export default function ChatWindowLayout({
     isDirectChat ||
     currentChatroom?.myMemberInfo?.memberRole === "admin" ||
     Boolean(currentChatroom?.myMemberInfo?.permissions?.canPinMessages);
+  const canSendVoice =
+    currentChatroom?.myMemberInfo?.permissions?.canSendVoice !== false;
   const pinnedMessageIds = useMemo(
     () => new Set(pinnedMessages.map((p) => p.messageId)),
     [pinnedMessages],
@@ -373,6 +393,64 @@ export default function ChatWindowLayout({
       }
     },
     [signalRToggleReaction, applyReactionToggleResult],
+  );
+
+  const handleVotePoll = useCallback(
+    async (messageId: string, optionId: string) => {
+      try {
+        const poll = await messagesApi.votePoll(messageId, optionId);
+        applyPollUpdate(messageId, poll);
+      } catch {
+        try {
+          await signalRVotePoll(messageId, optionId);
+        } catch (error) {
+          console.error("Vote poll failed:", error);
+        }
+      }
+    },
+    [signalRVotePoll, applyPollUpdate],
+  );
+
+  const handleClosePoll = useCallback(
+    async (messageId: string) => {
+      try {
+        const poll = await messagesApi.closePoll(messageId);
+        applyPollUpdate(messageId, poll);
+      } catch {
+        try {
+          await signalRClosePoll(messageId);
+        } catch (error) {
+          console.error("Close poll failed:", error);
+        }
+      }
+    },
+    [signalRClosePoll, applyPollUpdate],
+  );
+
+  const handleCreatePoll = useCallback(
+    async (poll: CreatePollRequest) => {
+      if (!chatroomId || !user) return;
+      setComposerSubmitting(true);
+      try {
+        const sent = await messagesApi.createPoll(chatroomId, poll);
+        appendOptimistic({
+          ...sent,
+          poll: sent.poll
+            ? {
+                ...sent.poll,
+                canClose: true,
+              }
+            : sent.poll,
+        });
+        setPollDialogOpen(false);
+      } catch (error) {
+        console.error("Create poll failed:", error);
+        throw error;
+      } finally {
+        setComposerSubmitting(false);
+      }
+    },
+    [chatroomId, user, appendOptimistic],
   );
 
   const handleInsertEmoji = useCallback(
@@ -504,6 +582,8 @@ export default function ChatWindowLayout({
     clearSelectedFiles();
     clearPendingMentions();
     setPinnedMessages([]);
+    setPollDialogOpen(false);
+    setComposerSubmitting(false);
 
     messagesApi
       .markAllRead(chatroomId)
@@ -601,7 +681,10 @@ export default function ChatWindowLayout({
                     error instanceof Error
                       ? error.message
                       : "Không thể bắt đầu cuộc gọi.";
-                  window.alert(message);
+                  setNotice({
+                    title: "Không thể gọi",
+                    description: message,
+                  });
                 });
             }}
             onMembersChanged={refreshChatroomMembers}
@@ -689,10 +772,15 @@ export default function ChatWindowLayout({
               onToggleReaction={(messageId, emoji) =>
                 void handleToggleReaction(messageId, emoji)
               }
+              onVotePoll={(messageId, optionId) =>
+                void handleVotePoll(messageId, optionId)
+              }
+              onClosePoll={(messageId) => void handleClosePoll(messageId)}
             />
           </div>
 
           <MessageInput
+            key={chatroomId}
             value={input}
             sending={sending || composerSubmitting}
             replyTo={replyTo}
@@ -700,7 +788,7 @@ export default function ChatWindowLayout({
             selectedFiles={selectedFiles}
             onFilesSelected={addSelectedFiles}
             onRemoveFile={removeSelectedFile}
-            attachmentsDisabled={Boolean(replyTo || editingMessage)}
+            attachmentsDisabled={Boolean(editingMessage)}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onSend={() => void handleSubmit()}
@@ -717,6 +805,32 @@ export default function ChatWindowLayout({
             currentUserId={user?.userId}
             pendingMentions={pendingMentions}
             onPendingMentionsChange={setPendingMentions}
+            canSendVoice={canSendVoice && !editingMessage}
+            onSendVoice={async (file) => {
+              // Wait briefly if another send is in flight (e.g. voice auto-stop at 60s).
+              let waits = 0;
+              while (composerSubmitting && waits < 40) {
+                await new Promise((r) => setTimeout(r, 100));
+                waits += 1;
+              }
+              if (composerSubmitting) return;
+              setComposerSubmitting(true);
+              try {
+                await handleSendVoice(file, {
+                  parentMessageId: replyTo?.messageId,
+                });
+                setReplyTo(null);
+              } finally {
+                setComposerSubmitting(false);
+              }
+            }}
+          />
+
+          <CreatePollDialog
+            open={pollDialogOpen}
+            submitting={composerSubmitting}
+            onClose={() => setPollDialogOpen(false)}
+            onSubmit={handleCreatePoll}
           />
 
           {deliveryOpen && deliveryStatus && (
@@ -769,10 +883,19 @@ export default function ChatWindowLayout({
           }}
           onViewPinnedMessages={() => {
             if (pinnedMessages.length === 0) {
-              window.alert("Chưa có tin nhắn đã ghim.");
+              setNotice({
+                title: "Chưa có tin nhắn đã ghim",
+                description:
+                  "Hãy ghim một tin nhắn trong cuộc trò chuyện để xem tại đây.",
+              });
               return;
             }
             void jumpToMessage(pinnedMessages[0].messageId);
+          }}
+          onCreatePoll={() => {
+            if (!isGroupChat) return;
+            setInfoOpen(false);
+            setPollDialogOpen(true);
           }}
           onOpenDirectChat={(directChatroom) => {
             onOpenChatroom?.(directChatroom);
@@ -787,12 +910,26 @@ export default function ChatWindowLayout({
                   error instanceof Error
                     ? error.message
                     : "Không thể bắt đầu cuộc gọi.";
-                window.alert(message);
+                setNotice({
+                  title: "Không thể gọi",
+                  description: message,
+                });
               });
           }}
         />
       </div>
 
+      <ConfirmDialog
+        open={notice !== null}
+        onOpenChange={(open) => {
+          if (!open) setNotice(null);
+        }}
+        title={notice?.title ?? ""}
+        description={notice?.description ?? ""}
+        confirmLabel="Đã hiểu"
+        variant="info"
+        onConfirm={() => setNotice(null)}
+      />
     </>
   );
 }

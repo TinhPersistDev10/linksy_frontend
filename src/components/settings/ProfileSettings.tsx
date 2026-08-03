@@ -7,6 +7,11 @@ import { Button } from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { usersApi } from "@/lib/api/users";
 import { useAuth } from "@/lib/hooks/useAuth";
+import {
+  AVATAR_MAX_BYTES,
+  BIO_MAX_LENGTH,
+  validators,
+} from "@/lib/utils/validators";
 
 interface ProfileFormData {
   fullname: string;
@@ -63,7 +68,7 @@ export default function ProfileSettings() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > AVATAR_MAX_BYTES) {
       setError("Ảnh đại diện không được vượt quá 5MB");
       return;
     }
@@ -172,37 +177,40 @@ export default function ProfileSettings() {
             label="Họ và tên"
             placeholder="Nguyễn Văn A"
             error={errors.fullname?.message}
-            {...register("fullname", { required: "Họ và tên là bắt buộc" })}
+            {...register("fullname", validators.fullname)}
           />
           <Input
             label="Tên người dùng"
             placeholder="username"
             error={errors.username?.message}
-            {...register("username", {
-              required: "Tên người dùng là bắt buộc",
-              pattern: {
-                value: /^[a-zA-Z0-9_]+$/,
-                message: "Chỉ được dùng chữ, số và dấu _",
-              },
-            })}
+            {...register("username", validators.username)}
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">
+          <label className="mb-1 block text-sm font-medium text-foreground">
             Giới thiệu bản thân
           </label>
           <textarea
             placeholder="Nói gì đó về bạn..."
+            maxLength={BIO_MAX_LENGTH}
             className="min-h-[80px] w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            {...register("bio")}
+            {...register("bio", validators.bio)}
           />
+          {errors.bio?.message ? (
+            <p className="mt-1 text-xs text-red-500">{errors.bio.message}</p>
+          ) : null}
         </div>
 
-        <Input label="Ngày sinh" type="date" {...register("dateOfBirth")} />
+        <Input
+          label="Ngày sinh"
+          type="date"
+          error={errors.dateOfBirth?.message}
+          {...register("dateOfBirth", validators.dateOfBirth)}
+        />
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Email</label>
+          <label className="mb-1 block text-sm font-medium text-foreground">Email</label>
           <div className="flex items-center gap-2">
             <input
               type="email"
@@ -211,7 +219,7 @@ export default function ProfileSettings() {
               className="h-9 flex-1 cursor-not-allowed rounded-md border border-input bg-muted/50 px-3 py-1 text-sm text-muted-foreground"
             />
             {user?.isEmailVerified && (
-              <span className="whitespace-nowrap rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-600">
+              <span className="whitespace-nowrap rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-600 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300">
                 Đã xác thực
               </span>
             )}

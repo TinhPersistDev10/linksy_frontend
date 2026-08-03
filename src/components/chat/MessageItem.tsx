@@ -10,6 +10,7 @@ import {
   PhoneCall,
   Pin,
   PinOff,
+  Play,
   Reply,
   Smile,
   SmilePlus,
@@ -43,11 +44,25 @@ import MentionedText from "./MentionedText";
 import MessageImageGrid, {
   collectImageAttachments,
 } from "./MessageImageGrid";
+import type { GalleryImage } from "./MediaGalleryViewer";
 import MessageReactions from "./MessageReactions";
 import EmojiPickerPopover, {
   QUICK_REACTION_EMOJIS,
 } from "./EmojiPickerPopover";
 import { emojiOnlyTextClass } from "@/lib/utils/emojiText";
+import VoiceMessageBubble from "./VoiceMessageBubble";
+import PollMessageBubble from "./PollMessageBubble";
+
+function getMessagePreviewLabel(message: MessageResponse) {
+  if (message.messageType === "audio" || message.messageType === "voice")
+    return "Tin nhắn thoại";
+  if (message.messageType === "poll")
+    return message.poll?.question || message.messageText || "Bình chọn";
+  if (message.messageType === "image") return "Ảnh";
+  if (message.messageType === "video") return "Video";
+  if (message.messageType === "file") return "Tệp đính kèm";
+  return message.messageText || "Tin nhắn";
+}
 
 interface MessageItemProps {
   msg: MessageResponse;
@@ -64,6 +79,9 @@ interface MessageItemProps {
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
   onToggleReaction?: (messageId: string, emojiCode: string) => void;
+  onOpenGallery?: (images: GalleryImage[], startIndex: number) => void;
+  onVotePoll?: (messageId: string, optionId: string) => void;
+  onClosePoll?: (messageId: string) => void;
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
@@ -155,6 +173,9 @@ export default function MessageItem({
   onPin,
   onUnpin,
   onToggleReaction,
+  onOpenGallery,
+  onVotePoll,
+  onClosePoll,
 }: MessageItemProps) {
   const [reactionOpen, setReactionOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -201,12 +222,12 @@ export default function MessageItem({
             className={cn(
               "w-64 max-w-[calc(100vw-5rem)] overflow-hidden rounded-lg border text-sm shadow-sm sm:w-72",
               isOwn
-                ? "border-blue-200 bg-blue-50 text-slate-800"
-                : "border-border bg-background",
+                ? "border-blue-500/30 bg-blue-500/10 text-foreground dark:border-blue-400/25 dark:bg-blue-500/15"
+                : "border-border bg-card text-card-foreground",
             )}
           >
             <div className="px-3.5 pb-2.5 pt-3">
-              <p className="font-semibold text-slate-800">{callInfo.label}</p>
+              <p className="font-semibold text-foreground">{callInfo.label}</p>
               <div className="mt-2 flex items-center gap-2 text-muted-foreground">
                 <Icon size={17} className="shrink-0" />
                 <span className="min-w-0 truncate">
@@ -228,7 +249,7 @@ export default function MessageItem({
               <button
                 type="button"
                 onClick={() => onCallAgain?.(callInfo.callType)}
-                className="flex h-10 w-full items-center justify-center gap-2 font-medium text-blue-600 transition-colors hover:bg-blue-50"
+                className="flex h-10 w-full items-center justify-center gap-2 font-medium text-sky-600 transition-colors hover:bg-sky-500/10 dark:text-sky-400 dark:hover:bg-sky-500/15"
               >
                 <PhoneCall size={16} />
                 Gọi lại
@@ -256,6 +277,97 @@ export default function MessageItem({
           <span className="rounded-full bg-muted px-3 py-1 text-center text-xs text-muted-foreground">
             {msg.messageText}
           </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (msg.messageType === "poll" && msg.poll) {
+    return (
+      <div data-msg-id={msg.messageId}>
+        {showDateDivider && (
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="px-2 text-xs text-muted-foreground">
+              {formatDateDivider(msg.sentAt)}
+            </span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        )}
+        <div className="group/message my-4 flex justify-center px-3">
+          <div
+            className={cn(
+              "relative w-full max-w-sm rounded-2xl border bg-background px-4 py-3 shadow-sm",
+              isTemp && "opacity-60",
+              msg.isDeleted && "opacity-50",
+              isPinned && "ring-1 ring-sky-400/60",
+            )}
+          >
+            {isPinned && (
+              <div className="mb-2 flex items-center gap-1 text-[10px] font-medium text-sky-700 dark:text-sky-400">
+                <Pin size={10} />
+                Đã ghim
+              </div>
+            )}
+            {!msg.isDeleted ? (
+              <PollMessageBubble
+                poll={msg.poll}
+                isOwn={false}
+                centered
+                disabled={isTemp || msg.isDeleted}
+                onVote={(optionId) => onVotePoll?.(msg.messageId, optionId)}
+                onClose={
+                  msg.poll.canClose
+                    ? () => onClosePoll?.(msg.messageId)
+                    : undefined
+                }
+              />
+            ) : (
+              <p className="text-center text-sm text-muted-foreground">
+                Bình chọn đã bị xóa
+              </p>
+            )}
+
+            {showActions && (
+              <div className="mt-2 flex items-center justify-center gap-1 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
+                <button
+                  type="button"
+                  title="Trả lời"
+                  aria-label="Trả lời"
+                  onClick={() => onReply(msg)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground"
+                >
+                  <Reply size={14} />
+                </button>
+                {canPin && (
+                  <button
+                    type="button"
+                    title={isPinned ? "Bỏ ghim" : "Ghim"}
+                    aria-label={isPinned ? "Bỏ ghim" : "Ghim"}
+                    onClick={() =>
+                      isPinned
+                        ? onUnpin?.(msg.messageId)
+                        : onPin?.(msg.messageId)
+                    }
+                    className="flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground"
+                  >
+                    {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                  </button>
+                )}
+                {isOwn && (
+                  <button
+                    type="button"
+                    title="Xóa"
+                    aria-label="Xóa"
+                    onClick={() => onDelete(msg.messageId)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border bg-background text-red-600 shadow-sm hover:bg-red-50 dark:hover:bg-red-950/40"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -363,12 +475,18 @@ export default function MessageItem({
                   )}
                 >
                   {mediaOnly && isPinned && (
-                    <div className="mb-1 flex items-center gap-1 px-1 text-[10px] font-medium text-sky-700">
+                    <div className="mb-1 flex items-center gap-1 px-1 text-[10px] font-medium text-sky-700 dark:text-sky-400">
                       <Pin size={10} />
                       Đã ghim
                     </div>
                   )}
-                  <MessageImageGrid images={imageAttachments} isOwn={isOwn} />
+                  <MessageImageGrid
+                    images={imageAttachments}
+                    isOwn={isOwn}
+                    senderName={msg.senderFullname || msg.senderUsername}
+                    sentAt={msg.sentAt}
+                    onOpenImage={onOpenGallery}
+                  />
                 </div>
               )}
 
@@ -379,17 +497,48 @@ export default function MessageItem({
                     if (!url) return null;
                     const key = attachment.attachmentId ?? url;
                     return (
-                      <video
+                      <button
                         key={key}
-                        src={url}
-                        controls
+                        type="button"
+                        onClick={() =>
+                          onOpenGallery?.(
+                            [
+                              {
+                                key,
+                                url,
+                                type: "video",
+                                fileName: attachment.fileName,
+                                senderName:
+                                  msg.senderFullname || msg.senderUsername,
+                                sentAt: msg.sentAt,
+                                thumbnailUrl: attachment.thumbnailUrl,
+                              },
+                            ],
+                            0,
+                          )
+                        }
                         className={cn(
-                          "max-h-72 max-w-full bg-black",
+                          "relative max-h-72 max-w-full overflow-hidden bg-black outline-none focus-visible:ring-2 focus-visible:ring-sky-400",
                           isOwn
                             ? "rounded-2xl rounded-br-md"
                             : "rounded-2xl rounded-bl-md",
                         )}
-                      />
+                        aria-label={`Xem video ${attachment.fileName}`}
+                      >
+                        <video
+                          src={url}
+                          poster={attachment.thumbnailUrl ?? undefined}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="max-h-72 w-full object-cover"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/25">
+                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white">
+                            <Play size={22} className="ml-0.5 fill-white" />
+                          </span>
+                        </span>
+                      </button>
                     );
                   })}
                 </div>
@@ -415,7 +564,7 @@ export default function MessageItem({
                     "mb-1 flex items-center gap-1 text-[10px] font-medium",
                     isOwn && !emojiTextClass
                       ? "text-white/80"
-                      : "text-sky-700",
+                      : "text-sky-700 dark:text-sky-400",
                   )}
                 >
                   <Pin size={10} />
@@ -436,7 +585,7 @@ export default function MessageItem({
                   </p>
 
                   <p className="line-clamp-1 opacity-80">
-                    {msg.parentMessage.messageText}
+                    {getMessagePreviewLabel(msg.parentMessage)}
                   </p>
                 </div>
               )}
@@ -452,11 +601,13 @@ export default function MessageItem({
 
                     if (attachmentType === "audio") {
                       return (
-                        <audio
+                        <VoiceMessageBubble
                           key={key}
                           src={url}
-                          controls
-                          className="max-w-full"
+                          durationMs={
+                            attachment.durationMs ?? attachment.duration
+                          }
+                          isOwn={isOwn}
                         />
                       );
                     }
@@ -623,10 +774,14 @@ export default function MessageItem({
 
                       {isOwn && (
                         <>
-                          <DropdownMenuItem onSelect={() => onEdit(msg)}>
-                            <Pencil />
-                            Chỉnh sửa
-                          </DropdownMenuItem>
+                          {msg.messageType !== "audio" &&
+                            msg.messageType !== "voice" &&
+                            msg.messageType !== "poll" && (
+                              <DropdownMenuItem onSelect={() => onEdit(msg)}>
+                                <Pencil />
+                                Chỉnh sửa
+                              </DropdownMenuItem>
+                            )}
 
                           {onShowDelivery && (
                             <DropdownMenuItem

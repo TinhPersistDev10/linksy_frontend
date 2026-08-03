@@ -14,11 +14,14 @@ interface GroupWebRtcManagerOptions {
     userId: string,
     state: RTCPeerConnectionState,
   ) => void;
+  onIceConnectionFailed?: (userId: string) => void;
 }
 
 export class GroupWebRtcManager {
   private localStream: MediaStream | null = null;
   private readonly peers = new Map<string, PeerState>();
+  private readonly earlyCandidates = new Map<string, string[]>();
+  private readonly iceRestartRequested = new Set<string>();
 
   constructor(private readonly options: GroupWebRtcManagerOptions) {}
 
@@ -29,6 +32,7 @@ export class GroupWebRtcManager {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
       });
+      this.attachLocalTracksToExistingPeers();
       return this.localStream;
     }
 
@@ -49,6 +53,7 @@ export class GroupWebRtcManager {
       });
     }
 
+    this.attachLocalTracksToExistingPeers();
     return this.localStream;
   }
 
@@ -78,6 +83,7 @@ export class GroupWebRtcManager {
 
   async createOffer(userId: string, iceRestart = false): Promise<string> {
     const peer = this.ensurePeer(userId);
+    if (iceRestart) this.iceRestartRequested.delete(userId);
     const offer = await peer.pc.createOffer({ iceRestart });
     await peer.pc.setLocalDescription(offer);
     return offer.sdp ?? "";
@@ -85,6 +91,7 @@ export class GroupWebRtcManager {
 
   async handleOffer(userId: string, sdpOffer: string): Promise<string> {
     const peer = this.ensurePeer(userId);
+    this.iceRestartRequested.delete(userId);
     await peer.pc.setRemoteDescription({ type: "offer", sdp: sdpOffer });
     await this.flushPendingCandidates(peer);
     const answer = await peer.pc.createAnswer();
@@ -100,7 +107,14 @@ export class GroupWebRtcManager {
   }
 
   async addIceCandidate(userId: string, candidateJson: string): Promise<void> {
-    const peer = this.ensurePeer(userId);
+    const peer = this.peers.get(userId);
+    if (!peer) {
+      const pending = this.earlyCandidates.get(userId) ?? [];
+      pending.push(candidateJson);
+      this.earlyCandidates.set(userId, pending);
+      return;
+    }
+
     if (!peer.pc.remoteDescription) {
       peer.pendingCandidates.push(candidateJson);
       return;
@@ -116,26 +130,35 @@ export class GroupWebRtcManager {
     if (!peer) return;
     peer.pc.close();
     this.peers.delete(userId);
+    this.earlyCandidates.delete(userId);
+    this.iceRestartRequested.delete(userId);
   }
 
   destroy(): void {
     this.peers.forEach((peer) => peer.pc.close());
     this.peers.clear();
+    this.earlyCandidates.clear();
+    this.iceRestartRequested.clear();
     this.localStream?.getTracks().forEach((track) => track.stop());
     this.localStream = null;
   }
 
   private ensurePeer(userId: string): PeerState {
     const existing = this.peers.get(userId);
-    if (existing) return existing;
+    if (existing) {
+      this.attachLocalTracks(existing);
+      return existing;
+    }
 
     const pc = new RTCPeerConnection({ iceServers: buildIceServers() });
     const remoteStream = new MediaStream();
     const peer: PeerState = { pc, remoteStream, pendingCandidates: [] };
 
-    this.localStream?.getTracks().forEach((track) => {
-      pc.addTrack(track, this.localStream!);
-    });
+    this.attachLocalTracks(peer);
+
+    const early = this.earlyCandidates.get(userId) ?? [];
+    this.earlyCandidates.delete(userId);
+    peer.pendingCandidates.push(...early);
 
     pc.onicecandidate = ({ candidate }) => {
       if (!candidate) return;
@@ -157,16 +180,62 @@ export class GroupWebRtcManager {
       this.options.onConnectionState(userId, pc.connectionState);
     };
 
+    pc.oniceconnectionstatechange = () => {
+      const state = pc.iceConnectionState;
+      console.info(`[GroupWebRTC] iceConnectionState[${userId}]=${state}`);
+      if (state === "failed" && !this.iceRestartRequested.has(userId)) {
+        this.iceRestartRequested.add(userId);
+        this.options.onIceConnectionFailed?.(userId);
+      }
+      if (state === "connected" || state === "completed") {
+        this.iceRestartRequested.delete(userId);
+      }
+    };
+
     this.peers.set(userId, peer);
     return peer;
+  }
+
+  private attachLocalTracks(peer: PeerState): void {
+    if (!this.localStream) {
+      console.warn(
+        "[GroupWebRTC] ensurePeer: no local stream yet — tracks will be attached later.",
+      );
+      return;
+    }
+
+    const existing = new Set(
+      peer.pc
+        .getSenders()
+        .map((sender) => sender.track?.id)
+        .filter((id): id is string => Boolean(id)),
+    );
+
+    for (const track of this.localStream.getTracks()) {
+      if (existing.has(track.id)) continue;
+      console.info(
+        `[GroupWebRTC] addTrack: kind=${track.kind} enabled=${track.enabled} readyState=${track.readyState}`,
+      );
+      peer.pc.addTrack(track, this.localStream);
+    }
+  }
+
+  private attachLocalTracksToExistingPeers(): void {
+    for (const peer of this.peers.values()) {
+      this.attachLocalTracks(peer);
+    }
   }
 
   private async flushPendingCandidates(peer: PeerState): Promise<void> {
     const candidates = peer.pendingCandidates.splice(0);
     for (const candidateJson of candidates) {
-      await peer.pc.addIceCandidate(
-        new RTCIceCandidate(JSON.parse(candidateJson)),
-      );
+      try {
+        await peer.pc.addIceCandidate(
+          new RTCIceCandidate(JSON.parse(candidateJson)),
+        );
+      } catch (err) {
+        console.warn("[GroupWebRTC] addIceCandidate failed:", err);
+      }
     }
   }
 }
