@@ -2,10 +2,36 @@
 import apiClient from './axios';
 import type { Friend, FriendRequest, SearchUserResult } from '../types/chatroom';
 
+export type RelationshipStatus =
+  | "none"
+  | "self"
+  | "friends"
+  | "request_sent"
+  | "request_received"
+  | "blocked"
+  | "blocked_by"
+  | string;
+
+export interface RelationshipResponse {
+  userId?: string;
+  status: RelationshipStatus;
+  requestId?: string | null;
+}
+
 export const friendsApi = {
   getFriends: async (): Promise<Friend[]> => {
     const res = await apiClient.get('/friends');
     return Array.isArray(res.data) ? res.data : (res.data.friends ?? []);
+  },
+
+  getRelationship: async (otherUserId: string): Promise<RelationshipResponse> => {
+    const res = await apiClient.get(`/friends/relationship/${otherUserId}`);
+    const data = res.data?.data ?? res.data;
+    return {
+      userId: data?.userId,
+      status: data?.status ?? "none",
+      requestId: data?.requestId ?? null,
+    };
   },
 
   // ✅ param đúng là "query", backend: /api/friends/search?query=xxx

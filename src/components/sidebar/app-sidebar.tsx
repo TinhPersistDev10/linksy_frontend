@@ -51,6 +51,7 @@ import type { NotificationResponse } from "@/lib/types/notification";
 import type { MessageNotificationPayload } from "@/lib/hooks/useSidebarRealtime";
 import { playNotificationSound } from "@/lib/utils/notificationSound";
 import { showBrowserNotification } from "@/lib/utils/browserNotification";
+import { LinksyLogo } from "../brand/LinksyLogo";
 
 export type SocialView =
   | "messages"
@@ -401,9 +402,7 @@ export function AppSidebar({
         )}
       >
         <div className="hidden md:flex flex-col items-center w-14 shrink-0 bg-sidebar border-r border-sidebar-border py-3 gap-1 z-20">
-          <div className="w-8 h-8 rounded-xl bg-sky-500 flex items-center justify-center mb-3 shrink-0">
-            <MessageCircle size={16} className="text-white" />
-          </div>
+          <LinksyLogo size={32}/>
 
           <div className="flex flex-col gap-1 flex-1">
             {navItems.map(({ id, icon: Icon, label }) => (
@@ -631,6 +630,7 @@ export function AppSidebar({
                 selectedChatroomId={selectedChatroomId}
                 refreshTrigger={refreshTrigger}
                 searchQuery={searchQuery}
+                onConversationRemoved={handleRemovedFromGroup}
               />
             )}
 

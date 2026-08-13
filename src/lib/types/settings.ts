@@ -17,9 +17,21 @@ export interface NotificationSettingsData {
   emailNotifications: boolean;
 }
 
+export interface PrivacySettingsData {
+  id: string;
+  readReceiptsEnabled: boolean;
+  typingIndicatorsEnabled: boolean;
+  lastSeenEnabled: boolean;
+  profilePhotoVisibility: string;
+  statusVisibility: string;
+  whoCanAddToGroups: string;
+  whoCanMessageMe: "everyone" | "friends" | string;
+}
+
 export interface AllSettings {
   userSettings: UserSettings | null;
   notificationSettings: NotificationSettingsData | null;
+  privacySettings?: PrivacySettingsData | null;
 }
 
 export interface UpdateUserSettingsRequest {
@@ -33,4 +45,14 @@ export interface UpdateNotificationSettingsRequest {
   notificationSoundEnabled?: boolean;
   messagePreviewEnabled?: boolean;
   emailNotifications?: boolean;
+}
+
+export interface UpdatePrivacySettingsRequest {
+  readReceiptsEnabled?: boolean;
+  typingIndicatorsEnabled?: boolean;
+  lastSeenEnabled?: boolean;
+  profilePhotoVisibility?: string;
+  statusVisibility?: string;
+  whoCanAddToGroups?: string;
+  whoCanMessageMe?: "everyone" | "friends";
 }

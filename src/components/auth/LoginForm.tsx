@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { LoginRequest } from "@/lib/types/auth";
 import { Eye, EyeOff, MessageCircle } from "lucide-react";
+import { LinksyLogo } from "../brand/LinksyLogo";
 
 export default function LoginForm() {
   const { login } = useAuth();
@@ -37,9 +38,7 @@ export default function LoginForm() {
       {/* Logo và Title */}
       <div className="mb-8 text-center">
         <div className="mb-4 flex justify-center">
-          <div className="rounded-full bg-blue-100 p-3">
-            <MessageCircle className="text-blue-600" size={40} />
-          </div>
+          <LinksyLogo size={48} />
         </div>
         <h1 className="mb-2 text-3xl font-bold text-gray-800">
           Chào mừng trở lại!

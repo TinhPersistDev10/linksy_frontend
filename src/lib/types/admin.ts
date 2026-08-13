@@ -40,6 +40,12 @@ export interface AdminUserDetail {
   roles: Role[];
   messageCount: number;
   friendCount: number;
+  moderationLevel?: string;
+  moderationReason?: string | null;
+  moderationExpiresAt?: string | null;
+  moderatedAt?: string | null;
+  violationPoints?: number;
+  isFlaggedForReview?: boolean;
 }
 
 export interface AdminUsersListResult {

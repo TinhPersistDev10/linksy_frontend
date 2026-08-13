@@ -3,9 +3,11 @@ import type { ApiResponse } from "../types/common";
 import type {
   AllSettings,
   UpdateNotificationSettingsRequest,
+  UpdatePrivacySettingsRequest,
   UpdateUserSettingsRequest,
   UserSettings,
   NotificationSettingsData,
+  PrivacySettingsData,
 } from "../types/settings";
 
 function unwrap<T>(response: ApiResponse<T>, fallbackMessage: string): T {
@@ -39,5 +41,15 @@ export const settingsApi = {
       payload,
     );
     return unwrap(res.data, "Không thể cập nhật thông báo");
+  },
+
+  updatePrivacy: async (
+    payload: UpdatePrivacySettingsRequest,
+  ): Promise<PrivacySettingsData> => {
+    const res = await apiClient.put<ApiResponse<PrivacySettingsData>>(
+      "/settings/privacy",
+      payload,
+    );
+    return unwrap(res.data, "Không thể cập nhật quyền riêng tư");
   },
 };

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { MessageCircle, Users, Shield, Zap } from "lucide-react";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { isSystemAdmin } from "@/lib/types/user";
+import { LinksyLogo } from "@/components/brand/LinksyLogo";
 
 export default function HomePage() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -32,10 +33,8 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <header className="container mx-auto flex items-center justify-between px-4 py-6">
-        <div className="flex items-center space-x-2">
-          <MessageCircle className="text-blue-600" size={32} />
-          <span className="text-2xl font-bold text-gray-800">Linksy</span>
-        </div>
+        
+        <LinksyLogo variant="wordmark" theme="light" size={36} />
         <div className="space-x-4">
           <Link
             href="/login"

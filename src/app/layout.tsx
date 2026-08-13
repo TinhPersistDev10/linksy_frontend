@@ -8,6 +8,14 @@ import { THEME_BOOTSTRAP_SCRIPT } from '@/lib/theme';
 export const metadata: Metadata = {
   title: 'Linksy - Ứng dụng chat',
   description: 'Kết nối và trò chuyện với mọi người',
+  icons: {
+    icon: [
+      { url: "/brand/logo-favicon-transparent.png", type: "image/png", sizes: "128x128" },
+      { url: "/favicon.png", type: "image/png", sizes: "64x64" },
+    ],
+    shortcut: "/brand/logo-favicon-transparent.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({

@@ -10,6 +10,7 @@ import Button from "@/components/ui/Button";
 import { RegisterRequest } from "@/lib/types/auth";
 import { matchPassword, validators } from "@/lib/utils/validators";
 import { Eye, EyeOff, MessageCircle } from "lucide-react";
+import { LinksyLogo } from "../brand/LinksyLogo";
 
 export default function RegisterForm() {
   const { register: registerUser } = useAuth();
@@ -52,11 +53,10 @@ export default function RegisterForm() {
     <div className="mx-auto w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-lg [&_input]:bg-white [&_input]:text-gray-900 [&_input]:caret-gray-900 [&_input]:placeholder:text-gray-400">
       {/* Logo và Title */}
       <div className="text-center mb-8">
-        <div className="flex justify-center mb-4">
-          <div className="p-3 bg-blue-100 rounded-full">
-            <MessageCircle className="text-blue-600" size={40} />
-          </div>
+        <div className="mb-4 flex justify-center">
+          <LinksyLogo size={48} />
         </div>
+          
         <h1 className="text-3xl font-bold text-gray-800 mb-2">
           Tạo tài khoản mới
         </h1>

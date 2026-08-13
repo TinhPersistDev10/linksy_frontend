@@ -1,3 +1,5 @@
+import type { UserModerationStatus } from "./report";
+
 export interface User {
   userId: string;
   username: string;
@@ -11,6 +13,7 @@ export interface User {
   createdAt: string;
   lastLoginAt: string;
   roles?: string[];
+  moderation?: UserModerationStatus | null;
 }
 
 /** System admin (JWT role `Admin`), not group chat admin. */

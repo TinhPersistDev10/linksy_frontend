@@ -5,6 +5,10 @@ import { Plus, X } from "lucide-react";
 import Button from "../ui/Button";
 import { cn } from "@/lib/utils/cn";
 import type { CreatePollRequest } from "@/lib/types/message";
+import {
+  COMMUNITY_VIOLATION_MESSAGE,
+  containsBannedContent,
+} from "@/lib/utils/contentModeration";
 
 interface CreatePollDialogProps {
   open: boolean;
@@ -60,6 +64,14 @@ export default function CreatePollDialog({
     }
     if (opts.some((o) => o.length > 100)) {
       setError("Mỗi lựa chọn tối đa 100 ký tự.");
+      return;
+    }
+
+    if (
+      containsBannedContent(q) ||
+      opts.some((option) => containsBannedContent(option))
+    ) {
+      setError(COMMUNITY_VIOLATION_MESSAGE);
       return;
     }
 

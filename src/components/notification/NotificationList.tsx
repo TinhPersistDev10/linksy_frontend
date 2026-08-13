@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   CalendarClock,
+  Camera,
   CheckCheck,
   Loader2,
   Trash2,
@@ -50,6 +51,14 @@ function NotificationIcon({ item }: { item: NotificationResponse }) {
     return (
       <span className={`${iconClass} bg-sky-500/15 text-sky-600 dark:text-sky-400`}>
         <UserPlus size={17} />
+      </span>
+    );
+  }
+
+  if (item.notificationType === "friend_avatar_changed") {
+    return (
+      <span className={`${iconClass} bg-violet-500/15 text-violet-600 dark:text-violet-400`}>
+        <Camera size={17} />
       </span>
     );
   }

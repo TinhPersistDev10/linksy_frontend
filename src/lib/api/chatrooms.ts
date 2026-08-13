@@ -81,6 +81,22 @@ export const chatroomsApi = {
     await apiClient.put(`/chatrooms/${chatroomId}/archive`, { isArchived });
   },
 
+  pinChatroom: async (chatroomId: string, isPinned: boolean): Promise<void> => {
+    await apiClient.put(`/chatrooms/${chatroomId}/pin`, { isPinned });
+  },
+
+  muteChatroom: async (
+    chatroomId: string,
+    isMuted: boolean,
+    muteUntil?: string | null,
+  ): Promise<void> => {
+    await apiClient.put(`/chatrooms/${chatroomId}/mute`, { isMuted, muteUntil });
+  },
+
+  clearConversation: async (chatroomId: string): Promise<void> => {
+    await apiClient.post(`/chatrooms/${chatroomId}/clear`);
+  },
+
   leaveChatroom: async (chatroomId: string): Promise<void> => {
     await apiClient.post(`/chatrooms/${chatroomId}/leave`);
   },

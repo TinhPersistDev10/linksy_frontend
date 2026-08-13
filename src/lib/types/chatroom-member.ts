@@ -55,6 +55,9 @@ export interface MemberInfoResponse {
   isMuted: boolean;
   mutedUntil: string | null;
   notificationPreference: NotificationPreference;
+  isPinned?: boolean;
+  pinnedAt?: string | null;
+  clearedAt?: string | null;
   messageCount: number;
   lastReadAt: string | null;
   joinedAt: string;

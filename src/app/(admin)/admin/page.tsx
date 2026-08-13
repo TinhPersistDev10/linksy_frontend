@@ -1,6 +1,7 @@
 "use client";
 
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminRegistrationStatsPanel } from "@/components/admin/AdminReportsList";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useAdminRecentActivitiesQuery,
@@ -76,6 +77,8 @@ export default function AdminDashboardPage() {
             loading={statsQuery.isLoading}
           />
         </div>
+
+        <AdminRegistrationStatsPanel />
 
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <h3 className="font-medium">Hoạt động gần đây</h3>
