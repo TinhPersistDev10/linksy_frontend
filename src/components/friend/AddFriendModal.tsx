@@ -292,7 +292,6 @@ export default function AddFriendModal({
       count: receivedRequests.length,
     },
     { id: "sent", label: "Đã gửi", icon: Clock, count: sentRequests.length },
-    { id: "qr", label: "Mã QR", icon: QrCode },
   ];
 
   return (

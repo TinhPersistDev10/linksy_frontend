@@ -23,7 +23,6 @@ import { friendsApi } from "@/lib/api/friends";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import type { ChatroomResponse, Friend, SearchUserResult } from "@/lib/types/chatroom";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import InviteQrPanel from "@/components/friend/InviteQrPanel";
 import { toast } from "@/lib/stores/toastStore";
 import FriendInviteQrCard from "@/components/friend/FriendInviteQrCard";
 
@@ -240,9 +239,6 @@ function AddFriendDialog({
                   ))}
                 </div>
               )}
-            </div>
-            <div className="mt-4 border-t border-border pt-4">
-              <InviteQrPanel />
             </div>
           </div>
         </section>
