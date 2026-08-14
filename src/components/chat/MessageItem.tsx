@@ -61,6 +61,7 @@ function getMessagePreviewLabel(message: MessageResponse) {
   if (message.messageType === "image") return "Ảnh";
   if (message.messageType === "video") return "Video";
   if (message.messageType === "file") return "Tệp đính kèm";
+  if (message.messageType === "sticker") return "Sticker";
   return message.messageText || "Tin nhắn";
 }
 
@@ -422,17 +423,20 @@ export default function MessageItem({
   const emojiTextClass = msg.messageText
     ? emojiOnlyTextClass(msg.messageText)
     : null;
+  const isSticker = msg.messageType === "sticker" && !msg.isDeleted;
   const hasTextBubbleContent = Boolean(
     isPinned ||
       msg.parentMessage ||
       otherAttachments.length > 0 ||
-      msg.messageText,
+      (msg.messageText && !isSticker),
   );
   const mediaOnly =
-    (imageAttachments.length > 0 || videoAttachments.length > 0) &&
+    (imageAttachments.length > 0 ||
+      videoAttachments.length > 0 ||
+      isSticker) &&
     !msg.parentMessage &&
     !otherAttachments.length &&
-    !msg.messageText;
+    (!msg.messageText || isSticker);
 
   return (
     <div data-msg-id={msg.messageId}>
@@ -555,6 +559,15 @@ export default function MessageItem({
                 </div>
               )}
 
+              {isSticker && !msg.isDeleted && msg.messageText && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={msg.messageText}
+                  alt="Sticker"
+                  className="h-32 w-32 object-contain"
+                />
+              )}
+
               {hasTextBubbleContent && (
             <div
               className={cn(
@@ -642,7 +655,7 @@ export default function MessageItem({
                 </div>
               )}
 
-              {msg.messageText && (
+              {msg.messageText && !isSticker && (
                 <MentionedText
                   text={msg.messageText}
                   mentions={msg.mentions}
@@ -787,7 +800,8 @@ export default function MessageItem({
                         <>
                           {msg.messageType !== "audio" &&
                             msg.messageType !== "voice" &&
-                            msg.messageType !== "poll" && (
+                            msg.messageType !== "poll" &&
+                            msg.messageType !== "sticker" && (
                               <DropdownMenuItem onSelect={() => onEdit(msg)}>
                                 <Pencil />
                                 Chỉnh sửa

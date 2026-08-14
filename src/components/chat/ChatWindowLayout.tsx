@@ -402,6 +402,7 @@ export default function ChatWindowLayout({
     sending,
     handleSend,
     handleSendVoice,
+    handleSendSticker,
     notifyTyping,
     selectedFiles,
     addSelectedFiles,
@@ -1002,6 +1003,11 @@ export default function ChatWindowLayout({
               onKeyDown={handleKeyDown}
               onSend={() => void handleSubmit()}
               onInsertEmoji={handleInsertEmoji}
+              onSendSticker={(src) => {
+                void handleSendSticker(src, {
+                  parentMessageId: replyTo?.messageId,
+                }).then(() => setReplyTo(null));
+              }}
               onCancelMode={() => {
                 setReplyTo(null);
                 setEditingMessage(null);

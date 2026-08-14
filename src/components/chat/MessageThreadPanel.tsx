@@ -178,9 +178,18 @@ export default function MessageThreadPanel({
                     <p className="text-xs font-medium opacity-80">
                       {reply.senderFullname || reply.senderUsername}
                     </p>
-                    <p className="mt-0.5 whitespace-pre-wrap break-words text-sm">
-                      {previewText(reply)}
-                    </p>
+                    {reply.messageType === "sticker" && reply.messageText ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={reply.messageText}
+                        alt="Sticker"
+                        className="mt-1 h-20 w-20 object-contain"
+                      />
+                    ) : (
+                      <p className="mt-0.5 whitespace-pre-wrap break-words text-sm">
+                        {previewText(reply)}
+                      </p>
+                    )}
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                     <span>{formatMessageTime(reply.sentAt)}</span>

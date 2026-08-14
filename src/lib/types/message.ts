@@ -111,7 +111,7 @@ export interface GetMessagesAroundData {
 export interface SendMessageRequest {
   chatroomId: string;
   messageText: string;
-  messageType?: "text" | "image" | "video" | "file" | "audio" | "poll" | string;
+  messageType?: "text" | "image" | "video" | "file" | "audio" | "poll" | "sticker" | string;
   parentMessageId?: string | null;
   attachments?: SendMessageAttachmentRequest[] | null;
   mentions?: string[] | null;

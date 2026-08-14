@@ -347,12 +347,85 @@ export function useSendMessage({
     ],
   );
 
+  const handleSendSticker = useCallback(
+    async (src: string, options?: { parentMessageId?: string | null }) => {
+      if (!chatroomId || sending || !user || !src.trim()) return;
+
+      await stopTypingNow();
+      setSending(true);
+
+      const tempId = `temp-${Math.random().toString(36).slice(2)}`;
+      appendOptimistic({
+        messageId: tempId,
+        chatroomId,
+        senderId: user.userId,
+        senderUsername: user.username,
+        senderFullname: user.fullname,
+        senderAvatar: user.avatar || null,
+        senderNickname: null,
+        messageType: "sticker",
+        messageText: src,
+        parentMessageId: options?.parentMessageId ?? null,
+        parentMessage: null,
+        isEdited: false,
+        isDeleted: false,
+        isOwn: true,
+        sentAt: new Date().toISOString(),
+        editedAt: null,
+        deletedAt: null,
+        attachments: null,
+        deliveryStatus: "sent",
+        recipientCount: 0,
+        deliveredCount: 0,
+        readCount: 0,
+        mentions: null,
+      });
+
+      try {
+        await signalRSend(
+          chatroomId,
+          src,
+          "sticker",
+          undefined,
+          options?.parentMessageId,
+        );
+      } catch (signalRErr) {
+        try {
+          const sent = await messagesApi.sendMessage({
+            chatroomId,
+            messageText: src,
+            messageType: "sticker",
+            parentMessageId: options?.parentMessageId,
+          });
+          replaceOptimistic(tempId, sent);
+        } catch (apiErr) {
+          removeOptimistic(tempId);
+          reportSendError(extractErrorMessage(apiErr, "Không thể gửi sticker"));
+        }
+      } finally {
+        setSending(false);
+      }
+    },
+    [
+      chatroomId,
+      sending,
+      user,
+      stopTypingNow,
+      appendOptimistic,
+      replaceOptimistic,
+      removeOptimistic,
+      signalRSend,
+      reportSendError,
+    ],
+  );
+
   return {
     input,
     setInput,
     sending,
     handleSend,
     handleSendVoice,
+    handleSendSticker,
     notifyTyping,
     selectedFiles,
     addSelectedFiles,
