@@ -82,6 +82,7 @@ interface MessageItemProps {
   onOpenGallery?: (images: GalleryImage[], startIndex: number) => void;
   onVotePoll?: (messageId: string, optionId: string) => void;
   onClosePoll?: (messageId: string) => void;
+  onOpenThread?: (message: MessageResponse) => void;
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
@@ -176,6 +177,7 @@ export default function MessageItem({
   onOpenGallery,
   onVotePoll,
   onClosePoll,
+  onOpenThread,
 }: MessageItemProps) {
   const [reactionOpen, setReactionOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -368,6 +370,15 @@ export default function MessageItem({
               </div>
             )}
           </div>
+          {(msg.replyCount ?? 0) > 0 && !msg.isDeleted && (
+            <button
+              type="button"
+              onClick={() => onOpenThread?.(msg)}
+              className="mt-2 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
+            >
+              {msg.replyCount} trả lời
+            </button>
+          )}
         </div>
       </div>
     );
@@ -837,6 +848,19 @@ export default function MessageItem({
                 }
               />
             </div>
+          )}
+
+          {(msg.replyCount ?? 0) > 0 && !msg.isDeleted && (
+            <button
+              type="button"
+              onClick={() => onOpenThread?.(msg)}
+              className={cn(
+                "mt-1 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400",
+                isOwn ? "self-end" : "self-start",
+              )}
+            >
+              {msg.replyCount} trả lời
+            </button>
           )}
 
           {isOwn && !isTemp && (

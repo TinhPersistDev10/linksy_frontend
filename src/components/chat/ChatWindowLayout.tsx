@@ -23,6 +23,7 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import ConversationInfoPanel from "./ConversationInfoPanel";
+import MessageThreadPanel from "./MessageThreadPanel";
 import PinnedMessagesBanner from "./PinnedMessagesBanner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
@@ -72,6 +73,7 @@ export default function ChatWindowLayout({
     chatroom,
   );
   const [infoOpen, setInfoOpen] = useState(false);
+  const [threadRoot, setThreadRoot] = useState<MessageResponse | null>(null);
   const [notice, setNotice] = useState<{
     title: string;
     description: string;
@@ -107,6 +109,7 @@ export default function ChatWindowLayout({
 
   useEffect(() => {
     setInfoOpen(false);
+    setThreadRoot(null);
     setComposerError(null);
     setBlockedByOtherLocal(false);
     nearBottomRef.current = true;
@@ -702,6 +705,7 @@ export default function ChatWindowLayout({
     setPinnedMessages([]);
     setPollDialogOpen(false);
     setComposerSubmitting(false);
+    setThreadRoot(null);
 
     messagesApi
       .markAllRead(chatroomId)
@@ -805,7 +809,10 @@ export default function ChatWindowLayout({
                 : undefined
             }
             infoOpen={infoOpen}
-            onToggleInfo={() => setInfoOpen((open) => !open)}
+            onToggleInfo={() => {
+              setInfoOpen((open) => !open);
+              setThreadRoot(null);
+            }}
             onOpenDirectChat={(directChatroom) => {
               onOpenChatroom?.(directChatroom);
             }}
@@ -914,6 +921,10 @@ export default function ChatWindowLayout({
                 void handleVotePoll(messageId, optionId)
               }
               onClosePoll={(messageId) => void handleClosePoll(messageId)}
+              onOpenThread={(message) => {
+                setThreadRoot(message);
+                setInfoOpen(false);
+              }}
             />
           </div>
 
@@ -1064,6 +1075,47 @@ export default function ChatWindowLayout({
             </div>
           )}
         </div>
+
+        <MessageThreadPanel
+          open={threadRoot !== null}
+          rootMessage={threadRoot}
+          currentUserId={user?.userId ?? ""}
+          liveMessages={messages}
+          sending={sending || composerSubmitting}
+          onClose={() => setThreadRoot(null)}
+          onOpenThread={(message) => {
+            setThreadRoot(message);
+            setInfoOpen(false);
+          }}
+          onSendReply={async (text, parentMessageId) => {
+            if (!chatroomId) return;
+            if (containsBannedContent(text)) {
+              setNotice({
+                title: "Vi phạm tiêu chuẩn cộng đồng",
+                description: COMMUNITY_VIOLATION_MESSAGE,
+              });
+              return;
+            }
+            setComposerSubmitting(true);
+            try {
+              await signalRSend(
+                chatroomId,
+                text,
+                "text",
+                undefined,
+                parentMessageId,
+              );
+            } catch (error) {
+              const message =
+                error instanceof Error
+                  ? error.message
+                  : "Không thể gửi trả lời.";
+              setComposerError(message);
+            } finally {
+              setComposerSubmitting(false);
+            }
+          }}
+        />
 
         <ConversationInfoPanel
           chatroom={currentChatroom}

@@ -48,6 +48,7 @@ export interface MessageResponse {
   messageText: string;
   parentMessageId: string | null;
   parentMessage: MessageResponse | null;
+  replyCount?: number;
   isEdited: boolean;
   isDeleted: boolean;
   isOwn: boolean;
