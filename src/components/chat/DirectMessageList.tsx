@@ -170,6 +170,8 @@ function getLastMessagePreview(
     text = "Video";
   } else if (lastMsg.messageType === "file") {
     text = "Tệp đính kèm";
+  } else if (lastMsg.messageType === "sticker") {
+    text = "Sticker";
   }
 
   if (isOwn) return `Bạn: ${text}`;

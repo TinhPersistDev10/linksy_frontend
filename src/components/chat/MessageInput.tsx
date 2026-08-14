@@ -1,5 +1,5 @@
 // src/components/chat/window/MessageInput.tsx
-import { ImagePlus, Mic, Paperclip, Send, Smile, Trash2, X } from "lucide-react";
+import { ImagePlus, Mic, Paperclip, Send, Smile, Sticker, Trash2, X } from "lucide-react";
 import type { MessageResponse, PendingMention } from "@/lib/types/message";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import { cn } from "@/lib/utils/cn";
@@ -15,6 +15,7 @@ import {
   syncPendingMentions,
 } from "@/lib/utils/mentions";
 import EmojiPickerPopover from "./EmojiPickerPopover";
+import StickerPicker from "./StickerPicker";
 import {
   formatVoiceDuration,
   useVoiceRecorder,
@@ -31,6 +32,7 @@ interface MessageInputProps {
   editingMessage?: MessageResponse | null;
   onCancelMode?: () => void;
   onInsertEmoji?: (emoji: string) => void;
+  onSendSticker?: (src: string) => void;
 
   selectedFiles?: File[];
   onFilesSelected?: (files: File[]) => void;
@@ -62,6 +64,7 @@ function replyPreviewText(message?: MessageResponse | null) {
   if (message.messageType === "image") return "Ảnh";
   if (message.messageType === "video") return "Video";
   if (message.messageType === "file") return "Tệp đính kèm";
+  if (message.messageType === "sticker") return "Sticker";
   return message.messageText || "Tin nhắn";
 }
 
@@ -75,6 +78,7 @@ export default function MessageInput({
   editingMessage,
   onCancelMode,
   onInsertEmoji,
+  onSendSticker,
   selectedFiles = [],
   onFilesSelected,
   onRemoveFile,
@@ -562,6 +566,24 @@ export default function MessageInput({
                 <Smile size={18} />
               </Button>
             </EmojiPickerPopover>
+
+            {onSendSticker && !editingMessage && (
+              <StickerPicker
+                disabled={sending}
+                onSelect={(src) => onSendSticker(src)}
+              >
+                <Button
+                  type="button"
+                  title="Sticker"
+                  aria-label="Chọn sticker"
+                  variant="ghost"
+                  size="icon"
+                  className="mb-0.5 inline-flex h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                >
+                  <Sticker size={18} />
+                </Button>
+              </StickerPicker>
+            )}
 
             {showMic ? (
               <Button
