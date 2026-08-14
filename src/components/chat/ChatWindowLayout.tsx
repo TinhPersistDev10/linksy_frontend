@@ -43,17 +43,29 @@ import type {
   PinnedMessageResponse,
 } from "@/lib/types/message";
 import CreatePollDialog from "./CreatePollDialog";
+import { toast } from "@/lib/stores/toastStore";
+import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
 import {
   COMMUNITY_VIOLATION_MESSAGE,
   containsBannedContent,
 } from "@/lib/utils/contentModeration";
+
+export type PrivateReplyQuote = {
+  authorName: string;
+  text: string;
+};
 
 interface ChatWindowLayoutProps {
   chatroom: ChatroomResponse | null;
   onBack?: () => void;
   onReadChatroom?: () => void;
   onChatroomUpdated?: (chatroom: ChatroomResponse) => void;
-  onOpenChatroom?: (chatroom: ChatroomResponse) => void;
+  onOpenChatroom?: (
+    chatroom: ChatroomResponse,
+    quote?: PrivateReplyQuote | null,
+  ) => void;
+  initialQuote?: PrivateReplyQuote | null;
+  onQuoteConsumed?: () => void;
   callController?: Pick<UseCallSignalRReturn, "initiateCall">;
 }
 
@@ -65,6 +77,8 @@ export default function ChatWindowLayout({
   onReadChatroom,
   onChatroomUpdated,
   onOpenChatroom,
+  initialQuote = null,
+  onQuoteConsumed,
   callController,
 }: ChatWindowLayoutProps) {
   const { user } = useAuth();
@@ -112,8 +126,17 @@ export default function ChatWindowLayout({
     setThreadRoot(null);
     setComposerError(null);
     setBlockedByOtherLocal(false);
+    setReplyTo(null);
     nearBottomRef.current = true;
   }, [chatroomId]);
+
+  useEffect(() => {
+    if (!initialQuote) return;
+    setPrivateQuote(initialQuote);
+    setReplyTo(null);
+    setEditingMessage(null);
+    onQuoteConsumed?.();
+  }, [chatroomId, initialQuote, onQuoteConsumed]);
   const otherMember = currentChatroom?.members?.find(
     (m) => m.userId !== user?.userId,
   );
@@ -195,6 +218,9 @@ export default function ChatWindowLayout({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const onReadChatroomRef = useRef(onReadChatroom);
   const [replyTo, setReplyTo] = useState<MessageResponse | null>(null);
+  const [privateQuote, setPrivateQuote] = useState<PrivateReplyQuote | null>(
+    null,
+  );
   const [editingMessage, setEditingMessage] = useState<MessageResponse | null>(
     null,
   );
@@ -441,6 +467,34 @@ export default function ChatWindowLayout({
 
   const isGroupChat =
     currentChatroom?.roomType?.toLowerCase() === "group";
+
+  const handleReplyPrivately = useCallback(
+    async (message: MessageResponse) => {
+      try {
+        const direct = await chatroomsApi.createDirect(message.senderId);
+        const text =
+          message.messageType === "sticker"
+            ? "Sticker"
+            : message.messageType === "image"
+              ? "Ảnh"
+              : message.messageType === "audio" || message.messageType === "voice"
+                ? "Tin nhắn thoại"
+                : message.messageText || "Tin nhắn";
+        onOpenChatroom?.(direct, {
+          authorName: message.senderFullname || message.senderUsername,
+          text,
+        });
+      } catch (err) {
+        const messageText = extractErrorMessage(
+          err,
+          "Không thể mở trò chuyện riêng.",
+        );
+        toast.error(messageText);
+        setComposerError(messageText);
+      }
+    },
+    [onOpenChatroom],
+  );
   const canPin =
     isDirectChat ||
     currentChatroom?.myMemberInfo?.memberRole === "admin" ||
@@ -668,6 +722,7 @@ export default function ChatWindowLayout({
         return;
       }
       await handleSend({ mentions: pendingMentions });
+      setPrivateQuote(null);
     } catch (error) {
       const message =
         error instanceof Error
@@ -901,6 +956,7 @@ export default function ChatWindowLayout({
               onShowDelivery={handleShowDelivery}
               onReply={(message) => {
                 setReplyTo(message);
+                setPrivateQuote(null);
                 setEditingMessage(null);
                 clearSelectedFiles();
               }}
@@ -926,6 +982,8 @@ export default function ChatWindowLayout({
                 setThreadRoot(message);
                 setInfoOpen(false);
               }}
+              isGroupChat={isGroupChat}
+              onReplyPrivately={(message) => void handleReplyPrivately(message)}
             />
           </div>
 
@@ -991,6 +1049,7 @@ export default function ChatWindowLayout({
               value={input}
               sending={sending || composerSubmitting}
               replyTo={replyTo}
+              privateQuote={privateQuote}
               editingMessage={editingMessage}
               selectedFiles={selectedFiles}
               onFilesSelected={addSelectedFiles}
@@ -1005,11 +1064,15 @@ export default function ChatWindowLayout({
               onInsertEmoji={handleInsertEmoji}
               onSendSticker={(src) => {
                 void handleSendSticker(src, {
-                  parentMessageId: replyTo?.messageId,
-                }).then(() => setReplyTo(null));
+                  parentMessageId: privateQuote ? null : replyTo?.messageId,
+                }).then(() => {
+                  setReplyTo(null);
+                  setPrivateQuote(null);
+                });
               }}
               onCancelMode={() => {
                 setReplyTo(null);
+                setPrivateQuote(null);
                 setEditingMessage(null);
                 setInput("");
                 clearSelectedFiles();

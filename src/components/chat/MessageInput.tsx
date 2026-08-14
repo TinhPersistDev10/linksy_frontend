@@ -29,6 +29,7 @@ interface MessageInputProps {
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onSend: () => void;
   replyTo?: MessageResponse | null;
+  privateQuote?: { authorName: string; text: string } | null;
   editingMessage?: MessageResponse | null;
   onCancelMode?: () => void;
   onInsertEmoji?: (emoji: string) => void;
@@ -75,6 +76,7 @@ export default function MessageInput({
   onKeyDown,
   onSend,
   replyTo,
+  privateQuote,
   editingMessage,
   onCancelMode,
   onInsertEmoji,
@@ -332,16 +334,20 @@ export default function MessageInput({
 
   return (
     <div className="shrink-0 border-t bg-background px-2 py-2 sm:px-4 sm:py-3">
-      {(replyTo || editingMessage) && !isRecording && (
+      {(replyTo || privateQuote || editingMessage) && !isRecording && (
         <div className="mb-2 flex items-center justify-between gap-3 rounded-md border bg-muted/50 px-3 py-2">
           <div className="min-w-0">
             <p className="text-xs font-medium">
               {editingMessage
                 ? "Chỉnh sửa tin nhắn"
-                : `Trả lời ${replyTo?.senderFullname ?? "tin nhắn"}`}
+                : privateQuote
+                  ? `Trả lời riêng ${privateQuote.authorName}`
+                  : `Trả lời ${replyTo?.senderFullname ?? "tin nhắn"}`}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {replyPreviewText(editingMessage ?? replyTo)}
+              {privateQuote
+                ? privateQuote.text
+                : replyPreviewText(editingMessage ?? replyTo)}
             </p>
           </div>
 
