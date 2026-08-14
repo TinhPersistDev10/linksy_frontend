@@ -1,7 +1,8 @@
 // src/components/chat/window/MessageInput.tsx
-import { ImagePlus, Mic, Paperclip, Send, Smile, Sticker, Trash2, X } from "lucide-react";
+import { Clock, ImagePlus, Mic, Paperclip, Send, Smile, Sticker, Trash2, X } from "lucide-react";
 import type { MessageResponse, PendingMention } from "@/lib/types/message";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
+import type { ScheduledMessageResponse } from "@/lib/types/scheduled-message";
 import { cn } from "@/lib/utils/cn";
 import Button from "../ui/Button";
 import { Textarea } from "../ui/textarea";
@@ -48,6 +49,15 @@ interface MessageInputProps {
 
   canSendVoice?: boolean;
   onSendVoice?: (file: File) => void | Promise<void>;
+
+  onSchedule?: (payload: {
+    messageType: "text" | "sticker";
+    messageText: string;
+    sendAt: Date;
+  }) => void | Promise<void>;
+  scheduling?: boolean;
+  scheduledPending?: ScheduledMessageResponse[];
+  onCancelScheduled?: (id: string) => void;
 }
 
 function formatFileSize(bytes: number) {
@@ -67,6 +77,29 @@ function replyPreviewText(message?: MessageResponse | null) {
   if (message.messageType === "file") return "Tệp đính kèm";
   if (message.messageType === "sticker") return "Sticker";
   return message.messageText || "Tin nhắn";
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toDatetimeLocalValue(date: Date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+function defaultScheduleAt() {
+  return new Date(Date.now() + 5 * 60 * 1000);
+}
+
+function formatScheduledAt(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function MessageInput({
@@ -92,6 +125,10 @@ export default function MessageInput({
   onPendingMentionsChange,
   canSendVoice = true,
   onSendVoice,
+  onSchedule,
+  scheduling = false,
+  scheduledPending = [],
+  onCancelScheduled,
 }: MessageInputProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -102,13 +139,51 @@ export default function MessageInput({
     number | null
   >(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState(() =>
+    toDatetimeLocalValue(defaultScheduleAt()),
+  );
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const canSendText = value.trim().length > 0 || selectedFiles.length > 0;
+  const canScheduleText =
+    Boolean(onSchedule) &&
+    !editingMessage &&
+    selectedFiles.length === 0 &&
+    value.trim().length > 0;
+
+  const parseScheduleAt = useCallback(() => {
+    const parsed = new Date(scheduleAt);
+    if (Number.isNaN(parsed.getTime())) {
+      setScheduleError("Thời gian không hợp lệ.");
+      return null;
+    }
+    if (parsed.getTime() <= Date.now() + 15_000) {
+      setScheduleError("Thời gian gửi phải ở tương lai.");
+      return null;
+    }
+    setScheduleError(null);
+    return parsed;
+  }, [scheduleAt]);
+
+  const submitSchedule = useCallback(
+    async (payload: { messageType: "text" | "sticker"; messageText: string }) => {
+      if (!onSchedule) return;
+      const sendAt = parseScheduleAt();
+      if (!sendAt) return;
+      await onSchedule({ ...payload, sendAt });
+      setScheduleOpen(false);
+      setScheduleAt(toDatetimeLocalValue(defaultScheduleAt()));
+    },
+    [onSchedule, parseScheduleAt],
+  );
+
   const showMic =
     canSendVoice &&
     Boolean(onSendVoice) &&
     !canSendText &&
-    !editingMessage;
+    !editingMessage &&
+    !scheduleOpen;
 
   const handleAutoStop = useCallback(
     (file: VoiceFile | null) => {
@@ -287,6 +362,17 @@ export default function MessageInput({
           return;
         }
       }
+    }
+
+    if (e.key === "Enter" && !e.shiftKey && scheduleOpen) {
+      e.preventDefault();
+      if (canScheduleText) {
+        void submitSchedule({
+          messageType: "text",
+          messageText: value.trim(),
+        });
+      }
+      return;
     }
 
     onKeyDown(e);
@@ -474,6 +560,88 @@ export default function MessageInput({
             </Button>
           </div>
         ) : (
+          <div>
+            {scheduleOpen && onSchedule && !editingMessage && (
+              <div className="mb-2 rounded-xl border bg-background p-3 shadow-sm">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Hẹn giờ gửi</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScheduleOpen(false);
+                      setScheduleError(null);
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Đóng
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    type="datetime-local"
+                    value={scheduleAt}
+                    min={toDatetimeLocalValue(new Date(Date.now() + 60_000))}
+                    onChange={(e) => {
+                      setScheduleAt(e.target.value);
+                      setScheduleError(null);
+                    }}
+                    className="h-9 w-full rounded-md border bg-background px-2 text-sm sm:max-w-[220px]"
+                  />
+                  <Button
+                    type="button"
+                    disabled={scheduling || !canScheduleText}
+                    onClick={() =>
+                      void submitSchedule({
+                        messageType: "text",
+                        messageText: value.trim(),
+                      })
+                    }
+                    className="h-9 shrink-0"
+                  >
+                    {scheduling ? "Đang hẹn..." : "Hẹn giờ"}
+                  </Button>
+                </div>
+                {scheduleError && (
+                  <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                    {scheduleError}
+                  </p>
+                )}
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Chỉ tin nhắn chữ hoặc sticker. Chọn sticker khi panel này đang
+                  mở để hẹn giờ sticker.
+                </p>
+                {scheduledPending.length > 0 && (
+                  <ul className="mt-3 max-h-36 space-y-1.5 overflow-y-auto border-t pt-2">
+                    {scheduledPending.map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex items-start justify-between gap-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">
+                            {item.messageType === "sticker"
+                              ? "Sticker"
+                              : item.messageText}
+                          </p>
+                          <p className="text-muted-foreground">
+                            {formatScheduledAt(item.sendAt)}
+                          </p>
+                        </div>
+                        {onCancelScheduled && (
+                          <button
+                            type="button"
+                            className="shrink-0 text-red-600 hover:underline"
+                            onClick={() => onCancelScheduled(item.id)}
+                          >
+                            Hủy
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           <div className="flex items-end gap-1.5 rounded-2xl border bg-muted/50 px-2 py-2 sm:items-center sm:gap-2 sm:px-3">
             <input
               ref={fileInputRef}
@@ -481,7 +649,7 @@ export default function MessageInput({
               multiple
               hidden
               accept=".pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.json,.csv,.xml,.yaml,.yml,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip"
-              disabled={attachmentsDisabled}
+              disabled={attachmentsDisabled || scheduleOpen}
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []);
                 onFilesSelected?.(files);
@@ -494,7 +662,7 @@ export default function MessageInput({
               accept="image/jpeg,image/png,image/webp,image/gif"
               multiple
               hidden
-              disabled={attachmentsDisabled}
+              disabled={attachmentsDisabled || scheduleOpen}
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []).filter((file) =>
                   file.type.startsWith("image/"),
@@ -508,7 +676,7 @@ export default function MessageInput({
               onClick={() => {
                 if (!attachmentsDisabled) imageInputRef.current?.click();
               }}
-              disabled={attachmentsDisabled}
+              disabled={attachmentsDisabled || scheduleOpen}
               variant="ghost"
               size="icon"
               title="Gửi ảnh"
@@ -522,7 +690,7 @@ export default function MessageInput({
               onClick={() => {
                 if (!attachmentsDisabled) fileInputRef.current?.click();
               }}
-              disabled={attachmentsDisabled}
+              disabled={attachmentsDisabled || scheduleOpen}
               variant="ghost"
               size="icon"
               title="Đính kèm tệp"
@@ -573,10 +741,43 @@ export default function MessageInput({
               </Button>
             </EmojiPickerPopover>
 
+            {onSchedule && !editingMessage && (
+              <Button
+                type="button"
+                title="Hẹn giờ gửi"
+                aria-label="Hẹn giờ gửi"
+                variant="ghost"
+                size="icon"
+                disabled={sending || scheduling}
+                onClick={() => {
+                  setScheduleOpen((open) => !open);
+                  setScheduleError(null);
+                  if (!scheduleAt) {
+                    setScheduleAt(toDatetimeLocalValue(defaultScheduleAt()));
+                  }
+                }}
+                className={cn(
+                  "mb-0.5 inline-flex h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground",
+                  scheduleOpen && "text-blue-600",
+                )}
+              >
+                <Clock size={18} />
+              </Button>
+            )}
+
             {onSendSticker && !editingMessage && (
               <StickerPicker
-                disabled={sending}
-                onSelect={(src) => onSendSticker(src)}
+                disabled={sending || scheduling}
+                onSelect={(src) => {
+                  if (scheduleOpen && onSchedule) {
+                    void submitSchedule({
+                      messageType: "sticker",
+                      messageText: src,
+                    });
+                    return;
+                  }
+                  onSendSticker(src);
+                }}
               >
                 <Button
                   type="button"
@@ -605,19 +806,37 @@ export default function MessageInput({
               </Button>
             ) : (
               <Button
-                onClick={onSend}
-                disabled={!canSendText || sending}
+                onClick={() => {
+                  if (scheduleOpen) {
+                    if (canScheduleText) {
+                      void submitSchedule({
+                        messageType: "text",
+                        messageText: value.trim(),
+                      });
+                    }
+                    return;
+                  }
+                  onSend();
+                }}
+                disabled={
+                  sending ||
+                  scheduling ||
+                  (scheduleOpen ? !canScheduleText : !canSendText)
+                }
                 size="icon"
+                title={scheduleOpen ? "Hẹn giờ gửi" : "Gửi"}
+                aria-label={scheduleOpen ? "Hẹn giờ gửi" : "Gửi"}
                 className={cn(
                   "mb-0.5 h-7 w-7 shrink-0 rounded-xl transition-all",
-                  canSendText
+                  (scheduleOpen ? canScheduleText : canSendText)
                     ? "bg-blue-500 text-white hover:bg-blue-600"
                     : "bg-transparent text-muted-foreground hover:bg-transparent",
                 )}
               >
-                <Send size={16} />
+                {scheduleOpen ? <Clock size={16} /> : <Send size={16} />}
               </Button>
             )}
+          </div>
           </div>
         )}
       </div>
@@ -627,7 +846,9 @@ export default function MessageInput({
           ? "Đang ghi âm · Bấm gửi để gửi tin nhắn thoại · Thùng rác để hủy"
           : `Enter để gửi · Shift+Enter xuống dòng${
               enableMentions ? " · @ để tag thành viên" : ""
-            }${showMic ? " · Micro để ghi âm" : ""}`}
+            }${showMic ? " · Micro để ghi âm" : ""}${
+              onSchedule ? " · Đồng hồ để hẹn giờ" : ""
+            }`}
       </p>
     </div>
   );

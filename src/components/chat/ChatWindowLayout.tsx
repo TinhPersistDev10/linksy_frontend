@@ -30,9 +30,11 @@ import { Button } from "@/components/ui/Button";
 import { blockedUsersApi } from "@/lib/api/blocked-users";
 import { messagesApi } from "@/lib/api/messages";
 import { chatroomsApi } from "@/lib/api/chatrooms";
+import { scheduledMessagesApi } from "@/lib/api/scheduled-messages";
 import {
   blockedUserQueryKeys,
   chatroomQueryKeys,
+  scheduledMessageQueryKeys,
 } from "@/lib/queries/queryKeys";
 import type {
   CreatePollRequest,
@@ -156,6 +158,13 @@ export default function ChatWindowLayout({
     enabled: Boolean(user?.userId && otherMember?.userId && isDirectChat),
     staleTime: 15_000,
     retry: 1,
+  });
+
+  const { data: scheduledPending = [] } = useQuery({
+    queryKey: scheduledMessageQueryKeys.pending(chatroomId ?? "none"),
+    queryFn: () => scheduledMessagesApi.listPending(chatroomId!),
+    enabled: Boolean(chatroomId && user?.userId),
+    staleTime: 10_000,
   });
 
   const iBlockedOther =
@@ -743,6 +752,61 @@ export default function ChatWindowLayout({
     }
   };
 
+  const handleSchedule = async (payload: {
+    messageType: "text" | "sticker";
+    messageText: string;
+    sendAt: Date;
+  }) => {
+    if (!chatroomId || composerSubmitting) return;
+    const text = payload.messageText.trim();
+    if (!text) return;
+    if (payload.messageType === "text" && containsBannedContent(text)) {
+      setNotice({
+        title: "Vi phạm tiêu chuẩn cộng đồng",
+        description: COMMUNITY_VIOLATION_MESSAGE,
+      });
+      return;
+    }
+
+    setComposerSubmitting(true);
+    try {
+      await scheduledMessagesApi.schedule({
+        chatroomId,
+        messageType: payload.messageType,
+        messageText: text,
+        parentMessageId: privateQuote ? null : replyTo?.messageId,
+        sendAt: payload.sendAt.toISOString(),
+      });
+      if (payload.messageType === "text") {
+        setInput("");
+        clearPendingMentions();
+      }
+      setReplyTo(null);
+      setPrivateQuote(null);
+      toast.success("Đã hẹn giờ tin nhắn");
+      await queryClient.invalidateQueries({
+        queryKey: scheduledMessageQueryKeys.pending(chatroomId),
+      });
+    } catch (error) {
+      toast.error(extractErrorMessage(error, "Không thể hẹn giờ tin nhắn"));
+    } finally {
+      setComposerSubmitting(false);
+    }
+  };
+
+  const handleCancelScheduled = async (id: string) => {
+    if (!chatroomId) return;
+    try {
+      await scheduledMessagesApi.cancel(id);
+      toast.success("Đã hủy tin nhắn hẹn giờ");
+      await queryClient.invalidateQueries({
+        queryKey: scheduledMessageQueryKeys.pending(chatroomId),
+      });
+    } catch (error) {
+      toast.error(extractErrorMessage(error, "Không thể hủy tin nhắn hẹn giờ"));
+    }
+  };
+
   useEffect(() => {
     if (!chatroomId) return;
     setTypingUsers([]);
@@ -1084,6 +1148,10 @@ export default function ChatWindowLayout({
               pendingMentions={pendingMentions}
               onPendingMentionsChange={setPendingMentions}
               canSendVoice={canSendVoice && !editingMessage}
+              onSchedule={handleSchedule}
+              scheduling={composerSubmitting}
+              scheduledPending={scheduledPending}
+              onCancelScheduled={(id) => void handleCancelScheduled(id)}
               onSendVoice={async (file) => {
                 // Wait briefly if another send is in flight (e.g. voice auto-stop at 60s).
                 let waits = 0;
@@ -1195,6 +1263,8 @@ export default function ChatWindowLayout({
           onChatroomChange={handleChatroomChange}
           onLeaveChatroom={onBack}
           pinnedCount={pinnedMessages.length}
+          scheduledPending={scheduledPending}
+          onCancelScheduled={(id) => void handleCancelScheduled(id)}
           onSearchInChat={() => {
             searchInputRef.current?.focus();
             searchInputRef.current?.scrollIntoView({

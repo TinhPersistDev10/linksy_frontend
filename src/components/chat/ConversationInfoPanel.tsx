@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Clock,
   Flag,
   Image as ImageIcon,
   Loader2,
@@ -38,6 +39,7 @@ import type {
   ChatroomMemberResponse,
   ChatroomResponse,
 } from "@/lib/types/chatroom";
+import type { ScheduledMessageResponse } from "@/lib/types/scheduled-message";
 import { cn } from "@/lib/utils/cn";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ReportUserDialog from "@/components/social/ReportUserDialog";
@@ -71,6 +73,8 @@ interface ConversationInfoPanelProps {
   onCallMember?: (userId: string, callType: "audio" | "video") => void;
   onCreatePoll?: () => void;
   pinnedCount?: number;
+  scheduledPending?: ScheduledMessageResponse[];
+  onCancelScheduled?: (id: string) => void;
 }
 
 function requestMessage(error: unknown, fallback: string) {
@@ -156,6 +160,8 @@ export default function ConversationInfoPanel({
   onCallMember,
   onCreatePoll,
   pinnedCount = 0,
+  scheduledPending = [],
+  onCancelScheduled,
 }: ConversationInfoPanelProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -584,6 +590,47 @@ export default function ConversationInfoPanel({
                   }
                   onClick={() => onViewPinnedMessages?.()}
                 />
+                {scheduledPending.length > 0 && (
+                  <div className="px-4 pb-3">
+                    <p className="mb-2 flex items-center gap-2 text-sm font-medium">
+                      <Clock size={16} />
+                      Tin nhắn hẹn giờ ({scheduledPending.length})
+                    </p>
+                    <ul className="space-y-2">
+                      {scheduledPending.map((item) => (
+                        <li
+                          key={item.id}
+                          className="flex items-start justify-between gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">
+                              {item.messageType === "sticker"
+                                ? "Sticker"
+                                : item.messageText}
+                            </p>
+                            <p className="text-muted-foreground">
+                              {new Date(item.sendAt).toLocaleString("vi-VN", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                          {onCancelScheduled && (
+                            <button
+                              type="button"
+                              className="shrink-0 text-red-600 hover:underline"
+                              onClick={() => onCancelScheduled(item.id)}
+                            >
+                              Hủy
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {!isDirect && (
                   <ActionRow
                     icon={<BarChart3 size={18} />}
