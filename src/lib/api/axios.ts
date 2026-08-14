@@ -32,6 +32,7 @@ const PUBLIC_PATH_PREFIXES = [
   '/register',
   '/forgot-password',
   '/verify-email',
+  '/add-friend',
 ];
 
 const isPublicPath = (pathname: string) =>

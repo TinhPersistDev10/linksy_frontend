@@ -23,8 +23,9 @@ import { friendsApi } from "@/lib/api/friends";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import type { ChatroomResponse, Friend, SearchUserResult } from "@/lib/types/chatroom";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import InviteQrPanel from "@/components/friend/InviteQrPanel";
 import { toast } from "@/lib/stores/toastStore";
-import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
+import FriendInviteQrCard from "@/components/friend/FriendInviteQrCard";
 
 interface FriendsDirectoryViewProps {
   onSelectChat?: (chatroom: ChatroomResponse) => void;
@@ -192,7 +193,7 @@ function AddFriendDialog({
               {searching ? (
                 <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 size={22} className="animate-spin" /></div>
               ) : !query.trim() ? (
-                <p className="py-12 text-center text-sm text-muted-foreground">Nhập username hoặc tên để tìm kiếm người dùng</p>
+                <FriendInviteQrCard />
               ) : results.length === 0 ? (
                 <p className="py-12 text-center text-sm text-muted-foreground">Không tìm thấy người dùng phù hợp</p>
               ) : (
@@ -239,6 +240,9 @@ function AddFriendDialog({
                   ))}
                 </div>
               )}
+            </div>
+            <div className="mt-4 border-t border-border pt-4">
+              <InviteQrPanel />
             </div>
           </div>
         </section>
