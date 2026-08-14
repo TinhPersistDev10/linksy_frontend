@@ -121,6 +121,11 @@ export default function ChatWindowLayout({
       .catch(() => undefined);
   }, [chatroomId, handleChatroomChange]);
 
+  const initialQuoteRef = useRef(initialQuote);
+  const onQuoteConsumedRef = useRef(onQuoteConsumed);
+  initialQuoteRef.current = initialQuote;
+  onQuoteConsumedRef.current = onQuoteConsumed;
+
   useEffect(() => {
     setInfoOpen(false);
     setThreadRoot(null);
@@ -129,14 +134,6 @@ export default function ChatWindowLayout({
     setReplyTo(null);
     nearBottomRef.current = true;
   }, [chatroomId]);
-
-  useEffect(() => {
-    if (!initialQuote) return;
-    setPrivateQuote(initialQuote);
-    setReplyTo(null);
-    setEditingMessage(null);
-    onQuoteConsumed?.();
-  }, [chatroomId, initialQuote, onQuoteConsumed]);
   const otherMember = currentChatroom?.members?.find(
     (m) => m.userId !== user?.userId,
   );
@@ -754,6 +751,9 @@ export default function ChatWindowLayout({
     setDeliveryOpen(false);
     setDeliveryStatus(null);
     setReplyTo(null);
+    const quote = initialQuoteRef.current;
+    setPrivateQuote(quote ?? null);
+    if (quote) onQuoteConsumedRef.current?.();
     setEditingMessage(null);
     setInput("");
     clearSelectedFiles();
@@ -1095,9 +1095,10 @@ export default function ChatWindowLayout({
                 setComposerSubmitting(true);
                 try {
                   await handleSendVoice(file, {
-                    parentMessageId: replyTo?.messageId,
+                    parentMessageId: privateQuote ? null : replyTo?.messageId,
                   });
                   setReplyTo(null);
+                  setPrivateQuote(null);
                 } finally {
                   setComposerSubmitting(false);
                 }
