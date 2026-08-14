@@ -12,7 +12,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     if (loading || !isAuthenticated || !user) return;
 
     if (user.isEmailVerified) {
-      router.replace("/dashboard");
+      const returnUrl = new URLSearchParams(window.location.search).get("returnUrl");
+      const safeReturn =
+        returnUrl && returnUrl.startsWith("/add-friend") ? returnUrl : null;
+      router.replace(safeReturn ?? "/dashboard");
       return;
     }
 
