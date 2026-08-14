@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Phone, Video, VideoOff } from "lucide-react";
+import { Mic, MicOff, Monitor, MonitorOff, Phone, Video, VideoOff } from "lucide-react";
 import type { CallParticipantView, CallState } from "@/lib/hooks/useCallSignalR";
 import { cn } from "@/lib/utils/cn";
 import ChatAvatar from "./ChatAvatar";
@@ -27,6 +27,8 @@ interface ActiveCallScreenProps {
   remoteVideoRef: React.RefObject<HTMLVideoElement | null>;
   onToggleMic: () => void;
   onToggleCam: () => void;
+  onToggleScreenShare: () => void;
+  isScreenSharing: boolean;
   onEndCall: () => void;
 }
 
@@ -45,6 +47,8 @@ export default function ActiveCallScreen({
   remoteVideoRef,
   onToggleMic,
   onToggleCam,
+  onToggleScreenShare,
+  isScreenSharing,
   onEndCall,
 }: ActiveCallScreenProps) {
   const show =
@@ -52,7 +56,7 @@ export default function ActiveCallScreen({
 
   if (!show) return null;
 
-  const isVideo = callState.callType === "video";
+  const isVideo = callState.callType === "video" || isScreenSharing;
   const isCalling = callState.status === "calling";
   const visibleParticipants =
     participants.length > 0
@@ -107,10 +111,15 @@ export default function ActiveCallScreen({
 
             {/* Duration khi active */}
             {!isCalling && (
-              <div className="absolute top-4 left-1/2 -translate-x-1/2">
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
                 <span className="text-white text-sm bg-black/40 px-3 py-1 rounded-full">
                   {formatDuration(callState.durationSec)}
                 </span>
+                {isScreenSharing && (
+                  <span className="text-white text-sm bg-emerald-600/90 px-3 py-1 rounded-full">
+                    Đang chia sẻ
+                  </span>
+                )}
               </div>
             )}
           </>
@@ -138,9 +147,16 @@ export default function ActiveCallScreen({
             {isCalling ? (
               <p className="text-zinc-400 animate-pulse text-sm">Đang gọi…</p>
             ) : (
-              <p className="text-zinc-400 text-sm tabular-nums">
-                {formatDuration(callState.durationSec)}
-              </p>
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-zinc-400 text-sm tabular-nums">
+                  {formatDuration(callState.durationSec)}
+                </p>
+                {isScreenSharing && (
+                  <span className="text-white text-sm bg-emerald-600/90 px-3 py-1 rounded-full">
+                    Đang chia sẻ
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -157,8 +173,8 @@ export default function ActiveCallScreen({
           {callState.isMicOn ? <Mic size={20} /> : <MicOff size={20} />}
         </ControlBtn>
 
-        {/* Camera – chỉ hiện khi video call */}
-        {isVideo && (
+        {/* Camera – chỉ hiện khi video call, ẩn khi đang chia sẻ màn hình */}
+        {callState.callType === "video" && !isScreenSharing && (
           <ControlBtn
             label={callState.isCamOn ? "Tắt cam" : "Bật cam"}
             active={!callState.isCamOn}
@@ -167,6 +183,14 @@ export default function ActiveCallScreen({
             {callState.isCamOn ? <Video size={20} /> : <VideoOff size={20} />}
           </ControlBtn>
         )}
+
+        <ControlBtn
+          label={isScreenSharing ? "Dừng chia sẻ" : "Chia sẻ màn hình"}
+          active={isScreenSharing}
+          onClick={onToggleScreenShare}
+        >
+          {isScreenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
+        </ControlBtn>
 
         {/* Kết thúc */}
         <button

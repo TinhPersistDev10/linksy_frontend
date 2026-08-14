@@ -190,6 +190,8 @@ function DashboardShell() {
         remoteVideoRef={remoteVideoRef}
         onToggleMic={callController.toggleMic}
         onToggleCam={callController.toggleCam}
+        onToggleScreenShare={() => void callController.toggleScreenShare()}
+        isScreenSharing={callController.isScreenSharing}
         onEndCall={() => void callController.endCall()}
       />
     </SidebarProvider>
