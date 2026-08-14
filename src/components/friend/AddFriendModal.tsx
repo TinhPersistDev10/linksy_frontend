@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { friendQueryKeys } from "@/lib/queries/queryKeys";
 import type { SearchUserResult, FriendRequest } from "@/lib/types/chatroom";
 import { getApiOrigin } from "@/lib/utils/apiUrl";
+import { cn } from "@/lib/utils/cn";
 import FriendInviteQrCard from "./FriendInviteQrCard";
 
 type Tab = "search" | "qr" | "received" | "sent";

@@ -1,6 +1,5 @@
 // src/lib/api/friends.ts
 import apiClient from './axios';
-import type { ApiResponse } from "../types/common";
 import type { Friend, FriendRequest, SearchUserResult } from '../types/chatroom';
 
 export type RelationshipStatus =
