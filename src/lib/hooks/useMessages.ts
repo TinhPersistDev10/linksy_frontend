@@ -291,7 +291,16 @@ export function useMessages(
               : message,
           );
         }
-        return [...base, incoming];
+
+        const withReplyCount = incoming.parentMessageId
+          ? base.map((message) =>
+              message.messageId === incoming.parentMessageId
+                ? { ...message, replyCount: (message.replyCount ?? 0) + 1 }
+                : message,
+            )
+          : base;
+
+        return [...withReplyCount, incoming];
       });
 
       shouldScrollToBottomRef.current = true;
