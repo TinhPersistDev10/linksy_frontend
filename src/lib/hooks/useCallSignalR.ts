@@ -7,6 +7,7 @@ import {
   useState,
   type RefObject,
 } from "react";
+import { toast } from "@/lib/stores/toastStore";
 import { GroupWebRtcManager } from "./GroupWebRtcManager";
 
 export type CallType = "audio" | "video";
@@ -576,7 +577,9 @@ export function useCallSignalR({
         isInitiatorRef.current = false;
         const raw = (err as Error)?.message ?? "";
         const [, msg] = raw.includes("|") ? raw.split("|") : [null, raw];
-        throw new Error(msg ?? raw);
+        const message = (msg ?? raw).trim() || "Không thể khởi tạo cuộc gọi.";
+        toast.error(message);
+        throw new Error(message);
       }
     },
     [

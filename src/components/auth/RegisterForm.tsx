@@ -7,9 +7,30 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
-import { RegisterRequest } from "@/lib/types/auth";
-import { matchPassword, validators } from "@/lib/utils/validators";
-import { Eye, EyeOff, MessageCircle } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { type RegisterFormData, registerSchema } from "@/lib/utils/validators";
+import { Eye, EyeOff } from "lucide-react";
+import { LinksyLogo } from "../brand/LinksyLogo";
+import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
+import axios from "axios";
+
+type FieldErrors = Partial<Record<"email" | "username", string>>;
+
+function parseRegisterFieldErrors(err: unknown): FieldErrors {
+  if (!axios.isAxiosError(err)) return {};
+  const errors = err.response?.data?.errors;
+  if (!errors || typeof errors !== "object") return {};
+
+  const result: FieldErrors = {};
+  const record = errors as Record<string, unknown>;
+  if (typeof record.email === "string" && record.email.trim()) {
+    result.email = record.email;
+  }
+  if (typeof record.username === "string" && record.username.trim()) {
+    result.username = record.username;
+  }
+  return result;
+}
 
 export default function RegisterForm() {
   const { register: registerUser } = useAuth();
@@ -22,27 +43,44 @@ export default function RegisterForm() {
   const {
     register,
     handleSubmit,
-    watch,
+    setError: setFieldError,
+    clearErrors,
     formState: { errors },
-  } = useForm<RegisterRequest>();
-
-  const password = watch("password");
-
-  const onSubmit = async (data: RegisterRequest) => {
+  } = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+  });
+  const onSubmit = async (data: RegisterFormData) => {
     try {
       setIsLoading(true);
       setError("");
+      clearErrors(["email", "username"]);
 
-      const result = await registerUser(data);
-
-      console.log("Register result:", result); // Thêm dòng này
-      console.log(
-        "Redirecting to:",
-        `/verify-email?email=${encodeURIComponent(result.email)}`,
-      );
+      const result = await registerUser({
+        ...data,
+        dateOfBirth: data.dateOfBirth || undefined,
+      });
       router.push(`/verify-email?email=${encodeURIComponent(result.email)}`);
     } catch (err: unknown) {
-      setError((err instanceof Error ? err.message : "Đăng ký thất bại. Vui lòng thử lại."));
+      const fieldErrors = parseRegisterFieldErrors(err);
+      if (fieldErrors.email) {
+        setFieldError("email", { type: "server", message: fieldErrors.email });
+      }
+      if (fieldErrors.username) {
+        setFieldError("username", {
+          type: "server",
+          message: fieldErrors.username,
+        });
+      }
+
+      const message = extractErrorMessage(err, "Đăng ký thất bại. Vui lòng thử lại.");
+      // Banner when both conflict, or generic non-field errors
+      if (fieldErrors.email && fieldErrors.username) {
+        setError("Email và Username đã tồn tại");
+      } else if (!fieldErrors.email && !fieldErrors.username) {
+        setError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -50,13 +88,11 @@ export default function RegisterForm() {
 
   return (
     <div className="mx-auto w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-lg [&_input]:bg-white [&_input]:text-gray-900 [&_input]:caret-gray-900 [&_input]:placeholder:text-gray-400">
-      {/* Logo và Title */}
       <div className="text-center mb-8">
-        <div className="flex justify-center mb-4">
-          <div className="p-3 bg-blue-100 rounded-full">
-            <MessageCircle className="text-blue-600" size={40} />
-          </div>
+        <div className="mb-4 flex justify-center">
+          <LinksyLogo size={48} />
         </div>
+
         <h1 className="text-3xl font-bold text-gray-800 mb-2">
           Tạo tài khoản mới
         </h1>
@@ -66,56 +102,50 @@ export default function RegisterForm() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Error Message */}
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
             {error}
           </div>
         )}
 
-        {/* Họ và tên */}
         <Input
           label="Họ và tên"
           type="text"
           placeholder="Nguyễn Văn A"
           error={errors.fullname?.message}
-          {...register("fullname", validators.fullname)}
+          {...register("fullname")}
         />
 
-        {/* Tên người dùng */}
         <Input
           label="Tên người dùng"
           type="text"
           placeholder="username"
           error={errors.username?.message}
-          {...register("username", validators.username)}
+          {...register("username")}
         />
 
-        {/* Email */}
         <Input
           label="Email"
           type="email"
           placeholder="example@email.com"
           error={errors.email?.message}
-          {...register("email", validators.email)}
+          {...register("email")}
         />
 
-        {/* Ngày sinh */}
         <Input
           label="Ngày sinh (không bắt buộc)"
           type="date"
           error={errors.dateOfBirth?.message}
-          {...register("dateOfBirth", validators.dateOfBirth)}
+          {...register("dateOfBirth")}
         />
 
-        {/* Mật khẩu */}
         <div className="relative">
           <Input
             label="Mật khẩu"
             type={showPassword ? "text" : "password"}
             placeholder="Ít nhất 8 ký tự, có chữ và số"
             error={errors.password?.message}
-            {...register("password", validators.password)}
+            {...register("password")}
           />
           <button
             type="button"
@@ -126,17 +156,13 @@ export default function RegisterForm() {
           </button>
         </div>
 
-        {/* Xác nhận mật khẩu */}
         <div className="relative">
           <Input
             label="Xác nhận mật khẩu"
             type={showConfirmPassword ? "text" : "password"}
             placeholder="••••••••"
             error={errors.confirmPassword?.message}
-            {...register("confirmPassword", {
-              required: "Vui lòng xác nhận mật khẩu",
-              validate: matchPassword(password),
-            })}
+            {...register("confirmPassword")}
           />
           <button
             type="button"
@@ -147,7 +173,6 @@ export default function RegisterForm() {
           </button>
         </div>
 
-        {/* Terms */}
         <div className="text-xs text-gray-600">
           Bằng cách đăng ký, bạn đồng ý với{" "}
           <Link href="/terms" className="text-blue-600 hover:text-blue-700">
@@ -160,7 +185,6 @@ export default function RegisterForm() {
           của chúng tôi.
         </div>
 
-        {/* Submit Button */}
         <Button
           type="submit"
           variant="primary"
@@ -171,7 +195,6 @@ export default function RegisterForm() {
           Đăng ký
         </Button>
 
-        {/* Login Link */}
         <div className="text-center text-sm text-gray-600">
           Đã có tài khoản?{" "}
           <Link

@@ -159,6 +159,7 @@ export default function ChatHeader({
       <MemberProfileDialog
         open={profileOpen && !isGroup}
         member={otherMember ?? null}
+        showGroupInfo={false}
         onClose={() => setProfileOpen(false)}
         onAudioCall={
           onAudioCall

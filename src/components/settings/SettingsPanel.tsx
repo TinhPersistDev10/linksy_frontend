@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, ChevronRight, Lock, Palette, ShieldBan, User, X } from "lucide-react";
+import { Bell, ChevronRight, Lock, Palette, Shield, ShieldBan, User, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import AppearanceSettings from "./AppearanceSettings";
 import BlockedUsersSettings from "./BlockedUsersSettings";
 import NotificationSettings from "./NotificationSettings";
 import PasswordSettings from "./PasswordSettings";
+import PrivacySettings from "./PrivacySettings";
 import ProfileSettings from "./ProfileSettings";
 
 interface SettingsPanelProps {
@@ -34,6 +35,12 @@ const navItems = [
     label: "Thông báo",
     icon: Bell,
     description: "Quản lý thông báo",
+  },
+  {
+    id: "privacy",
+    label: "Quyền riêng tư",
+    icon: Shield,
+    description: "Tin nhắn & cuộc gọi từ người lạ",
   },
   {
     id: "appearance",
@@ -72,6 +79,8 @@ export default function SettingsPanel({
         return <PasswordSettings />;
       case "notifications":
         return <NotificationSettings />;
+      case "privacy":
+        return <PrivacySettings />;
       case "appearance":
         return <AppearanceSettings />;
       case "blocked":

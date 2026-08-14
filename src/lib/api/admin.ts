@@ -13,6 +13,11 @@ import type {
   UpdateAdminUserRequest,
   UserRoleAssignment,
 } from "../types/admin";
+import type { RegistrationStats } from "../types/report";
+import type {
+  ApplyModerationRequest,
+  UserModerationStatus,
+} from "../types/report";
 
 function unwrap<T>(response: ApiResponse<T>, fallback?: T): T {
   if (response.data == null) {
@@ -139,5 +144,34 @@ export const adminApi = {
     );
     const activities = unwrap(res.data, []);
     return Array.isArray(activities) ? activities : [];
+  },
+
+  getRegistrationStats: async (
+    period: "day" | "month" | "year" = "day",
+    from?: string,
+    to?: string,
+  ): Promise<RegistrationStats> => {
+    const res = await apiClient.get<ApiResponse<RegistrationStats>>(
+      "/admin/statistics/registrations",
+      { params: { period, from, to } },
+    );
+    return unwrap(res.data, {
+      period,
+      from: from ?? "",
+      to: to ?? "",
+      totalRegistrations: 0,
+      buckets: [],
+    });
+  },
+
+  applyModeration: async (
+    userId: string,
+    payload: ApplyModerationRequest,
+  ): Promise<UserModerationStatus> => {
+    const res = await apiClient.post<ApiResponse<UserModerationStatus>>(
+      `/admin/users/${userId}/moderation`,
+      payload,
+    );
+    return unwrap(res.data);
   },
 };

@@ -5,22 +5,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, KeyRound, Mail } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { authApi } from "@/lib/api/auth";
 import { Button } from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { matchPassword, validators } from "@/lib/utils/validators";
+import {
+  forgotEmailSchema,
+  forgotResetSchema,
+  type ForgotEmailFormData,
+  type ForgotResetFormData,
+} from "@/lib/utils/validators";
 
 type Step = "email" | "reset";
-
-interface EmailFormData {
-  email: string;
-}
-
-interface ResetFormData {
-  otpCode: string;
-  newPassword: string;
-  confirmPassword: string;
-}
 
 export default function ForgotPasswordForm() {
   const router = useRouter();
@@ -32,9 +28,12 @@ export default function ForgotPasswordForm() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const emailForm = useForm<EmailFormData>();
-  const resetForm = useForm<ResetFormData>();
-  const newPassword = resetForm.watch("newPassword");
+  const emailForm = useForm<ForgotEmailFormData>({
+    resolver: zodResolver(forgotEmailSchema),
+  });
+  const resetForm = useForm<ForgotResetFormData>({
+    resolver: zodResolver(forgotResetSchema),
+  });
 
   const getApiErrorMessage = (err: unknown, fallback: string) => {
     const error = err as {
@@ -60,7 +59,7 @@ export default function ForgotPasswordForm() {
     );
   };
 
-  const submitEmail = async (data: EmailFormData) => {
+  const submitEmail = async (data: ForgotEmailFormData) => {
     try {
       setIsLoading(true);
       setError("");
@@ -80,7 +79,7 @@ export default function ForgotPasswordForm() {
     }
   };
 
-  const submitReset = async (data: ResetFormData) => {
+  const submitReset = async (data: ForgotResetFormData) => {
     try {
       setIsLoading(true);
       setError("");
@@ -165,7 +164,7 @@ export default function ForgotPasswordForm() {
             type="email"
             placeholder="example@email.com"
             error={emailForm.formState.errors.email?.message}
-            {...emailForm.register("email", validators.email)}
+            {...emailForm.register("email")}
           />
 
           <Button
@@ -194,7 +193,7 @@ export default function ForgotPasswordForm() {
             maxLength={6}
             placeholder="123456"
             error={resetForm.formState.errors.otpCode?.message}
-            {...resetForm.register("otpCode", validators.otp)}
+            {...resetForm.register("otpCode")}
           />
 
           <div className="relative">
@@ -203,7 +202,7 @@ export default function ForgotPasswordForm() {
               type={showNewPassword ? "text" : "password"}
               placeholder="********"
               error={resetForm.formState.errors.newPassword?.message}
-              {...resetForm.register("newPassword", validators.password)}
+              {...resetForm.register("newPassword")}
             />
             <button
               type="button"
@@ -221,10 +220,7 @@ export default function ForgotPasswordForm() {
               type={showConfirmPassword ? "text" : "password"}
               placeholder="********"
               error={resetForm.formState.errors.confirmPassword?.message}
-              {...resetForm.register("confirmPassword", {
-                required: "Vui lòng xác nhận mật khẩu",
-                validate: matchPassword(newPassword),
-              })}
+              {...resetForm.register("confirmPassword")}
             />
             <button
               type="button"

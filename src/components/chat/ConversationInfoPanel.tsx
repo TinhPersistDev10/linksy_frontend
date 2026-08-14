@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Flag,
   Image as ImageIcon,
   Loader2,
   LogOut,
@@ -29,13 +30,17 @@ import {
 import { blockedUsersApi } from "@/lib/api/blocked-users";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import { useAuth } from "@/lib/hooks/useAuth";
-import { chatroomQueryKeys } from "@/lib/queries/queryKeys";
+import {
+  blockedUserQueryKeys,
+  chatroomQueryKeys,
+} from "@/lib/queries/queryKeys";
 import type {
   ChatroomMemberResponse,
   ChatroomResponse,
 } from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import ReportUserDialog from "@/components/social/ReportUserDialog";
 import AddGroupMembersDialog from "./AddGroupMembersDialog";
 import ChatAvatar from "./ChatAvatar";
 import ConversationSharedContent from "./ConversationSharedContent";
@@ -182,6 +187,9 @@ export default function ConversationInfoPanel({
     null,
   );
   const [infoNotice, setInfoNotice] = useState<InfoNotice | null>(null);
+  const [reportTarget, setReportTarget] = useState<ChatroomMemberResponse | null>(
+    null,
+  );
 
   useEffect(() => {
     setView("main");
@@ -228,18 +236,51 @@ export default function ConversationInfoPanel({
   const updateCachedChatroom = (updated: ChatroomResponse) => {
     onChatroomChange?.(updated);
     if (!user?.userId) return;
-    queryClient.setQueryData<ChatroomResponse[]>(
-      chatroomQueryKeys.list(user.userId),
-      (current = []) =>
-        current.map((item) =>
-          item.chatroomId === updated.chatroomId ? updated : item,
-        ),
-    );
+    const apply = (includeArchived: boolean) => {
+      queryClient.setQueryData<ChatroomResponse[]>(
+        chatroomQueryKeys.list(user.userId, includeArchived),
+        (current = []) =>
+          current.map((item) =>
+            item.chatroomId === updated.chatroomId ? updated : item,
+          ),
+      );
+    };
+    apply(false);
+    apply(true);
   };
 
   const refreshChatroom = async () => {
     const updated = await chatroomsApi.getChatroom(chatroom.chatroomId);
     updateCachedChatroom(updated);
+  };
+
+  const toggleMute = async () => {
+    const nextMuted = !mutedLocal;
+    setMutedLocal(nextMuted);
+    setActionLoading(true);
+    setError("");
+    try {
+      await chatroomsApi.muteChatroom(chatroom.chatroomId, nextMuted);
+      const updated: ChatroomResponse = {
+        ...chatroom,
+        myMemberInfo: chatroom.myMemberInfo
+          ? {
+              ...chatroom.myMemberInfo,
+              isMuted: nextMuted,
+              mutedUntil: null,
+              notificationPreference: nextMuted ? "mute" : "all",
+            }
+          : chatroom.myMemberInfo,
+      };
+      updateCachedChatroom(updated);
+    } catch (requestError) {
+      setMutedLocal(!nextMuted);
+      setError(
+        requestMessage(requestError, "Không thể cập nhật thông báo hội thoại."),
+      );
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleGroupAvatarChange = async (
@@ -310,6 +351,11 @@ export default function ConversationInfoPanel({
     setConfirmAction({ type: "block", member });
   };
 
+  const reportMember = (member: ChatroomMemberResponse) => {
+    setMenuMemberId(null);
+    setReportTarget(member);
+  };
+
   const callMember = (
     member: ChatroomMemberResponse,
     callType: "audio" | "video",
@@ -355,6 +401,19 @@ export default function ConversationInfoPanel({
       }
 
       await blockedUsersApi.blockUser(confirmAction.member.userId);
+      if (user?.userId) {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: blockedUserQueryKeys.list(user.userId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: blockedUserQueryKeys.status(
+              user.userId,
+              confirmAction.member.userId,
+            ),
+          }),
+        ]);
+      }
       setConfirmAction(null);
     } catch (requestError) {
       const fallback =
@@ -478,12 +537,13 @@ export default function ConversationInfoPanel({
                 <div className="mt-4 flex items-start justify-center gap-6">
                   <button
                     type="button"
-                    onClick={() => setMutedLocal((v) => !v)}
-                    className="flex w-14 flex-col items-center gap-1.5 text-xs font-medium text-foreground"
+                    onClick={() => void toggleMute()}
+                    disabled={actionLoading}
+                    className="flex w-14 flex-col items-center gap-1.5 text-xs font-medium text-foreground disabled:opacity-50"
                     title={
                       mutedLocal
-                        ? "Bật lại thông báo (chỉ trên thiết bị này)"
-                        : "Tắt thông báo (chỉ trên thiết bị này)"
+                        ? "Bật lại thông báo hội thoại"
+                        : "Tắt thông báo hội thoại"
                     }
                   >
                     <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-foreground">
@@ -680,6 +740,13 @@ export default function ConversationInfoPanel({
                               </button>
                               <button
                                 type="button"
+                                onClick={() => reportMember(member)}
+                                className="flex w-full items-center gap-3 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                              >
+                                <Flag size={17} /> Báo cáo
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => callMember(member, "audio")}
                                 className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/70"
                               >
@@ -730,6 +797,24 @@ export default function ConversationInfoPanel({
                 </button>
               </section>
 
+              {isDirect && otherMember && (
+                <section className="border-b border-border/70">
+                  <ActionRow
+                    icon={<UserX size={18} />}
+                    label="Chặn"
+                    onClick={() => blockMember(otherMember)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => reportMember(otherMember)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-red-600 transition-colors hover:bg-muted/50 dark:text-red-400"
+                  >
+                    <Flag size={16} />
+                    <span>Báo cáo tài khoản</span>
+                  </button>
+                </section>
+              )}
+
               {!isDirect && (
                 <section className="border-b border-border/70">
                   <button
@@ -764,6 +849,7 @@ export default function ConversationInfoPanel({
         open={Boolean(selectedMember)}
         member={selectedMember}
         chatroomName={chatroom.roomName}
+        showGroupInfo={!isDirect}
         isSelf={selectedMember?.userId === user?.userId}
         onClose={() => setSelectedMember(null)}
         onMessage={
@@ -793,6 +879,28 @@ export default function ConversationInfoPanel({
               }
             : undefined
         }
+      />
+
+      <ReportUserDialog
+        open={Boolean(reportTarget)}
+        userId={reportTarget?.userId ?? ""}
+        displayName={
+          reportTarget?.fullname || reportTarget?.username || "Người dùng"
+        }
+        onClose={() => setReportTarget(null)}
+        onReported={(alsoBlocked) => {
+          if (alsoBlocked && user?.userId && reportTarget) {
+            void queryClient.invalidateQueries({
+              queryKey: blockedUserQueryKeys.list(user.userId),
+            });
+            void queryClient.invalidateQueries({
+              queryKey: blockedUserQueryKeys.status(
+                user.userId,
+                reportTarget.userId,
+              ),
+            });
+          }
+        }}
       />
 
       {editing && (

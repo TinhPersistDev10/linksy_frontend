@@ -16,7 +16,10 @@ import { Switch } from "@/components/ui/switch";
 import { useCreateAdminUserMutation } from "@/lib/hooks/useAdminQueries";
 import type { CreateAdminUserRequest } from "@/lib/types/admin";
 import { getApiErrorMessage } from "@/lib/utils/admin-errors";
-import { isValidPassword, PASSWORD_RULE_MESSAGE } from "@/lib/utils/validators";
+import {
+  createAdminUserSchema,
+  getZodErrorMessage,
+} from "@/lib/utils/validators";
 
 interface CreateAdminUserDialogProps {
   open: boolean;
@@ -58,26 +61,32 @@ export function CreateAdminUserDialog({
     event.preventDefault();
     setError("");
 
-    if (!form.username.trim() || !form.email.trim() || !form.password.trim()) {
-      setError("Username, email và mật khẩu là bắt buộc.");
-      return;
-    }
+    const parsed = createAdminUserSchema.safeParse({
+      username: form.username.trim(),
+      email: form.email.trim(),
+      password: form.password,
+      fullname: form.fullname?.trim() ?? "",
+      bio: form.bio?.trim() ?? "",
+      dateOfBirth: form.dateOfBirth || "",
+      isActive: form.isActive ?? true,
+      isEmailVerified: form.isEmailVerified ?? true,
+    });
 
-    if (!isValidPassword(form.password)) {
-      setError(PASSWORD_RULE_MESSAGE);
+    if (!parsed.success) {
+      setError(getZodErrorMessage(parsed.error));
       return;
     }
 
     try {
       await createMutation.mutateAsync({
-        username: form.username.trim(),
-        email: form.email.trim(),
-        password: form.password,
-        fullname: form.fullname?.trim() || undefined,
-        bio: form.bio?.trim() || undefined,
-        dateOfBirth: form.dateOfBirth || undefined,
-        isActive: form.isActive ?? true,
-        isEmailVerified: form.isEmailVerified ?? true,
+        username: parsed.data.username,
+        email: parsed.data.email,
+        password: parsed.data.password,
+        fullname: parsed.data.fullname?.trim() || undefined,
+        bio: parsed.data.bio?.trim() || undefined,
+        dateOfBirth: parsed.data.dateOfBirth || undefined,
+        isActive: parsed.data.isActive ?? true,
+        isEmailVerified: parsed.data.isEmailVerified ?? true,
       });
       onCreated?.();
       handleClose(false);

@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, ShieldBan, UserRound } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { blockedUsersApi } from "@/lib/api/blocked-users";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { blockedUserQueryKeys } from "@/lib/queries/queryKeys";
 import type { BlockedUser } from "@/lib/types/blocked-user";
 
 function getInitials(name: string) {
@@ -30,6 +33,8 @@ function formatBlockedAt(value: string) {
 }
 
 export default function BlockedUsersSettings() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [users, setUsers] = useState<BlockedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -62,6 +67,19 @@ export default function BlockedUsersSettings() {
     try {
       await blockedUsersApi.unblockUser(pendingUser.userId);
       setUsers((prev) => prev.filter((u) => u.userId !== pendingUser.userId));
+      if (user?.userId) {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: blockedUserQueryKeys.list(user.userId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: blockedUserQueryKeys.status(
+              user.userId,
+              pendingUser.userId,
+            ),
+          }),
+        ]);
+      }
       setPendingUser(null);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } };

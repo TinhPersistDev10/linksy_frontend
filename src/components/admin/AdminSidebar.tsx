@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Flag,
   LayoutDashboard,
   LogOut,
   MessageCircle,
-  Shield,
   Users,
 } from "lucide-react";
 import {
@@ -22,10 +22,12 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { LinksyLogo } from "../brand/LinksyLogo";
 
 const navItems = [
   { href: "/admin", label: "Tổng quan", icon: LayoutDashboard, exact: true },
   { href: "/admin/users", label: "Người dùng", icon: Users, exact: false },
+  { href: "/admin/reports", label: "Báo cáo", icon: Flag, exact: false },
 ] as const;
 
 export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {
@@ -39,9 +41,7 @@ export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {
     <Sidebar {...props}>
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Shield className="h-5 w-5" />
-          </div>
+          <LinksyLogo size={32}/>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">Admin Console</p>
             <p className="truncate text-xs text-muted-foreground">

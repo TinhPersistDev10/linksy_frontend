@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   useAdminRolesQuery,
   useAdminUserQuery,
+  useApplyModerationMutation,
   useAssignAdminRoleMutation,
   useDeleteAdminUserMutation,
   useRemoveAdminRoleMutation,
@@ -21,6 +22,11 @@ import {
   useUpdateAdminUserMutation,
 } from "@/lib/hooks/useAdminQueries";
 import type { UpdateAdminUserRequest } from "@/lib/types/admin";
+import {
+  MODERATION_DURATION_DEFAULTS,
+  MODERATION_LEVEL_LABELS,
+  type ModerationLevel,
+} from "@/lib/types/report";
 import { formatAdminDate, getApiErrorMessage } from "@/lib/utils/admin-errors";
 import { useAuth } from "@/lib/hooks/useAuth";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -38,6 +44,7 @@ export function AdminUserDetailView() {
   const deleteMutation = useDeleteAdminUserMutation();
   const assignRoleMutation = useAssignAdminRoleMutation();
   const removeRoleMutation = useRemoveAdminRoleMutation();
+  const moderationMutation = useApplyModerationMutation();
 
   const [form, setForm] = useState<UpdateAdminUserRequest>({});
   const [resetOpen, setResetOpen] = useState(false);
@@ -45,6 +52,9 @@ export function AdminUserDetailView() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [selectedRoleId, setSelectedRoleId] = useState<number | "">("");
+  const [modLevel, setModLevel] = useState<ModerationLevel>("none");
+  const [modReason, setModReason] = useState("");
+  const [modDays, setModDays] = useState(7);
 
   const detail = userQuery.data;
   const isSelf = currentUser?.userId === userId;
@@ -60,7 +70,39 @@ export function AdminUserDetailView() {
       isActive: detail.isActive,
       isEmailVerified: detail.isEmailVerified,
     });
+    setModLevel((detail.moderationLevel as ModerationLevel) || "none");
+    setModReason(detail.moderationReason ?? "");
+    const def =
+      MODERATION_DURATION_DEFAULTS[detail.moderationLevel ?? ""] ?? 7;
+    setModDays(def);
   }, [detail]);
+
+  const handleApplyModeration = async () => {
+    if (isSelf) return;
+    setError("");
+    setMessage("");
+    try {
+      await moderationMutation.mutateAsync({
+        userId,
+        payload: {
+          level: modLevel,
+          reason: modReason.trim() || undefined,
+          durationDays:
+            modLevel === "restricted" || modLevel === "temporary_lock"
+              ? modDays
+              : undefined,
+          incrementStrike: modLevel !== "none",
+        },
+      });
+      setMessage(
+        modLevel === "none"
+          ? "Đã gỡ hạn chế moderation."
+          : `Đã áp dụng: ${MODERATION_LEVEL_LABELS[modLevel]}`,
+      );
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Áp dụng moderation thất bại"));
+    }
+  };
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -217,7 +259,93 @@ export function AdminUserDetailView() {
               <dt className="text-muted-foreground">Khóa đến</dt>
               <dd>{formatAdminDate(detail.accountLockedUntil)}</dd>
             </div>
+            <div>
+              <dt className="text-muted-foreground">Moderation</dt>
+              <dd>
+                {MODERATION_LEVEL_LABELS[detail.moderationLevel ?? "none"] ??
+                  detail.moderationLevel}
+                {detail.isFlaggedForReview ? " · Ưu tiên review" : ""}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Điểm vi phạm</dt>
+              <dd>{detail.violationPoints ?? 0}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Hết hạn moderation</dt>
+              <dd>{formatAdminDate(detail.moderationExpiresAt)}</dd>
+            </div>
           </dl>
+        </div>
+
+        <div className="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
+          <h3 className="font-medium">Xử lý vi phạm (hybrid)</h3>
+          <p className="text-xs text-muted-foreground">
+            Cảnh báo → hạn chế → khóa tạm → khóa vĩnh viễn. Không khóa tự động
+            chỉ vì nhiều báo cáo.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                Mức xử lý
+              </label>
+              <select
+                value={modLevel}
+                disabled={isSelf}
+                onChange={(e) => {
+                  const next = e.target.value as ModerationLevel;
+                  setModLevel(next);
+                  const def = MODERATION_DURATION_DEFAULTS[next];
+                  if (def) setModDays(def);
+                }}
+                className="h-10 w-full rounded-lg border bg-transparent px-3 text-sm"
+              >
+                {(
+                  Object.keys(MODERATION_LEVEL_LABELS) as ModerationLevel[]
+                ).map((key) => (
+                  <option key={key} value={key}>
+                    {MODERATION_LEVEL_LABELS[key]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {(modLevel === "restricted" || modLevel === "temporary_lock") && (
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">
+                  Số ngày
+                </label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={String(modDays)}
+                  disabled={isSelf}
+                  onChange={(e) =>
+                    setModDays(
+                      Math.min(365, Math.max(1, Number(e.target.value) || 1)),
+                    )
+                  }
+                />
+              </div>
+            )}
+          </div>
+          <Input
+            label="Lý do (hiển thị cho user)"
+            value={modReason}
+            disabled={isSelf}
+            onChange={(e) => setModReason(e.target.value)}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSelf || moderationMutation.isPending}
+            onClick={() => void handleApplyModeration()}
+          >
+            {moderationMutation.isPending ? (
+              <Loader2 className="animate-spin" />
+            ) : null}
+            Áp dụng moderation
+          </Button>
         </div>
 
         <form

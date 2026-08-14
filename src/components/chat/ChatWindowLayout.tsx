@@ -10,8 +10,8 @@
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { Send } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { AlertCircle, Loader2, Send, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChatroomResponse } from "@/lib/types/chatroom";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useChatSignalR } from "@/lib/hooks/useChatSignalR";
@@ -25,9 +25,14 @@ import MessageInput from "./MessageInput";
 import ConversationInfoPanel from "./ConversationInfoPanel";
 import PinnedMessagesBanner from "./PinnedMessagesBanner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { Button } from "@/components/ui/Button";
+import { blockedUsersApi } from "@/lib/api/blocked-users";
 import { messagesApi } from "@/lib/api/messages";
 import { chatroomsApi } from "@/lib/api/chatrooms";
-import { chatroomQueryKeys } from "@/lib/queries/queryKeys";
+import {
+  blockedUserQueryKeys,
+  chatroomQueryKeys,
+} from "@/lib/queries/queryKeys";
 import type {
   CreatePollRequest,
   MessageDeliveryStatusResponse,
@@ -37,6 +42,10 @@ import type {
   PinnedMessageResponse,
 } from "@/lib/types/message";
 import CreatePollDialog from "./CreatePollDialog";
+import {
+  COMMUNITY_VIOLATION_MESSAGE,
+  containsBannedContent,
+} from "@/lib/utils/contentModeration";
 
 interface ChatWindowLayoutProps {
   chatroom: ChatroomResponse | null;
@@ -67,6 +76,9 @@ export default function ChatWindowLayout({
     title: string;
     description: string;
   } | null>(null);
+  const [composerError, setComposerError] = useState<string | null>(null);
+  const [unblocking, setUnblocking] = useState(false);
+  const [blockedByOtherLocal, setBlockedByOtherLocal] = useState(false);
 
   useEffect(() => {
     setActiveChatroom(chatroom);
@@ -95,10 +107,77 @@ export default function ChatWindowLayout({
 
   useEffect(() => {
     setInfoOpen(false);
+    setComposerError(null);
+    setBlockedByOtherLocal(false);
+    nearBottomRef.current = true;
   }, [chatroomId]);
   const otherMember = currentChatroom?.members?.find(
     (m) => m.userId !== user?.userId,
   );
+  const isDirectChat =
+    currentChatroom?.roomType?.toLowerCase() === "direct";
+
+  const { data: blockedUsers = [] } = useQuery({
+    queryKey: blockedUserQueryKeys.list(user?.userId ?? "anonymous"),
+    queryFn: blockedUsersApi.getBlockedUsers,
+    enabled: Boolean(user?.userId) && isDirectChat,
+    staleTime: 30_000,
+  });
+
+  const { data: blockStatus } = useQuery({
+    queryKey: blockedUserQueryKeys.status(
+      user?.userId ?? "anonymous",
+      otherMember?.userId ?? "none",
+    ),
+    queryFn: () => blockedUsersApi.getBlockStatus(otherMember!.userId),
+    enabled: Boolean(user?.userId && otherMember?.userId && isDirectChat),
+    staleTime: 15_000,
+    retry: 1,
+  });
+
+  const iBlockedOther =
+    Boolean(blockStatus?.iBlocked) ||
+    Boolean(
+      otherMember?.userId &&
+        blockedUsers.some((item) => item.userId === otherMember.userId),
+    );
+  const blockedByOther =
+    Boolean(blockStatus?.blockedBy) || blockedByOtherLocal;
+  const composerLocked = iBlockedOther || blockedByOther;
+
+  useEffect(() => {
+    if (blockedByOther) setComposerError(null);
+  }, [blockedByOther]);
+
+  const handleUnblock = useCallback(async () => {
+    if (!user?.userId || !otherMember?.userId) return;
+    setUnblocking(true);
+    setComposerError(null);
+    try {
+      await blockedUsersApi.unblockUser(otherMember.userId);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: blockedUserQueryKeys.list(user.userId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: blockedUserQueryKeys.status(
+            user.userId,
+            otherMember.userId,
+          ),
+        }),
+      ]);
+      setBlockedByOtherLocal(false);
+    } catch (err) {
+      const message =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { message?: string } } }).response
+              ?.data?.message
+          : undefined;
+      setComposerError(message || "Không thể bỏ chặn người dùng này.");
+    } finally {
+      setUnblocking(false);
+    }
+  }, [otherMember?.userId, queryClient, user?.userId]);
   const remoteCallUserIds = useMemo(
     () =>
       currentChatroom?.members
@@ -337,12 +416,27 @@ export default function ChatWindowLayout({
     signalRSend,
     signalRTyping,
     signalRStopTyping,
+    onSendError: (message) => {
+      // If the other user blocked us, lock composer immediately (no error banner).
+      if (message.includes("đã chặn bạn")) {
+        setComposerError(null);
+        setBlockedByOtherLocal(true);
+        if (user?.userId && otherMember?.userId) {
+          void queryClient.invalidateQueries({
+            queryKey: blockedUserQueryKeys.status(
+              user.userId,
+              otherMember.userId,
+            ),
+          });
+        }
+        return;
+      }
+      setComposerError(message);
+    },
   });
 
   const isGroupChat =
     currentChatroom?.roomType?.toLowerCase() === "group";
-  const isDirectChat =
-    currentChatroom?.roomType?.toLowerCase() === "direct";
   const canPin =
     isDirectChat ||
     currentChatroom?.myMemberInfo?.memberRole === "admin" ||
@@ -544,6 +638,14 @@ export default function ChatWindowLayout({
     )
       return;
 
+    if (content && containsBannedContent(content)) {
+      setNotice({
+        title: "Vi phạm tiêu chuẩn cộng đồng",
+        description: COMMUNITY_VIOLATION_MESSAGE,
+      });
+      return;
+    }
+
     setComposerSubmitting(true);
     try {
       if (editingMessage) {
@@ -563,7 +665,23 @@ export default function ChatWindowLayout({
       }
       await handleSend({ mentions: pendingMentions });
     } catch (error) {
-      console.error("Submit message failed:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+            ? error
+            : "";
+      if (
+        message.includes("vi phạm tiêu chuẩn cộng đồng") ||
+        message.includes(COMMUNITY_VIOLATION_MESSAGE)
+      ) {
+        setNotice({
+          title: "Vi phạm tiêu chuẩn cộng đồng",
+          description: COMMUNITY_VIOLATION_MESSAGE,
+        });
+      } else {
+        console.error("Submit message failed:", error);
+      }
     } finally {
       setComposerSubmitting(false);
     }
@@ -616,14 +734,33 @@ export default function ChatWindowLayout({
 
   useEffect(() => {
     if (
-      shouldScrollToBottomRef.current &&
-      !loadingInitial &&
-      messages.length > 0
+      !shouldScrollToBottomRef.current ||
+      loadingInitial ||
+      messages.length === 0
     ) {
-      scrollToBottomRef.current?.();
-      shouldScrollToBottomRef.current = false;
+      return;
     }
-  }, [messages, loadingInitial]);
+
+    let cancelled = false;
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (cancelled || !shouldScrollToBottomRef.current) return;
+        scrollToBottomRef.current?.();
+        shouldScrollToBottomRef.current = false;
+        nearBottomRef.current = true;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
+  }, [messages, loadingInitial, chatroomId, shouldScrollToBottomRef]);
+
+  useEffect(() => {
+    shouldScrollToBottomRef.current = true;
+    nearBottomRef.current = true;
+  }, [chatroomId, shouldScrollToBottomRef]);
 
   useEffect(() => {
     if (typingUsers.length > 0 && nearBottomRef.current)
@@ -738,6 +875,7 @@ export default function ChatWindowLayout({
 
           <div className="min-h-0 flex-1 overflow-hidden">
             <MessageList
+              key={chatroomId}
               messages={messages}
               currentUserId={user?.userId ?? ""}
               otherMember={otherMember}
@@ -779,52 +917,113 @@ export default function ChatWindowLayout({
             />
           </div>
 
-          <MessageInput
-            key={chatroomId}
-            value={input}
-            sending={sending || composerSubmitting}
-            replyTo={replyTo}
-            editingMessage={editingMessage}
-            selectedFiles={selectedFiles}
-            onFilesSelected={addSelectedFiles}
-            onRemoveFile={removeSelectedFile}
-            attachmentsDisabled={Boolean(editingMessage)}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            onSend={() => void handleSubmit()}
-            onInsertEmoji={handleInsertEmoji}
-            onCancelMode={() => {
-              setReplyTo(null);
-              setEditingMessage(null);
-              setInput("");
-              clearSelectedFiles();
-              clearPendingMentions();
-            }}
-            enableMentions={isGroupChat && !editingMessage}
-            mentionMembers={currentChatroom?.members ?? []}
-            currentUserId={user?.userId}
-            pendingMentions={pendingMentions}
-            onPendingMentionsChange={setPendingMentions}
-            canSendVoice={canSendVoice && !editingMessage}
-            onSendVoice={async (file) => {
-              // Wait briefly if another send is in flight (e.g. voice auto-stop at 60s).
-              let waits = 0;
-              while (composerSubmitting && waits < 40) {
-                await new Promise((r) => setTimeout(r, 100));
-                waits += 1;
-              }
-              if (composerSubmitting) return;
-              setComposerSubmitting(true);
-              try {
-                await handleSendVoice(file, {
-                  parentMessageId: replyTo?.messageId,
-                });
+          {composerError && !composerLocked && (
+            <div
+              role="alert"
+              className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:bg-red-950/60 dark:text-red-100"
+            >
+              <AlertCircle size={16} className="mt-0.5 shrink-0" />
+              <p className="min-w-0 flex-1 leading-relaxed">{composerError}</p>
+              <button
+                type="button"
+                aria-label="Đóng thông báo"
+                onClick={() => setComposerError(null)}
+                className="shrink-0 rounded-full p-1 opacity-70 transition hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {blockedByOther ? (
+            <div className="border-t border-border bg-background px-4 py-4">
+              <p className="text-center text-sm font-medium text-muted-foreground">
+                Người dùng này đã chặn bạn
+              </p>
+            </div>
+          ) : iBlockedOther ? (
+            <div className="border-t border-border bg-background px-4 py-3">
+              <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+                <p className="text-center text-sm text-muted-foreground sm:text-left">
+                  Bạn đã chặn{" "}
+                  <span className="font-medium text-foreground">
+                    {otherMember?.fullname || otherMember?.username || "người này"}
+                  </span>
+                  . Bỏ chặn để tiếp tục nhắn tin.
+                </p>
+                <Button
+                  type="button"
+                  disabled={unblocking}
+                  onClick={() => void handleUnblock()}
+                  className="w-full shrink-0 sm:w-auto"
+                >
+                  {unblocking ? (
+                    <>
+                      <Loader2 size={16} className="mr-2 animate-spin" />
+                      Đang bỏ chặn...
+                    </>
+                  ) : (
+                    "Bỏ chặn"
+                  )}
+                </Button>
+              </div>
+              {composerError && (
+                <p className="mt-2 text-center text-xs text-red-600 dark:text-red-400 sm:text-left">
+                  {composerError}
+                </p>
+              )}
+            </div>
+          ) : (
+            <MessageInput
+              key={chatroomId}
+              value={input}
+              sending={sending || composerSubmitting}
+              replyTo={replyTo}
+              editingMessage={editingMessage}
+              selectedFiles={selectedFiles}
+              onFilesSelected={addSelectedFiles}
+              onRemoveFile={removeSelectedFile}
+              attachmentsDisabled={Boolean(editingMessage)}
+              onChange={(event) => {
+                if (composerError) setComposerError(null);
+                void handleInputChange(event);
+              }}
+              onKeyDown={handleKeyDown}
+              onSend={() => void handleSubmit()}
+              onInsertEmoji={handleInsertEmoji}
+              onCancelMode={() => {
                 setReplyTo(null);
-              } finally {
-                setComposerSubmitting(false);
-              }
-            }}
-          />
+                setEditingMessage(null);
+                setInput("");
+                clearSelectedFiles();
+                clearPendingMentions();
+              }}
+              enableMentions={isGroupChat && !editingMessage}
+              mentionMembers={currentChatroom?.members ?? []}
+              currentUserId={user?.userId}
+              pendingMentions={pendingMentions}
+              onPendingMentionsChange={setPendingMentions}
+              canSendVoice={canSendVoice && !editingMessage}
+              onSendVoice={async (file) => {
+                // Wait briefly if another send is in flight (e.g. voice auto-stop at 60s).
+                let waits = 0;
+                while (composerSubmitting && waits < 40) {
+                  await new Promise((r) => setTimeout(r, 100));
+                  waits += 1;
+                }
+                if (composerSubmitting) return;
+                setComposerSubmitting(true);
+                try {
+                  await handleSendVoice(file, {
+                    parentMessageId: replyTo?.messageId,
+                  });
+                  setReplyTo(null);
+                } finally {
+                  setComposerSubmitting(false);
+                }
+              }}
+            />
+          )}
 
           <CreatePollDialog
             open={pollDialogOpen}

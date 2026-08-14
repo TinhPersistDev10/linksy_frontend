@@ -9,12 +9,23 @@ export const notificationQueryKeys = {
 export const settingsQueryKeys = {
   all: ["settings"] as const,
   detail: (userId: string) => ["settings", userId] as const,
+  privacy: (userId: string) => ["settings", userId, "privacy"] as const,
 };
 
 export const friendQueryKeys = {
   all: ["friends"] as const,
+  list: (userId: string) => ["friends", userId, "list"] as const,
   receivedRequests: (userId: string) =>
     ["friends", userId, "requests", "received"] as const,
+  relationship: (userId: string, otherUserId: string) =>
+    ["friends", userId, "relationship", otherUserId] as const,
+};
+
+export const blockedUserQueryKeys = {
+  all: ["blocked-users"] as const,
+  list: (userId: string) => ["blocked-users", userId, "list"] as const,
+  status: (userId: string, otherUserId: string) =>
+    ["blocked-users", userId, "status", otherUserId] as const,
 };
 
 export const chatroomQueryKeys = {
@@ -31,6 +42,21 @@ export const adminQueryKeys = {
   userRoles: (userId: string) => ["admin", "users", userId, "roles"] as const,
   roles: ["admin", "roles"] as const,
   statistics: ["admin", "statistics"] as const,
+  registrationStats: (
+    period: string,
+    from?: string,
+    to?: string,
+  ) => ["admin", "statistics", "registrations", period, from ?? "", to ?? ""] as const,
   recentActivities: (limit: number) =>
     ["admin", "activities", "recent", limit] as const,
+  reports: (page: number, pageSize: number, status: string) =>
+    ["admin", "reports", page, pageSize, status] as const,
+  report: (reportId: string) => ["admin", "reports", reportId] as const,
+};
+
+export const reportQueryKeys = {
+  all: ["reports"] as const,
+  reasons: ["reports", "reasons"] as const,
+  mine: (userId: string, page: number) =>
+    ["reports", userId, "mine", page] as const,
 };

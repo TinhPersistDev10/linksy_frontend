@@ -14,7 +14,10 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminResetPasswordMutation } from "@/lib/hooks/useAdminQueries";
 import { getApiErrorMessage } from "@/lib/utils/admin-errors";
-import { isValidPassword, PASSWORD_RULE_MESSAGE } from "@/lib/utils/validators";
+import {
+  adminResetPasswordSchema,
+  getZodErrorMessage,
+} from "@/lib/utils/validators";
 
 interface ResetPasswordDialogProps {
   open: boolean;
@@ -47,18 +50,21 @@ export function ResetPasswordDialog({
     event.preventDefault();
     setError("");
 
-    if (!isValidPassword(password)) {
-      setError(PASSWORD_RULE_MESSAGE);
-      return;
-    }
+    const parsed = adminResetPasswordSchema.safeParse({
+      password,
+      confirmPassword: confirm,
+    });
 
-    if (password !== confirm) {
-      setError("Mật khẩu xác nhận không khớp.");
+    if (!parsed.success) {
+      setError(getZodErrorMessage(parsed.error));
       return;
     }
 
     try {
-      await resetMutation.mutateAsync({ userId, newPassword: password });
+      await resetMutation.mutateAsync({
+        userId,
+        newPassword: parsed.data.password,
+      });
       handleClose(false);
     } catch (err) {
       setError(getApiErrorMessage(err, "Reset mật khẩu thất bại"));

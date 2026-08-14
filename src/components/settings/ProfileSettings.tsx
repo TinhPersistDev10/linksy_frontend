@@ -10,15 +10,10 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import {
   AVATAR_MAX_BYTES,
   BIO_MAX_LENGTH,
-  validators,
+  profileSchema,
+  type ProfileFormData,
 } from "@/lib/utils/validators";
-
-interface ProfileFormData {
-  fullname: string;
-  username: string;
-  bio: string;
-  dateOfBirth: string;
-}
+import { zodResolver } from "@hookform/resolvers/zod";
 
 export default function ProfileSettings() {
   const { user, refreshUser } = useAuth();
@@ -34,6 +29,7 @@ export default function ProfileSettings() {
     handleSubmit,
     formState: { errors },
   } = useForm<ProfileFormData>({
+    resolver: zodResolver(profileSchema),
     defaultValues: {
       fullname: user?.fullname || "",
       username: user?.username || "",
@@ -177,13 +173,13 @@ export default function ProfileSettings() {
             label="Họ và tên"
             placeholder="Nguyễn Văn A"
             error={errors.fullname?.message}
-            {...register("fullname", validators.fullname)}
+            {...register("fullname")}
           />
           <Input
             label="Tên người dùng"
             placeholder="username"
             error={errors.username?.message}
-            {...register("username", validators.username)}
+            {...register("username")}
           />
         </div>
 
@@ -195,7 +191,7 @@ export default function ProfileSettings() {
             placeholder="Nói gì đó về bạn..."
             maxLength={BIO_MAX_LENGTH}
             className="min-h-[80px] w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            {...register("bio", validators.bio)}
+            {...register("bio")}
           />
           {errors.bio?.message ? (
             <p className="mt-1 text-xs text-red-500">{errors.bio.message}</p>
@@ -206,7 +202,7 @@ export default function ProfileSettings() {
           label="Ngày sinh"
           type="date"
           error={errors.dateOfBirth?.message}
-          {...register("dateOfBirth", validators.dateOfBirth)}
+          {...register("dateOfBirth")}
         />
 
         <div>

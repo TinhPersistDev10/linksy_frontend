@@ -6,12 +6,15 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { adminApi } from "@/lib/api/admin";
+import { reportsApi } from "@/lib/api/reports";
 import { adminQueryKeys } from "@/lib/queries/queryKeys";
 import type {
   AssignRoleRequest,
   CreateAdminUserRequest,
   UpdateAdminUserRequest,
 } from "@/lib/types/admin";
+import type { UpdateReportStatusRequest } from "@/lib/types/report";
+import type { ApplyModerationRequest } from "@/lib/types/report";
 import { isSystemAdmin } from "@/lib/types/user";
 import type { User } from "@/lib/types/user";
 
@@ -78,6 +81,77 @@ export function useAdminRecentActivitiesQuery(limit = 10, enabled = true) {
     queryFn: () => adminApi.getRecentActivities(limit),
     enabled,
     staleTime: 60 * 1000,
+  });
+}
+
+export function useAdminRegistrationStatsQuery(
+  period: "day" | "month" | "year" = "day",
+  from?: string,
+  to?: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: adminQueryKeys.registrationStats(period, from, to),
+    queryFn: () => adminApi.getRegistrationStats(period, from, to),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useAdminReportsQuery(
+  page = 1,
+  pageSize = 20,
+  status = "",
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: adminQueryKeys.reports(page, pageSize, status),
+    queryFn: () =>
+      reportsApi.getAdminReports(page, pageSize, status || undefined),
+    enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useUpdateAdminReportMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      reportId,
+      payload,
+    }: {
+      reportId: string;
+      payload: UpdateReportStatusRequest;
+    }) => reportsApi.updateAdminReport(reportId, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "reports"] });
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.report(variables.reportId),
+      });
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.all });
+    },
+  });
+}
+
+export function useApplyModerationMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      userId,
+      payload,
+    }: {
+      userId: string;
+      payload: ApplyModerationRequest;
+    }) => adminApi.applyModeration(userId, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.user(variables.userId),
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin", "reports"] });
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.all });
+    },
   });
 }
 

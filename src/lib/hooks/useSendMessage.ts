@@ -5,7 +5,8 @@ import { useState, useRef, useCallback } from "react";
 import { messagesApi } from "@/lib/api/messages";
 import type { MessageResponse, PendingMention } from "@/lib/types/message";
 import type { User } from "@/lib/types/user";
-import getAttachmentType from "../utils/useSendMessage";
+import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
+import getAttachmentType from "../utils/getAttachmentType";
 
 const TYPING_DEBOUNCE_MS = 2000;
 
@@ -24,6 +25,8 @@ interface Options {
   ) => Promise<void>;
   signalRTyping: (chatroomId: string) => Promise<void>;
   signalRStopTyping: (chatroomId: string) => Promise<void>;
+  /** Show inline error above the message composer (block / privacy, etc.). */
+  onSendError?: (message: string) => void;
 }
 
 export function useSendMessage({
@@ -35,11 +38,19 @@ export function useSendMessage({
   signalRSend,
   signalRTyping,
   signalRStopTyping,
+  onSendError,
 }: Options) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [pendingMentions, setPendingMentions] = useState<PendingMention[]>([]);
+
+  const reportSendError = useCallback(
+    (message: string) => {
+      onSendError?.(message);
+    },
+    [onSendError],
+  );
 
   const addSelectedFiles = useCallback((files: File[]) => {
     setSelectedFiles((prev) => [...prev, ...files]);
@@ -164,8 +175,9 @@ export function useSendMessage({
           parentMessageId: options?.parentMessageId,
         });
         replaceOptimistic(tempId, sent);
-      } catch {
+      } catch (err) {
         removeOptimistic(tempId);
+        reportSendError(extractErrorMessage(err, "Không thể gửi tin nhắn"));
       } finally {
         URL.revokeObjectURL(localUrl);
         setSending(false);
@@ -176,6 +188,7 @@ export function useSendMessage({
       sending,
       user,
       stopTypingNow,
+      reportSendError,
       appendOptimistic,
       replaceOptimistic,
       removeOptimistic,
@@ -210,21 +223,22 @@ export function useSendMessage({
             ),
           );
 
-          const sent = await messagesApi.sendMessage({
-            chatroomId,
-            messageText: content,
-            messageType: uploadedAttachments[0]?.attachmentType ?? "file",
-            attachments: uploadedAttachments,
-            parentMessageId: options?.parentMessageId,
-            mentions: mentionIds.length > 0 ? mentionIds : undefined,
-          });
+        const sent = await messagesApi.sendMessage({
+          chatroomId,
+          messageText: content,
+          messageType: uploadedAttachments[0]?.attachmentType ?? "file",
+          attachments: uploadedAttachments,
+          parentMessageId: options?.parentMessageId,
+          mentions: mentionIds.length > 0 ? mentionIds : undefined,
+        });
 
           appendOptimistic(sent);
           setInput("");
           clearSelectedFiles();
           clearPendingMentions();
-        } catch {
+        } catch (err) {
           setInput(content);
+          reportSendError(extractErrorMessage(err, "Không thể gửi tin nhắn"));
         } finally {
           setSending(false);
         }
@@ -276,7 +290,21 @@ export function useSendMessage({
           options?.parentMessageId,
         );
         // ReceiveMessage event from SignalR will remove the temp bubble
-      } catch {
+      } catch (signalRErr) {
+        const signalRMessage = extractErrorMessage(signalRErr, "");
+        if (
+          signalRMessage.includes("không nhận tin nhắn") ||
+          signalRMessage.includes("đã chặn") ||
+          signalRMessage.includes("Không thể gửi tin nhắn") ||
+          signalRMessage.includes("CONTACT_RESTRICTED")
+        ) {
+          removeOptimistic(tempId);
+          setInput(content);
+          setPendingMentions(mentionsToSend);
+          reportSendError(signalRMessage);
+          setSending(false);
+          return;
+        }
         try {
           const sent = await messagesApi.sendMessage({
             chatroomId,
@@ -286,10 +314,16 @@ export function useSendMessage({
             mentions: mentionIds.length > 0 ? mentionIds : undefined,
           });
           replaceOptimistic(tempId, sent);
-        } catch {
+        } catch (apiErr) {
           removeOptimistic(tempId);
           setInput(content); // let user retry
           setPendingMentions(mentionsToSend);
+          reportSendError(
+            extractErrorMessage(
+              apiErr ?? signalRErr,
+              "Không thể gửi tin nhắn",
+            ),
+          );
         }
       } finally {
         setSending(false);
@@ -309,6 +343,7 @@ export function useSendMessage({
       clearSelectedFiles,
       clearPendingMentions,
       signalRSend,
+      reportSendError,
     ],
   );
 

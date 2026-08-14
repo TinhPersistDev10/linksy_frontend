@@ -10,6 +10,7 @@ import ChatWindowLayout from "@/components/chat/ChatWindowLayout";
 import IncomingCallModal from "@/components/chat/IncomingCallModal";
 import ActiveCallScreen from "@/components/chat/ActiveCallScreen";
 import SocialWorkspace from "@/components/social/SocialWorkspace";
+import ModerationBanner from "@/components/social/ModerationBanner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { ChatroomResponse } from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
@@ -141,7 +142,9 @@ function DashboardShell() {
           isContentOpenOnMobile ? "flex" : "hidden md:flex",
         )}
       >
-        <div className="flex h-full min-h-0 flex-1 overflow-hidden">
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <ModerationBanner />
+          <div className="flex min-h-0 flex-1 overflow-hidden">
           {socialView === "messages" ? (
             <ChatWindowLayout
               chatroom={selectedChatroom}
@@ -161,6 +164,7 @@ function DashboardShell() {
               onSelectChat={openChatroom}
             />
           )}
+          </div>
         </div>
       </SidebarInset>
 

@@ -12,7 +12,7 @@ import {
   settingsQueryKeys,
 } from "@/lib/queries/queryKeys";
 import type { NotificationResponse } from "@/lib/types/notification";
-import type { NotificationSettingsData } from "@/lib/types/settings";
+import type { NotificationSettingsData, PrivacySettingsData } from "@/lib/types/settings";
 
 async function getVisibleNotifications(
   page: number,
@@ -33,6 +33,16 @@ export const defaultNotificationSettings: Omit<NotificationSettingsData, "id"> =
     messagePreviewEnabled: true,
     emailNotifications: false,
   };
+
+export const defaultPrivacySettings: Omit<PrivacySettingsData, "id"> = {
+  readReceiptsEnabled: true,
+  typingIndicatorsEnabled: true,
+  lastSeenEnabled: true,
+  profilePhotoVisibility: "everyone",
+  statusVisibility: "everyone",
+  whoCanAddToGroups: "everyone",
+  whoCanMessageMe: "everyone",
+};
 
 export function useNotificationsQuery(
   userId: string | undefined,
@@ -74,6 +84,22 @@ export function useNotificationSettingsQuery(userId: string | undefined) {
   });
 }
 
+export function usePrivacySettingsQuery(userId: string | undefined) {
+  return useQuery({
+    queryKey: settingsQueryKeys.privacy(userId ?? "anonymous"),
+    queryFn: async (): Promise<PrivacySettingsData> => {
+      const all = await settingsApi.getAll();
+      const privacy = all.privacySettings;
+      if (!privacy) {
+        return { id: "local", ...defaultPrivacySettings };
+      }
+      return privacy;
+    },
+    enabled: Boolean(userId),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useChatroomsQuery(
   userId: string | undefined,
   options?: { includeArchived?: boolean },
@@ -102,5 +128,14 @@ export function useReceivedFriendRequestsQuery(userId: string | undefined) {
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
     refetchIntervalInBackground: false,
+  });
+}
+
+export function useFriendsQuery(userId: string | undefined) {
+  return useQuery({
+    queryKey: friendQueryKeys.list(userId ?? "anonymous"),
+    queryFn: friendsApi.getFriends,
+    enabled: Boolean(userId),
+    staleTime: 2 * 60 * 1000,
   });
 }

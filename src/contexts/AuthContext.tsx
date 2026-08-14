@@ -12,6 +12,7 @@ import type {
 import { authApi } from "@/lib/api/auth";
 import { storage } from "@/lib/utils/storage";
 import { useRouter } from "next/navigation";
+import axios from "axios";
 
 interface AuthContextType {
   user: User | null;
@@ -120,6 +121,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.success && response.email) return { email: response.email };
       throw new Error(response.message || "Đăng ký thất bại");
     } catch (error: unknown) {
+      // Preserve AxiosError so the form can read field-level `errors`
+      if (axios.isAxiosError(error)) throw error;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const err = error as any;
       throw new Error(

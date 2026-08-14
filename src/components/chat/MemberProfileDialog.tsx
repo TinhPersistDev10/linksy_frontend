@@ -4,21 +4,30 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   AtSign,
   BadgeCheck,
+  Bell,
   CalendarDays,
   Clock3,
+  Flag,
+  HeartHandshake,
   Loader2,
   Mail,
   MessageCircle,
   Phone,
   Shield,
+  UserPlus,
   UserRound,
+  UserX,
   Video,
   X,
 } from "lucide-react";
+import { friendsApi, type RelationshipStatus } from "@/lib/api/friends";
 import { usersApi } from "@/lib/api/users";
+import { toast } from "@/lib/stores/toastStore";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom";
 import type { User } from "@/lib/types/user";
 import { cn } from "@/lib/utils/cn";
+import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
+import ReportUserDialog from "@/components/social/ReportUserDialog";
 import ChatAvatar from "./ChatAvatar";
 import AvatarViewer from "@/components/ui/AvatarViewer";
 
@@ -35,6 +44,26 @@ type MemberProfileDialogProps = {
   onAudioCall?: () => void;
   onVideoCall?: () => void;
 };
+
+function relationshipLabel(status: RelationshipStatus | null): string {
+  switch (status) {
+    case "friends":
+      return "Bạn bè";
+    case "request_sent":
+      return "Đã gửi lời mời";
+    case "request_received":
+      return "Chờ bạn xác nhận";
+    case "blocked":
+      return "Đã chặn";
+    case "blocked_by":
+      return "Đã bị chặn";
+    case "self":
+      return "Bạn";
+    case "none":
+    default:
+      return "Người lạ";
+  }
+}
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -93,7 +122,7 @@ export default function MemberProfileDialog({
   open,
   member,
   chatroomName,
-  showGroupInfo = true,
+  showGroupInfo = false,
   friendsSince,
   isSelf = false,
   onClose,
@@ -105,12 +134,21 @@ export default function MemberProfileDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [avatarViewerOpen, setAvatarViewerOpen] = useState(false);
+  const [relationship, setRelationship] = useState<RelationshipStatus | null>(
+    null,
+  );
+  const [relationshipLoading, setRelationshipLoading] = useState(false);
+  const [relationshipActionLoading, setRelationshipActionLoading] =
+    useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     if (!open || !member?.userId) {
       setProfile(null);
       setError("");
       setAvatarViewerOpen(false);
+      setRelationship(null);
+      setReportOpen(false);
       return;
     }
 
@@ -138,6 +176,35 @@ export default function MemberProfileDialog({
     };
   }, [open, member?.userId]);
 
+  useEffect(() => {
+    if (!open || !member?.userId || isSelf) {
+      setRelationship(isSelf ? "self" : null);
+      return;
+    }
+
+    let cancelled = false;
+    setRelationshipLoading(true);
+
+    void friendsApi
+      .getRelationship(member.userId)
+      .then((data) => {
+        if (cancelled) return;
+        setRelationship(data.status);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRelationship(friendsSince ? "friends" : "none");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRelationshipLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, member?.userId, isSelf, friendsSince]);
+
   if (!open || !member) return null;
 
   const displayName =
@@ -150,6 +217,23 @@ export default function MemberProfileDialog({
   const bio = profile?.bio?.trim();
   const roleLabel =
     member.memberRole === "admin" ? "Quản trị viên" : "Thành viên";
+  const relationshipStatus = relationship ?? (friendsSince ? "friends" : null);
+
+  const handleSendFriendRequest = async () => {
+    if (!member.userId || relationshipActionLoading) return;
+    setRelationshipActionLoading(true);
+    try {
+      await friendsApi.sendRequest(member.userId);
+      setRelationship("request_sent");
+      toast.success("Đã gửi lời mời kết bạn");
+    } catch (err) {
+      toast.error(
+        extractErrorMessage(err, "Không thể gửi lời mời kết bạn."),
+      );
+    } finally {
+      setRelationshipActionLoading(false);
+    }
+  };
 
   return (
     <div
@@ -227,9 +311,42 @@ export default function MemberProfileDialog({
                     {roleLabel}
                   </span>
                 </>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
-                  Bạn bè
+              ) : null}
+
+              {!isSelf && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
+                    relationshipStatus === "friends"
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                      : relationshipStatus === "request_sent"
+                        ? "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                        : relationshipStatus === "request_received"
+                          ? "bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300"
+                          : relationshipStatus === "blocked" ||
+                              relationshipStatus === "blocked_by"
+                            ? "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300"
+                            : "bg-muted text-muted-foreground",
+                  )}
+                  title="Trạng thái quan hệ"
+                >
+                  {relationshipLoading ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : relationshipStatus === "friends" ? (
+                    <HeartHandshake size={12} />
+                  ) : relationshipStatus === "request_sent" ? (
+                    <Clock3 size={12} />
+                  ) : relationshipStatus === "request_received" ? (
+                    <Bell size={12} />
+                  ) : relationshipStatus === "blocked" ||
+                    relationshipStatus === "blocked_by" ? (
+                    <UserX size={12} />
+                  ) : (
+                    <UserRound size={12} />
+                  )}
+                  {relationshipLoading
+                    ? "Đang tải..."
+                    : relationshipLabel(relationshipStatus)}
                 </span>
               )}
             </div>
@@ -250,38 +367,111 @@ export default function MemberProfileDialog({
             )}
           </div>
 
-          {!isSelf && (onMessage || onAudioCall || onVideoCall) && (
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              {onMessage && (
+          {!isSelf && (
+            <div className="mt-5 space-y-2">
+              {(onMessage || onAudioCall || onVideoCall) && (
+                <div
+                  className={cn(
+                    "grid gap-2",
+                    [onMessage, onAudioCall, onVideoCall].filter(Boolean)
+                      .length >= 3
+                      ? "grid-cols-3"
+                      : [onMessage, onAudioCall, onVideoCall].filter(Boolean)
+                            .length === 2
+                        ? "grid-cols-2"
+                        : "grid-cols-1",
+                  )}
+                >
+                  {onMessage && (
+                    <button
+                      type="button"
+                      onClick={onMessage}
+                      className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/70 px-2 py-3 text-xs font-semibold text-foreground transition hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-300"
+                    >
+                      <MessageCircle size={18} />
+                      Nhắn tin
+                    </button>
+                  )}
+                  {onAudioCall && (
+                    <button
+                      type="button"
+                      onClick={onAudioCall}
+                      className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/70 px-2 py-3 text-xs font-semibold text-foreground transition hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-300"
+                    >
+                      <Phone size={18} />
+                      Gọi thoại
+                    </button>
+                  )}
+                  {onVideoCall && (
+                    <button
+                      type="button"
+                      onClick={onVideoCall}
+                      className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/70 px-2 py-3 text-xs font-semibold text-foreground transition hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-300"
+                    >
+                      <Video size={18} />
+                      Gọi video
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                {relationshipStatus === "none" ? (
+                  <button
+                    type="button"
+                    disabled={relationshipActionLoading || relationshipLoading}
+                    onClick={() => void handleSendFriendRequest()}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-500/15 disabled:opacity-50 dark:text-sky-300"
+                  >
+                    {relationshipActionLoading ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <UserPlus size={15} />
+                    )}
+                    Kết bạn
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold",
+                      relationshipStatus === "friends"
+                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                        : relationshipStatus === "request_sent" ||
+                            relationshipStatus === "request_received"
+                          ? "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                          : "border-border bg-muted/70 text-muted-foreground",
+                    )}
+                  >
+                    {relationshipLoading ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : relationshipStatus === "friends" ? (
+                      <HeartHandshake size={15} />
+                    ) : relationshipStatus === "request_sent" ||
+                      relationshipStatus === "request_received" ? (
+                      <Clock3 size={15} />
+                    ) : relationshipStatus === "blocked" ||
+                      relationshipStatus === "blocked_by" ? (
+                      <UserX size={15} />
+                    ) : (
+                      <UserRound size={15} />
+                    )}
+                    {relationshipLoading
+                      ? "Đang tải..."
+                      : relationshipLabel(relationshipStatus)}
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={onMessage}
-                  className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/70 px-2 py-3 text-xs font-semibold text-foreground transition hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-300"
+                  onClick={() => setReportOpen(true)}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/5 px-3 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-500/10 dark:text-red-400"
                 >
-                  <MessageCircle size={18} />
-                  Nhắn tin
+                  <Flag size={15} />
+                  Báo cáo
                 </button>
-              )}
-              {onAudioCall && (
-                <button
-                  type="button"
-                  onClick={onAudioCall}
-                  className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/70 px-2 py-3 text-xs font-semibold text-foreground transition hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-300"
-                >
-                  <Phone size={18} />
-                  Gọi thoại
-                </button>
-              )}
-              {onVideoCall && (
-                <button
-                  type="button"
-                  onClick={onVideoCall}
-                  className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/70 px-2 py-3 text-xs font-semibold text-foreground transition hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-300"
-                >
-                  <Video size={18} />
-                  Gọi video
-                </button>
-              )}
+              </div>
             </div>
           )}
 
@@ -310,6 +500,25 @@ export default function MemberProfileDialog({
                 label="Ngày sinh"
                 value={formatDate(profile?.dateOfBirth)}
               />
+              {!isSelf && (
+                <InfoRow
+                  icon={<HeartHandshake size={15} />}
+                  label="Trạng thái quan hệ"
+                  value={
+                    relationshipLoading
+                      ? "Đang tải..."
+                      : relationshipLabel(relationshipStatus)
+                  }
+                  valueClassName={
+                    relationshipStatus === "friends"
+                      ? "text-emerald-600"
+                      : relationshipStatus === "blocked" ||
+                          relationshipStatus === "blocked_by"
+                        ? "text-red-600"
+                        : undefined
+                  }
+                />
+              )}
             </section>
 
             {showGroupInfo ? (
@@ -411,6 +620,18 @@ export default function MemberProfileDialog({
         name={displayName}
         onClose={() => setAvatarViewerOpen(false)}
       />
+
+      {!isSelf && (
+        <ReportUserDialog
+          open={reportOpen}
+          userId={member.userId}
+          displayName={displayName}
+          onClose={() => setReportOpen(false)}
+          onReported={(alsoBlocked) => {
+            if (alsoBlocked) setRelationship("blocked");
+          }}
+        />
+      )}
     </div>
   );
 }

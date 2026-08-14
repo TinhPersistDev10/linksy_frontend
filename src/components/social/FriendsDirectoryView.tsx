@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownAZ,
   Ban,
+  Flag,
   Loader2,
   MessageCircle,
   MoreHorizontal,
@@ -15,12 +16,15 @@ import {
   X,
 } from "lucide-react";
 import MemberProfileDialog from "@/components/chat/MemberProfileDialog";
+import ReportUserDialog from "@/components/social/ReportUserDialog";
 import { blockedUsersApi } from "@/lib/api/blocked-users";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import { friendsApi } from "@/lib/api/friends";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import type { ChatroomResponse, Friend, SearchUserResult } from "@/lib/types/chatroom";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { toast } from "@/lib/stores/toastStore";
+import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
 
 interface FriendsDirectoryViewProps {
   onSelectChat?: (chatroom: ChatroomResponse) => void;
@@ -65,11 +69,37 @@ function friendToProfileMember(friend: Friend): ChatroomMemberResponse {
   };
 }
 
-function AddFriendDialog({ open, onClose, onFriendAdded }: { open: boolean; onClose: () => void; onFriendAdded: () => void }) {
+function searchUserToProfileMember(user: SearchUserResult): ChatroomMemberResponse {
+  return {
+    userId: user.userId,
+    username: user.username,
+    fullname: user.fullname,
+    avatar: user.avatar,
+    memberRole: "member",
+    joinedAt: "",
+    isOnline: false,
+    lastActiveAt: null,
+    nickname: null,
+  };
+}
+
+function AddFriendDialog({
+  open,
+  onClose,
+  onFriendAdded,
+  onSelectChat,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onFriendAdded: () => void;
+  onSelectChat?: (chatroom: ChatroomResponse) => void;
+}) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchUserResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [openingChatId, setOpeningChatId] = useState<string | null>(null);
+  const [profileUser, setProfileUser] = useState<SearchUserResult | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -77,6 +107,8 @@ function AddFriendDialog({ open, onClose, onFriendAdded }: { open: boolean; onCl
     setQuery("");
     setResults([]);
     setError("");
+    setProfileUser(null);
+    setOpeningChatId(null);
   }, [open]);
 
   useEffect(() => {
@@ -123,54 +155,110 @@ function AddFriendDialog({ open, onClose, onFriendAdded }: { open: boolean; onCl
     }
   };
 
+  const openDirectChat = async (user: SearchUserResult) => {
+    setOpeningChatId(user.userId);
+    setError("");
+    try {
+      const chatroom = await chatroomsApi.createDirect(user.userId);
+      setProfileUser(null);
+      onClose();
+      onSelectChat?.(chatroom);
+    } catch (err: unknown) {
+      const message = extractErrorMessage(err, "Không thể mở cuộc trò chuyện");
+      setError(message);
+      toast.error(message);
+    } finally {
+      setOpeningChatId(null);
+    }
+  };
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
-      <section className="w-full max-w-lg rounded-lg bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <header className="flex h-14 items-center justify-between border-b border-border px-5">
-          <h2 className="text-base font-semibold text-foreground">Thêm bạn</h2>
-          <button type="button" onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-muted"><X size={22} /></button>
-        </header>
-        <div className="p-5">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nhập username hoặc tên" className="h-11 w-full rounded-full border border-border bg-card pl-9 pr-4 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20" autoFocus />
-          </div>
-          {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-          <div className="mt-4 min-h-[260px] max-h-[360px] overflow-y-auto">
-            {searching ? (
-              <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 size={22} className="animate-spin" /></div>
-            ) : !query.trim() ? (
-              <p className="py-12 text-center text-sm text-muted-foreground">Nhập username hoặc tên để tìm kiếm người dùng</p>
-            ) : results.length === 0 ? (
-              <p className="py-12 text-center text-sm text-muted-foreground">Không tìm thấy người dùng phù hợp</p>
-            ) : (
-              <div className="space-y-2">
-                {results.map((user) => (
-                  <div key={user.userId} className="flex items-center gap-3 rounded-lg border border-border px-3 py-3">
-                    <Avatar src={user.avatar} name={user.fullname || user.username} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-foreground">{user.fullname || user.username}</p>
-                      <p className="truncate text-xs text-muted-foreground">@{user.username}</p>
-                    </div>
-                    {user.relationshipStatus === "friends" ? (
-                      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">Bạn bè</span>
-                    ) : user.relationshipStatus === "request_sent" ? (
-                      <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Đã gửi</span>
-                    ) : user.canSendRequest ? (
-                      <button type="button" disabled={loadingId === user.userId} onClick={() => sendRequest(user)} className="flex h-9 items-center gap-2 rounded-md bg-sky-500 px-3 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-60">
-                        {loadingId === user.userId ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Kết bạn
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+        <section className="w-full max-w-lg rounded-lg bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <header className="flex h-14 items-center justify-between border-b border-border px-5">
+            <h2 className="text-base font-semibold text-foreground">Thêm bạn</h2>
+            <button type="button" onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-muted"><X size={22} /></button>
+          </header>
+          <div className="p-5">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nhập username hoặc tên" className="h-11 w-full rounded-full border border-border bg-card pl-9 pr-4 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20" autoFocus />
+            </div>
+            {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-400">{error}</p>}
+            <div className="mt-4 min-h-[260px] max-h-[360px] overflow-y-auto">
+              {searching ? (
+                <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 size={22} className="animate-spin" /></div>
+              ) : !query.trim() ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">Nhập username hoặc tên để tìm kiếm người dùng</p>
+              ) : results.length === 0 ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">Không tìm thấy người dùng phù hợp</p>
+              ) : (
+                <div className="space-y-2">
+                  {results.map((user) => (
+                    <div key={user.userId} className="flex items-center gap-3 rounded-lg border border-border px-3 py-3">
+                      <button
+                        type="button"
+                        title="Xem thông tin"
+                        onClick={() => setProfileUser(user)}
+                        className="shrink-0 rounded-full ring-offset-background transition hover:ring-2 hover:ring-sky-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                      >
+                        <Avatar src={user.avatar} name={user.fullname || user.username} />
                       </button>
-                    ) : <span className="text-xs text-muted-foreground">Không khả dụng</span>}
-                  </div>
-                ))}
-              </div>
-            )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground">{user.fullname || user.username}</p>
+                        <p className="truncate text-xs text-muted-foreground">@{user.username}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          title="Nhắn tin"
+                          disabled={openingChatId === user.userId}
+                          onClick={() => void openDirectChat(user)}
+                          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-sky-500/15 hover:text-sky-600 dark:hover:text-sky-400 disabled:opacity-60"
+                        >
+                          {openingChatId === user.userId ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <MessageCircle size={16} />
+                          )}
+                        </button>
+                        {user.relationshipStatus === "friends" ? (
+                          <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 dark:bg-green-500/15 dark:text-green-400">Bạn bè</span>
+                        ) : user.relationshipStatus === "request_sent" ? (
+                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">Đã gửi</span>
+                        ) : user.canSendRequest ? (
+                          <button type="button" disabled={loadingId === user.userId} onClick={() => void sendRequest(user)} className="flex h-9 items-center gap-2 rounded-md bg-sky-500 px-3 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-60">
+                            {loadingId === user.userId ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Kết bạn
+                          </button>
+                        ) : <span className="text-xs text-muted-foreground">Không khả dụng</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
-    </div>
+        </section>
+      </div>
+
+      <MemberProfileDialog
+        open={Boolean(profileUser)}
+        member={profileUser ? searchUserToProfileMember(profileUser) : null}
+        showGroupInfo={false}
+        onClose={() => setProfileUser(null)}
+        onMessage={
+          profileUser
+            ? () => {
+                const user = profileUser;
+                void openDirectChat(user);
+              }
+            : undefined
+        }
+      />
+    </>
   );
 }
 
@@ -183,6 +271,7 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [addFriendOpen, setAddFriendOpen] = useState(false);
   const [profileFriend, setProfileFriend] = useState<Friend | null>(null);
+  const [reportFriend, setReportFriend] = useState<Friend | null>(null);
   const [confirmAction, setConfirmAction] = useState<PendingConfirm | null>(
     null,
   );
@@ -232,6 +321,11 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
   const blockFriend = (friend: Friend) => {
     setOpenMenuId(null);
     setConfirmAction({ type: "block", friend });
+  };
+
+  const reportFriendAction = (friend: Friend) => {
+    setOpenMenuId(null);
+    setReportFriend(friend);
   };
 
   const executeConfirmedAction = async () => {
@@ -358,6 +452,12 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
                           loading={pendingAction === `block-${friend.userId}`}
                           onClick={() => blockFriend(friend)}
                         />
+                        <FriendMenuItem
+                          icon={Flag}
+                          label="Báo cáo"
+                          destructive
+                          onClick={() => reportFriendAction(friend)}
+                        />
                       </div>
                     </>
                   )}
@@ -367,7 +467,12 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
           ))}
         </div>
       </div>
-      <AddFriendDialog open={addFriendOpen} onClose={() => setAddFriendOpen(false)} onFriendAdded={loadFriends} />
+      <AddFriendDialog
+        open={addFriendOpen}
+        onClose={() => setAddFriendOpen(false)}
+        onFriendAdded={loadFriends}
+        onSelectChat={onSelectChat}
+      />
 
       <MemberProfileDialog
         open={Boolean(profileFriend)}
@@ -384,6 +489,22 @@ export default function FriendsDirectoryView({ onSelectChat }: FriendsDirectoryV
               }
             : undefined
         }
+      />
+
+      <ReportUserDialog
+        open={Boolean(reportFriend)}
+        userId={reportFriend?.userId ?? ""}
+        displayName={
+          reportFriend?.fullname || reportFriend?.username || "Người dùng"
+        }
+        onClose={() => setReportFriend(null)}
+        onReported={(alsoBlocked) => {
+          if (alsoBlocked && reportFriend) {
+            setFriends((current) =>
+              current.filter((item) => item.userId !== reportFriend.userId),
+            );
+          }
+        }}
       />
 
       <ConfirmDialog
