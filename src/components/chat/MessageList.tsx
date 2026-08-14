@@ -30,6 +30,8 @@ interface MessageListProps {
   onNearBottom: (near: boolean) => void;
   onShowDelivery?: (messageId: string) => void;
   onReply: (message: MessageResponse) => void;
+  onReplyPrivately?: (message: MessageResponse) => void;
+  isGroupChat?: boolean;
   onEdit: (message: MessageResponse) => void;
   onCallAgain?: (callType: "audio" | "video") => void;
   canPin?: boolean;
@@ -54,6 +56,8 @@ export default function MessageList({
   onLoadMore,
   onDelete,
   onReply,
+  onReplyPrivately,
+  isGroupChat = false,
   onEdit,
   onCallAgain,
   scrollToBottomRef,
@@ -287,6 +291,8 @@ export default function MessageList({
               currentUserId={currentUserId}
               onDelete={onDelete}
               onReply={onReply}
+              onReplyPrivately={onReplyPrivately}
+              isGroupChat={isGroupChat}
               onEdit={onEdit}
               onShowDelivery={onShowDelivery}
               onCallAgain={onCallAgain}

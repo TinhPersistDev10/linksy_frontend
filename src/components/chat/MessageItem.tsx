@@ -4,6 +4,7 @@ import {
   CheckCheck,
   Copy,
   Eye,
+  MessageCircle,
   MoreVertical,
   Pencil,
   Phone,
@@ -72,6 +73,8 @@ interface MessageItemProps {
   currentUserId: string;
   onDelete: (messageId: string) => void;
   onReply: (message: MessageResponse) => void;
+  onReplyPrivately?: (message: MessageResponse) => void;
+  isGroupChat?: boolean;
   onEdit: (message: MessageResponse) => void;
   onShowDelivery?: (messageId: string) => void;
   onCallAgain?: (callType: "audio" | "video") => void;
@@ -167,6 +170,8 @@ export default function MessageItem({
   currentUserId,
   onDelete,
   onReply,
+  onReplyPrivately,
+  isGroupChat = false,
   onEdit,
   onShowDelivery,
   onCallAgain,
@@ -782,6 +787,13 @@ export default function MessageItem({
                         <Copy />
                         Sao chép
                       </DropdownMenuItem>
+
+                      {isGroupChat && !isOwn && onReplyPrivately && (
+                        <DropdownMenuItem onSelect={() => onReplyPrivately(msg)}>
+                          <MessageCircle />
+                          Trả lời riêng
+                        </DropdownMenuItem>
+                      )}
 
                       {canPin && (
                         <DropdownMenuItem
