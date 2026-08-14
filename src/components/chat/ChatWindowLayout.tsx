@@ -1089,6 +1089,13 @@ export default function ChatWindowLayout({
           }}
           onSendReply={async (text, parentMessageId) => {
             if (!chatroomId) return;
+            if (containsBannedContent(text)) {
+              setNotice({
+                title: "Vi phạm tiêu chuẩn cộng đồng",
+                description: COMMUNITY_VIOLATION_MESSAGE,
+              });
+              return;
+            }
             setComposerSubmitting(true);
             try {
               await signalRSend(

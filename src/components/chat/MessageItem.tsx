@@ -370,6 +370,15 @@ export default function MessageItem({
               </div>
             )}
           </div>
+          {(msg.replyCount ?? 0) > 0 && !msg.isDeleted && (
+            <button
+              type="button"
+              onClick={() => onOpenThread?.(msg)}
+              className="mt-2 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
+            >
+              {msg.replyCount} trả lời
+            </button>
+          )}
         </div>
       </div>
     );

@@ -104,6 +104,7 @@ export default function MessageThreadPanel({
     await onSendReply(text, parentId);
     setDraft("");
     setReplyTarget(rootMessage);
+    void loadReplies(rootMessage.messageId);
   };
 
   return (
