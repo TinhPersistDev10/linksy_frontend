@@ -109,6 +109,7 @@ export default function ChatWindowLayout({
     setInfoOpen(false);
     setComposerError(null);
     setBlockedByOtherLocal(false);
+    nearBottomRef.current = true;
   }, [chatroomId]);
   const otherMember = currentChatroom?.members?.find(
     (m) => m.userId !== user?.userId,
@@ -733,14 +734,33 @@ export default function ChatWindowLayout({
 
   useEffect(() => {
     if (
-      shouldScrollToBottomRef.current &&
-      !loadingInitial &&
-      messages.length > 0
+      !shouldScrollToBottomRef.current ||
+      loadingInitial ||
+      messages.length === 0
     ) {
-      scrollToBottomRef.current?.();
-      shouldScrollToBottomRef.current = false;
+      return;
     }
-  }, [messages, loadingInitial]);
+
+    let cancelled = false;
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (cancelled || !shouldScrollToBottomRef.current) return;
+        scrollToBottomRef.current?.();
+        shouldScrollToBottomRef.current = false;
+        nearBottomRef.current = true;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
+  }, [messages, loadingInitial, chatroomId, shouldScrollToBottomRef]);
+
+  useEffect(() => {
+    shouldScrollToBottomRef.current = true;
+    nearBottomRef.current = true;
+  }, [chatroomId, shouldScrollToBottomRef]);
 
   useEffect(() => {
     if (typingUsers.length > 0 && nearBottomRef.current)
@@ -855,6 +875,7 @@ export default function ChatWindowLayout({
 
           <div className="min-h-0 flex-1 overflow-hidden">
             <MessageList
+              key={chatroomId}
               messages={messages}
               currentUserId={user?.userId ?? ""}
               otherMember={otherMember}

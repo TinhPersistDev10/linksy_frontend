@@ -6,8 +6,9 @@ import Link from "next/link";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { LoginRequest } from "@/lib/types/auth";
-import { Eye, EyeOff, MessageCircle } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { loginSchema, type LoginFormData } from "@/lib/utils/validators";
+import { Eye, EyeOff } from "lucide-react";
 import { LinksyLogo } from "../brand/LinksyLogo";
 
 export default function LoginForm() {
@@ -19,9 +20,11 @@ export default function LoginForm() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginRequest>();
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
 
-  const onSubmit = async (data: LoginRequest) => {
+  const onSubmit = async (data: LoginFormData) => {
     try {
       setIsLoading(true);
       setError("");
@@ -62,9 +65,7 @@ export default function LoginForm() {
           type="text"
           placeholder="example@email.com hoặc username"
           error={errors.emailOrUsername?.message}
-          {...register("emailOrUsername", {
-            required: "Email hoặc tên người dùng là bắt buộc",
-          })}
+          {...register("emailOrUsername")}
         />
 
         {/* Password Input */}
@@ -74,9 +75,7 @@ export default function LoginForm() {
             type={showPassword ? "text" : "password"}
             placeholder="••••••••"
             error={errors.password?.message}
-            {...register("password", {
-              required: "Mật khẩu là bắt buộc",
-            })}
+            {...register("password")}
           />
           <button
             type="button"

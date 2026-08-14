@@ -16,21 +16,16 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import {
   AVATAR_MAX_BYTES,
   BIO_MAX_LENGTH,
-  validators,
+  profileSchema,
+  type ProfileFormData,
 } from "@/lib/utils/validators";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils/cn";
 import AvatarViewer from "@/components/ui/AvatarViewer";
 
 interface AccountInfoDialogProps {
   open: boolean;
   onClose: () => void;
-}
-
-interface ProfileFormData {
-  fullname: string;
-  username: string;
-  bio: string;
-  dateOfBirth: string;
 }
 
 function formatBirthDate(value?: string | null) {
@@ -75,6 +70,7 @@ export default function AccountInfoDialog({
     reset,
     formState: { errors },
   } = useForm<ProfileFormData>({
+    resolver: zodResolver(profileSchema),
     defaultValues: {
       fullname: "",
       username: "",
@@ -272,13 +268,13 @@ export default function AccountInfoDialog({
                   label="Họ và tên"
                   placeholder="Nguyễn Văn A"
                   error={errors.fullname?.message}
-                  {...register("fullname", validators.fullname)}
+                  {...register("fullname")}
                 />
                 <Input
                   label="Tên người dùng"
                   placeholder="username"
                   error={errors.username?.message}
-                  {...register("username", validators.username)}
+                  {...register("username")}
                 />
                 <div>
                   <label className="mb-1 block text-sm font-medium text-foreground">
@@ -288,7 +284,7 @@ export default function AccountInfoDialog({
                     placeholder="Nói gì đó về bạn..."
                     maxLength={BIO_MAX_LENGTH}
                     className="min-h-[72px] w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                    {...register("bio", validators.bio)}
+                    {...register("bio")}
                   />
                   {errors.bio?.message ? (
                     <p className="mt-1 text-xs text-red-500">{errors.bio.message}</p>
@@ -298,7 +294,7 @@ export default function AccountInfoDialog({
                   label="Ngày sinh"
                   type="date"
                   error={errors.dateOfBirth?.message}
-                  {...register("dateOfBirth", validators.dateOfBirth)}
+                  {...register("dateOfBirth")}
                 />
 
                 <div className="flex gap-2 pt-2">

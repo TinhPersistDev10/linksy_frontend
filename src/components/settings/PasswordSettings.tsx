@@ -6,14 +6,13 @@ import { Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { usersApi } from "@/lib/api/users";
-import { PASSWORD_RULE_MESSAGE, validators } from "@/lib/utils/validators";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  PASSWORD_RULE_MESSAGE,
+  changePasswordSchema,
+  type ChangePasswordFormData,
+} from "@/lib/utils/validators";
 import { cn } from "@/lib/utils/cn";
-
-interface PasswordFormData {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-}
 
 export default function PasswordSettings() {
   const [isLoading, setIsLoading] = useState(false);
@@ -29,10 +28,12 @@ export default function PasswordSettings() {
     watch,
     reset,
     formState: { errors },
-  } = useForm<PasswordFormData>();
+  } = useForm<ChangePasswordFormData>({
+    resolver: zodResolver(changePasswordSchema),
+  });
   const newPassword = watch("newPassword");
 
-  const onSubmit = async (data: PasswordFormData) => {
+  const onSubmit = async (data: ChangePasswordFormData) => {
     try {
       setIsLoading(true);
       setError("");
@@ -108,9 +109,7 @@ export default function PasswordSettings() {
             type={showCurrent ? "text" : "password"}
             placeholder="********"
             error={errors.currentPassword?.message}
-            {...register("currentPassword", {
-              required: "Vui lòng nhập mật khẩu hiện tại",
-            })}
+            {...register("currentPassword")}
           />
           <button
             type="button"
@@ -129,7 +128,7 @@ export default function PasswordSettings() {
             type={showNew ? "text" : "password"}
             placeholder="********"
             error={errors.newPassword?.message}
-            {...register("newPassword", validators.password)}
+            {...register("newPassword")}
           />
           <button
             type="button"
@@ -165,11 +164,7 @@ export default function PasswordSettings() {
             type={showConfirm ? "text" : "password"}
             placeholder="********"
             error={errors.confirmPassword?.message}
-            {...register("confirmPassword", {
-              required: "Vui lòng xác nhận mật khẩu",
-              validate: (value) =>
-                value === newPassword || "Mật khẩu không khớp",
-            })}
+            {...register("confirmPassword")}
           />
           <button
             type="button"

@@ -133,14 +133,40 @@ export default function MessageList({
   const anchorOffsetRef = useRef(0);
   const prevLoadingMoreRef = useRef(false);
 
-  // Expose scrollToBottom to parent
+  // Expose scrollToBottom to parent — double-rAF so layout/images settle
   useEffect(() => {
     scrollToBottomRef.current = () => {
-      const container = containerRef.current;
-      if (!container) return;
-      container.scrollTop = container.scrollHeight;
+      const run = () => {
+        const container = containerRef.current;
+        if (!container) return;
+        container.scrollTop = container.scrollHeight;
+      };
+      run();
+      requestAnimationFrame(() => {
+        run();
+        requestAnimationFrame(run);
+      });
     };
   });
+
+  // When initial load finishes, pin to latest message
+  const wasLoadingInitialRef = useRef(loadingInitial);
+  useEffect(() => {
+    const wasLoading = wasLoadingInitialRef.current;
+    wasLoadingInitialRef.current = loadingInitial;
+
+    if (!wasLoading || loadingInitial || messages.length === 0) return;
+
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        container.scrollTop = container.scrollHeight;
+        onNearBottom(true);
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [loadingInitial, messages.length, onNearBottom]);
 
   // Snapshot anchor the moment loadingMore flips true
   useEffect(() => {

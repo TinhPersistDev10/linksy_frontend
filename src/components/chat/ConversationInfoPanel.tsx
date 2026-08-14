@@ -849,6 +849,7 @@ export default function ConversationInfoPanel({
         open={Boolean(selectedMember)}
         member={selectedMember}
         chatroomName={chatroom.roomName}
+        showGroupInfo={!isDirect}
         isSelf={selectedMember?.userId === user?.userId}
         onClose={() => setSelectedMember(null)}
         onMessage={

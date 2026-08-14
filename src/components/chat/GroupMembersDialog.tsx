@@ -361,6 +361,7 @@ export default function GroupMembersDialog({
         open={Boolean(selectedMember)}
         member={selectedMember}
         chatroomName={chatroom.roomName}
+        showGroupInfo
         isSelf={selectedMember?.userId === user?.userId}
         onClose={() => setSelectedMember(null)}
         onMessage={
