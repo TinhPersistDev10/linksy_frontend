@@ -24,6 +24,7 @@ import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import type { ChatroomResponse, Friend, SearchUserResult } from "@/lib/types/chatroom";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { toast } from "@/lib/stores/toastStore";
+import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
 import FriendInviteQrCard from "@/components/friend/FriendInviteQrCard";
 
 interface FriendsDirectoryViewProps {
