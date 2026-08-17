@@ -54,6 +54,17 @@ export const adminQueryKeys = {
   report: (reportId: string) => ["admin", "reports", reportId] as const,
 };
 
+export const scheduledMessageQueryKeys = {
+  all: ["scheduled-messages"] as const,
+  pending: (chatroomId: string) =>
+    ["scheduled-messages", chatroomId, "pending"] as const,
+};
+
+export const stickerQueryKeys = {
+  all: ["stickers"] as const,
+  mine: (userId: string) => ["stickers", userId, "mine"] as const,
+};
+
 export const reportQueryKeys = {
   all: ["reports"] as const,
   reasons: ["reports", "reasons"] as const,

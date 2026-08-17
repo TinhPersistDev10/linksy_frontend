@@ -26,7 +26,6 @@ type NotificationFilter = "all" | "unread" | "read";
 
 interface NotificationListProps {
   onOpenFriendRequests?: () => void;
-  onOpenGroupInvitations?: () => void;
 }
 
 function notificationBody(item: NotificationResponse) {

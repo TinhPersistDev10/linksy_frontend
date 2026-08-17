@@ -72,4 +72,42 @@ export const friendsApi = {
   removeFriend: async (friendId: string): Promise<void> => {
     await apiClient.delete(`/friends/${friendId}`);
   },
+
+  createInviteLink: async (): Promise<FriendInviteLink> => {
+    const res = await apiClient.post("/friends/invite-link");
+    return (res.data?.data ?? res.data) as FriendInviteLink;
+  },
+
+  getInvitePreview: async (token: string): Promise<FriendInvitePreview> => {
+    const res = await apiClient.get(`/friends/invite/${encodeURIComponent(token)}`);
+    return (res.data?.data ?? res.data) as FriendInvitePreview;
+  },
+
+  acceptInvite: async (token: string): Promise<AcceptFriendInviteResult> => {
+    const res = await apiClient.post(
+      `/friends/invite/${encodeURIComponent(token)}/accept`,
+    );
+    return (res.data?.data ?? res.data) as AcceptFriendInviteResult;
+  },
 };
+
+export interface FriendInviteLink {
+  token: string;
+  expiresAt: string;
+}
+
+export interface FriendInvitePreview {
+  userId?: string;
+  inviterId: string;
+  username: string;
+  fullname: string;
+  avatar?: string | null;
+  expiresAt?: string;
+  isExpired?: boolean;
+  isUsed?: boolean;
+}
+
+export interface AcceptFriendInviteResult {
+  status: string;
+  inviterId: string;
+}

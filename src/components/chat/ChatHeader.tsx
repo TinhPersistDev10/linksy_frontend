@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Info, Phone, Video } from "lucide-react";
+import { ArrowLeft, Info, PanelLeft, Phone, Video } from "lucide-react";
 import type {
   ChatroomMemberResponse,
   ChatroomResponse,
@@ -17,6 +17,8 @@ interface ChatHeaderProps {
   otherMember: ChatroomMemberResponse | undefined;
   isConnected: boolean;
   onBack?: () => void;
+  chatListOpen?: boolean;
+  onToggleChatList?: () => void;
   onAudioCall?: () => void;
   onVideoCall?: () => void;
   infoOpen?: boolean;
@@ -31,6 +33,8 @@ export default function ChatHeader({
   otherMember,
   isConnected,
   onBack,
+  chatListOpen = true,
+  onToggleChatList,
   onAudioCall,
   onVideoCall,
   infoOpen = false,
@@ -68,6 +72,26 @@ export default function ChatHeader({
             className="rounded-lg p-1 hover:bg-accent md:hidden"
           >
             <ArrowLeft size={18} />
+          </button>
+        )}
+
+        {onToggleChatList && (
+          <button
+            type="button"
+            onClick={onToggleChatList}
+            title={chatListOpen ? "Ẩn danh sách trò chuyện" : "Hiện danh sách trò chuyện"}
+            aria-label={
+              chatListOpen ? "Ẩn danh sách trò chuyện" : "Hiện danh sách trò chuyện"
+            }
+            aria-pressed={chatListOpen}
+            className={cn(
+              "hidden h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors md:flex",
+              chatListOpen
+                ? "text-muted-foreground hover:bg-accent"
+                : "bg-accent text-foreground",
+            )}
+          >
+            <PanelLeft size={16} />
           </button>
         )}
 

@@ -3,14 +3,12 @@
 import {
   ArrowLeft,
   Users,
-  UserRoundPlus,
   UserPlus,
   UsersRound,
 } from "lucide-react";
 import FriendsDirectoryView from "./FriendsDirectoryView";
 import FriendRequestsView from "./FriendRequestsView";
 import GroupsDirectoryView from "./GroupsDirectoryView";
-import GroupInvitationsView from "./GroupInvitationsView";
 import type { SocialView } from "@/components/sidebar/app-sidebar";
 import type { ChatroomResponse } from "@/lib/types/chatroom";
 
@@ -35,10 +33,6 @@ const viewMeta: Record<Exclude<SocialView, "messages">, {
   "friend-requests": {
     title: "Lời mời kết bạn",
     icon: UserPlus,
-  },
-  "group-invitations": {
-    title: "Lời mời vào nhóm",
-    icon: UserRoundPlus,
   },
 };
 
@@ -79,7 +73,6 @@ export default function SocialWorkspace({
           <GroupsDirectoryView onSelectChat={onSelectChat} />
         )}
         {view === "friend-requests" && <FriendRequestsView onSelectChat={onSelectChat} />}
-        {view === "group-invitations" && <GroupInvitationsView />}
       </main>
     </section>
   );

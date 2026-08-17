@@ -25,6 +25,7 @@ import type { ChatroomResponse, Friend, SearchUserResult } from "@/lib/types/cha
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { toast } from "@/lib/stores/toastStore";
 import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
+import FriendInviteQrCard from "@/components/friend/FriendInviteQrCard";
 
 interface FriendsDirectoryViewProps {
   onSelectChat?: (chatroom: ChatroomResponse) => void;
@@ -65,6 +66,7 @@ function friendToProfileMember(friend: Friend): ChatroomMemberResponse {
     joinedAt: friend.friendsSince,
     isOnline: false,
     lastActiveAt: null,
+    lastReadAt: null,
     nickname: null,
   };
 }
@@ -79,6 +81,7 @@ function searchUserToProfileMember(user: SearchUserResult): ChatroomMemberRespon
     joinedAt: "",
     isOnline: false,
     lastActiveAt: null,
+    lastReadAt: null,
     nickname: null,
   };
 }
@@ -155,6 +158,25 @@ function AddFriendDialog({
     }
   };
 
+  const acceptRequest = async (user: SearchUserResult) => {
+    setLoadingId(user.userId);
+    setError("");
+    try {
+      const relationship = await friendsApi.getRelationship(user.userId);
+      if (!relationship.requestId) {
+        throw new Error("Không tìm thấy lời mời kết bạn.");
+      }
+      await friendsApi.acceptRequest(relationship.requestId);
+      setResults((current) => current.map((item) => item.userId === user.userId ? { ...item, relationshipStatus: "friends" } : item));
+      onFriendAdded();
+    } catch (err: unknown) {
+      const message = extractErrorMessage(err, "Chấp nhận lời mời thất bại");
+      setError(message);
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
   const openDirectChat = async (user: SearchUserResult) => {
     setOpeningChatId(user.userId);
     setError("");
@@ -192,7 +214,7 @@ function AddFriendDialog({
               {searching ? (
                 <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 size={22} className="animate-spin" /></div>
               ) : !query.trim() ? (
-                <p className="py-12 text-center text-sm text-muted-foreground">Nhập username hoặc tên để tìm kiếm người dùng</p>
+                <FriendInviteQrCard />
               ) : results.length === 0 ? (
                 <p className="py-12 text-center text-sm text-muted-foreground">Không tìm thấy người dùng phù hợp</p>
               ) : (
@@ -229,6 +251,12 @@ function AddFriendDialog({
                           <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 dark:bg-green-500/15 dark:text-green-400">Bạn bè</span>
                         ) : user.relationshipStatus === "request_sent" ? (
                           <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">Đã gửi</span>
+                        ) : user.relationshipStatus === "request_received" ? (
+                          <button type="button" disabled={loadingId === user.userId} onClick={() => void acceptRequest(user)} className="flex h-9 items-center gap-2 rounded-md bg-sky-500 px-3 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-60">
+                            {loadingId === user.userId ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Chấp nhận
+                          </button>
+                        ) : user.relationshipStatus === "blocked" || user.relationshipStatus === "blocked_by" ? (
+                          <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:bg-red-500/15 dark:text-red-400">Đã chặn</span>
                         ) : user.canSendRequest ? (
                           <button type="button" disabled={loadingId === user.userId} onClick={() => void sendRequest(user)} className="flex h-9 items-center gap-2 rounded-md bg-sky-500 px-3 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-60">
                             {loadingId === user.userId ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Kết bạn

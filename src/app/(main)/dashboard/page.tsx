@@ -6,7 +6,9 @@ import { useChatSignalR } from "@/lib/hooks/useChatSignalR";
 import { useCallSignalR } from "@/lib/hooks/useCallSignalR";
 import { useChatroomsQuery } from "@/lib/hooks/useServerStateQueries";
 import { AppSidebar, type SocialView } from "@/components/sidebar/app-sidebar";
-import ChatWindowLayout from "@/components/chat/ChatWindowLayout";
+import ChatWindowLayout, {
+  type PrivateReplyQuote,
+} from "@/components/chat/ChatWindowLayout";
 import IncomingCallModal from "@/components/chat/IncomingCallModal";
 import ActiveCallScreen from "@/components/chat/ActiveCallScreen";
 import SocialWorkspace from "@/components/social/SocialWorkspace";
@@ -38,6 +40,9 @@ function DashboardShell() {
   const [socialView, setSocialView] = useState<SocialView>("messages");
   const [selectedChatroom, setSelectedChatroom] =
     useState<ChatroomResponse | null>(null);
+  const [privateReplyQuote, setPrivateReplyQuote] =
+    useState<PrivateReplyQuote | null>(null);
+  const [isChatListOpen, setIsChatListOpen] = useState(true);
   const isContentOpenOnMobile = Boolean(selectedChatroom) || socialView !== "messages";
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -111,16 +116,21 @@ function DashboardShell() {
     ? callChatroom?.avatar ?? null
     : remoteCallMember?.avatar ?? null;
 
-  const openChatroom = (chatroom: ChatroomResponse) => {
+  const openChatroom = (
+    chatroom: ChatroomResponse,
+    quote?: PrivateReplyQuote | null,
+  ) => {
     setSelectedChatroom(chatroom);
     setSocialView("messages");
     setSidebarRefresh((v) => v + 1);
+    setPrivateReplyQuote(quote ?? null);
   };
 
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
       <AppSidebar
         mobileHidden={isContentOpenOnMobile}
+        listCollapsed={!isChatListOpen}
         onSelectChat={openChatroom}
         selectedChatroomId={selectedChatroom?.chatroomId}
         refreshTrigger={sidebarRefresh}
@@ -150,8 +160,12 @@ function DashboardShell() {
               chatroom={selectedChatroom}
               callController={callController}
               onBack={() => setSelectedChatroom(null)}
+              chatListOpen={isChatListOpen}
+              onToggleChatList={() => setIsChatListOpen((open) => !open)}
               onReadChatroom={() => setSidebarRefresh((v) => v + 1)}
               onOpenChatroom={openChatroom}
+              initialQuote={privateReplyQuote}
+              onQuoteConsumed={() => setPrivateReplyQuote(null)}
               onChatroomUpdated={(updatedChatroom) => {
                 setSelectedChatroom(updatedChatroom);
                 setSidebarRefresh((v) => v + 1);
@@ -190,6 +204,8 @@ function DashboardShell() {
         remoteVideoRef={remoteVideoRef}
         onToggleMic={callController.toggleMic}
         onToggleCam={callController.toggleCam}
+        onToggleScreenShare={() => void callController.toggleScreenShare()}
+        isScreenSharing={callController.isScreenSharing}
         onEndCall={() => void callController.endCall()}
       />
     </SidebarProvider>

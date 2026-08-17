@@ -2,15 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, UserPlus, Check, X, Clock, Users, Bell } from "lucide-react";
+import { Search, UserPlus, Check, X, Clock, Users, Bell, QrCode } from "lucide-react";
 import { friendsApi } from "@/lib/api/friends";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { friendQueryKeys } from "@/lib/queries/queryKeys";
 import type { SearchUserResult, FriendRequest } from "@/lib/types/chatroom";
 import { getApiOrigin } from "@/lib/utils/apiUrl";
 import { cn } from "@/lib/utils/cn";
+import FriendInviteQrCard from "./FriendInviteQrCard";
 
-type Tab = "search" | "received" | "sent";
+type Tab = "search" | "qr" | "received" | "sent";
 
 const BASE_URL = getApiOrigin();
 
@@ -284,6 +285,7 @@ export default function AddFriendModal({
     count?: number;
   }[] = [
     { id: "search", label: "Tìm kiếm", icon: Search },
+    { id: "qr", label: "QR", icon: QrCode },
     {
       id: "received",
       label: "Lời mời",
@@ -357,6 +359,8 @@ export default function AddFriendModal({
 
         {/* Content */}
         <div className="p-4 min-h-[320px] max-h-[420px] overflow-y-auto">
+          {tab === "qr" && <FriendInviteQrCard />}
+
           {/* Search Tab */}
           {tab === "search" && (
             <div className="space-y-3">
