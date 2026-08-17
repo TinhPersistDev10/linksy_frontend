@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Check, Loader2, Search, X } from "lucide-react";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import type { ChatroomResponse, Friend } from "@/lib/types/chatroom";
@@ -49,6 +49,9 @@ export default function CreateGroupDialog({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -56,7 +59,38 @@ export default function CreateGroupDialog({
     setQuery("");
     setSelectedIds([]);
     setError("");
+    setAvatarFile(null);
+    setAvatarPreview((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
   }, [open]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
+
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Vui lòng chọn một tệp ảnh hợp lệ.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Ảnh nhóm không được vượt quá 5MB.");
+      return;
+    }
+    setError("");
+    setAvatarPreview((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(file);
+    });
+    setAvatarFile(file);
+  };
 
   const filteredFriends = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -84,21 +118,36 @@ export default function CreateGroupDialog({
   const createGroup = async () => {
     const name = roomName.trim();
     if (!name) {
-      setError("Vui l?ng nh?p t?n nh?m");
+      setError("Vui lòng nhập tên nhóm");
       return;
     }
-    if (selectedIds.length === 0) {
-      setError("Vui lòng chọn ít nhất một thành viên");
+    if (selectedIds.length < 2) {
+      setError("Vui lòng chọn ít nhất 2 thành viên để tạo nhóm");
       return;
     }
 
     setCreating(true);
     setError("");
     try {
-      const chatroom = await chatroomsApi.createGroup({
+      let chatroom = await chatroomsApi.createGroup({
         roomName: name,
         memberIds: selectedIds,
       });
+
+      if (avatarFile) {
+        try {
+          const avatarResult = await chatroomsApi.updateGroupAvatar(
+            chatroom.chatroomId,
+            avatarFile,
+          );
+          if (avatarResult.avatarUrl) {
+            chatroom = { ...chatroom, avatar: avatarResult.avatarUrl };
+          }
+        } catch {
+          // Nhóm đã tạo thành công; bỏ qua lỗi avatar để không chặn luồng tạo nhóm.
+        }
+      }
+
       onCreated(chatroom);
       onClose();
     } catch (err: unknown) {
@@ -114,7 +163,7 @@ export default function CreateGroupDialog({
 
   if (!open) return null;
 
-  const canCreate = roomName.trim().length > 0 && selectedIds.length > 0 && !creating;
+  const canCreate = roomName.trim().length > 0 && selectedIds.length >= 2 && !creating;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={onClose}>
@@ -128,9 +177,29 @@ export default function CreateGroupDialog({
 
         <div className="shrink-0 border-b border-border px-4 py-3 sm:px-5 sm:py-4">
           <div className="flex items-center gap-3">
-            <button type="button" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted/60">
-              <Camera size={20} />
+            <button
+              type="button"
+              title="Chọn ảnh đại diện nhóm"
+              onClick={() => avatarInputRef.current?.click()}
+              className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border text-muted-foreground hover:bg-muted/60"
+            >
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="Ảnh đại diện nhóm"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <Camera size={20} />
+              )}
             </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
             <input
               value={roomName}
               onChange={(event) => setRoomName(event.target.value)}

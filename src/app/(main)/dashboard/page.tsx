@@ -42,6 +42,7 @@ function DashboardShell() {
     useState<ChatroomResponse | null>(null);
   const [privateReplyQuote, setPrivateReplyQuote] =
     useState<PrivateReplyQuote | null>(null);
+  const [isChatListOpen, setIsChatListOpen] = useState(true);
   const isContentOpenOnMobile = Boolean(selectedChatroom) || socialView !== "messages";
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -129,6 +130,7 @@ function DashboardShell() {
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
       <AppSidebar
         mobileHidden={isContentOpenOnMobile}
+        listCollapsed={!isChatListOpen}
         onSelectChat={openChatroom}
         selectedChatroomId={selectedChatroom?.chatroomId}
         refreshTrigger={sidebarRefresh}
@@ -158,6 +160,8 @@ function DashboardShell() {
               chatroom={selectedChatroom}
               callController={callController}
               onBack={() => setSelectedChatroom(null)}
+              chatListOpen={isChatListOpen}
+              onToggleChatList={() => setIsChatListOpen((open) => !open)}
               onReadChatroom={() => setSidebarRefresh((v) => v + 1)}
               onOpenChatroom={openChatroom}
               initialQuote={privateReplyQuote}

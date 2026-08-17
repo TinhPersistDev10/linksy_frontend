@@ -28,6 +28,7 @@ import {
   isSameDay,
 } from "@/lib/utils/chatFormatters";
 import type { MessageResponse } from "@/lib/types/message";
+import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import { parseCallLogPayload } from "@/lib/types/call";
 import {
   DropdownMenu,
@@ -87,6 +88,8 @@ interface MessageItemProps {
   onVotePoll?: (messageId: string, optionId: string) => void;
   onClosePoll?: (messageId: string) => void;
   onOpenThread?: (message: MessageResponse) => void;
+  /** Members whose "last read" boundary lands on this message — shown as tiny seen-avatars below the bubble. */
+  readBy?: ChatroomMemberResponse[];
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
@@ -184,6 +187,7 @@ export default function MessageItem({
   onVotePoll,
   onClosePoll,
   onOpenThread,
+  readBy,
 }: MessageItemProps) {
   const [reactionOpen, setReactionOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -391,7 +395,7 @@ export default function MessageItem({
   }
 
   const isGrouped = !showDateDivider && prevMsg?.senderId === msg.senderId;
-  const showAvatar = !isOwn && (!nextMsg || nextMsg.senderId !== msg.senderId);
+  const showAvatar = !nextMsg || nextMsg.senderId !== msg.senderId;
   const deliveryLabel = getDeliveryLabel(msg, isTemp);
   const deliveryIconStatus =
     msg.readCount > 0
@@ -887,6 +891,29 @@ export default function MessageItem({
             >
               {msg.replyCount} trả lời
             </button>
+          )}
+
+          {readBy && readBy.length > 0 && (
+            <div
+              className={cn(
+                "mt-1 flex items-center -space-x-1.5",
+                isOwn ? "self-end" : "self-start",
+              )}
+            >
+              {readBy.map((member) => (
+                <div
+                  key={member.userId}
+                  title={`${member.fullname || member.username} đã xem`}
+                  className="rounded-full ring-2 ring-background"
+                >
+                  <ChatAvatar
+                    src={member.avatar ?? undefined}
+                    name={member.fullname || member.username}
+                    size={4}
+                  />
+                </div>
+              ))}
+            </div>
           )}
 
           {isOwn && !isTemp && (

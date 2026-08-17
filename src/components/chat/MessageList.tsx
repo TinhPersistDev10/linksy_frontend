@@ -17,6 +17,12 @@ interface MessageListProps {
   messages: MessageResponse[];
   currentUserId: string;
   otherMember: ChatroomMemberResponse | undefined;
+  /** Full chatroom member list — used to resolve avatars for typing/read-receipt indicators. */
+  members?: ChatroomMemberResponse[];
+  groupName?: string;
+  groupAvatar?: string | null;
+  /** userId -> ISO timestamp of the newest message that user has read. */
+  readReceipts?: Record<string, string>;
   typingUsers: { userId: string; username: string }[];
   loadingInitial: boolean;
   loadingMore: boolean;
@@ -48,6 +54,10 @@ export default function MessageList({
   messages,
   currentUserId,
   otherMember,
+  members,
+  groupName,
+  groupAvatar,
+  readReceipts,
   typingUsers,
   loadingInitial,
   loadingMore,
@@ -223,6 +233,40 @@ export default function MessageList({
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
+  const membersById = useMemo(() => {
+    const map = new Map<string, ChatroomMemberResponse>();
+    for (const member of members ?? []) map.set(member.userId, member);
+    return map;
+  }, [members]);
+
+  // Which members' "last read" boundary lands on each message — i.e. who to
+  // show a seen-avatar for directly under that message, Messenger-style.
+  const readersByMessageId = useMemo(() => {
+    const map = new Map<string, ChatroomMemberResponse[]>();
+    if (!readReceipts) return map;
+
+    for (const member of members ?? []) {
+      if (member.userId === currentUserId) continue;
+      const lastReadAt = readReceipts[member.userId];
+      if (!lastReadAt) continue;
+
+      const lastReadTime = new Date(lastReadAt).getTime();
+      let target: MessageResponse | undefined;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (new Date(messages[i].sentAt).getTime() <= lastReadTime) {
+          target = messages[i];
+          break;
+        }
+      }
+      if (!target) continue;
+
+      const list = map.get(target.messageId);
+      if (list) list.push(member);
+      else map.set(target.messageId, [member]);
+    }
+    return map;
+  }, [members, readReceipts, messages, currentUserId]);
+
   const deliveredRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -256,13 +300,21 @@ export default function MessageList({
       ) : messages.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full gap-2 text-center">
           <ChatAvatar
-            src={otherMember?.avatar ?? undefined}
-            name={otherMember?.fullname || ""}
+            src={
+              (isGroupChat ? groupAvatar : otherMember?.avatar) ?? undefined
+            }
+            name={
+              isGroupChat
+                ? groupName || "Nhóm"
+                : otherMember?.fullname || ""
+            }
             size={14}
           />
-          <p className="font-medium">{otherMember?.fullname}</p>
+          <p className="font-medium">
+            {isGroupChat ? groupName || "Nhóm chưa đặt tên" : otherMember?.fullname}
+          </p>
           <p className="text-sm text-muted-foreground">
-            Hãy bắt đầu cuộc trò chuyện!‹
+            Hãy bắt đầu cuộc trò chuyện!
           </p>
         </div>
       ) : (
@@ -305,16 +357,27 @@ export default function MessageList({
               onVotePoll={onVotePoll}
               onClosePoll={onClosePoll}
               onOpenThread={onOpenThread}
+              readBy={readersByMessageId.get(msg.messageId)}
             />
           ))}
 
           {/* Typing indicator */}
-          {typingUsers.length > 0 && (
-            <TypingIndicator
-              avatarSrc={otherMember?.avatar ?? undefined}
-              username={typingUsers[0].username}
-            />
-          )}
+          {typingUsers.length > 0 &&
+            (() => {
+              const typingMember = membersById.get(typingUsers[0].userId);
+              // Only fall back to `otherMember` when we can't identify the
+              // typer at all — a found member with no avatar should show
+              // their own initials, not someone else's photo.
+              const avatarSrc = typingMember
+                ? (typingMember.avatar ?? undefined)
+                : (otherMember?.avatar ?? undefined);
+              return (
+                <TypingIndicator
+                  avatarSrc={avatarSrc}
+                  username={typingUsers[0].username}
+                />
+              );
+            })()}
 
           <div ref={bottomRef} />
         </>

@@ -6,6 +6,7 @@ import { messagesApi } from "@/lib/api/messages";
 import type { MessageResponse, PendingMention } from "@/lib/types/message";
 import type { User } from "@/lib/types/user";
 import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
+import { EVERYONE_MENTION_ID } from "@/lib/utils/mentions";
 import getAttachmentType from "../utils/getAttachmentType";
 
 const TYPING_DEBOUNCE_MS = 2000;
@@ -203,7 +204,11 @@ export function useSendMessage({
       const content = input.trim();
       const files = selectedFiles;
       const mentionsToSend = options?.mentions ?? pendingMentions;
-      const mentionIds = mentionsToSend.map((m) => m.userId);
+      // "@all"/"@everyone" is detected server-side from the message text, so the
+      // sentinel id is only kept for local rendering/backspace UX, never sent as a Guid.
+      const mentionIds = mentionsToSend
+        .map((m) => m.userId)
+        .filter((id) => id !== EVERYONE_MENTION_ID);
 
       if ((!content && files.length === 0) || !chatroomId || sending || !user)
         return;

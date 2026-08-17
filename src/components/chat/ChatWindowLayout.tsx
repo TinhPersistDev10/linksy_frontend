@@ -37,9 +37,11 @@ import {
   scheduledMessageQueryKeys,
 } from "@/lib/queries/queryKeys";
 import type {
+  AllMessagesReadEvent,
   CreatePollRequest,
   MessageDeliveryStatusResponse,
   MessagePinnedEvent,
+  MessageReadEvent,
   MessageResponse,
   MessageUnpinnedEvent,
   PinnedMessageResponse,
@@ -60,6 +62,8 @@ export type PrivateReplyQuote = {
 interface ChatWindowLayoutProps {
   chatroom: ChatroomResponse | null;
   onBack?: () => void;
+  chatListOpen?: boolean;
+  onToggleChatList?: () => void;
   onReadChatroom?: () => void;
   onChatroomUpdated?: (chatroom: ChatroomResponse) => void;
   onOpenChatroom?: (
@@ -76,6 +80,8 @@ interface ChatWindowLayoutProps {
 export default function ChatWindowLayout({
   chatroom,
   onBack,
+  chatListOpen,
+  onToggleChatList,
   onReadChatroom,
   onChatroomUpdated,
   onOpenChatroom,
@@ -236,6 +242,10 @@ export default function ChatWindowLayout({
   const [typingUsers, setTypingUsers] = useState<
     { userId: string; username: string }[]
   >([]);
+  // userId -> ISO timestamp of the newest message that user has read.
+  // Seeded from the chatroom's member list, then kept fresh from the
+  // MessageRead/AllMessagesRead SignalR events below.
+  const [readReceipts, setReadReceipts] = useState<Record<string, string>>({});
   const [deliveryStatus, setDeliveryStatus] =
     useState<MessageDeliveryStatusResponse | null>(null);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
@@ -272,6 +282,23 @@ export default function ChatWindowLayout({
 
   const onUserStoppedTyping = useCallback(({ userId }: { userId: string }) => {
     setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
+  }, []);
+
+  // Seed read-receipt state whenever the open chatroom changes.
+  useEffect(() => {
+    const initial: Record<string, string> = {};
+    for (const member of currentChatroom?.members ?? []) {
+      if (member.lastReadAt) initial[member.userId] = member.lastReadAt;
+    }
+    setReadReceipts(initial);
+  }, [chatroomId, currentChatroom?.members]);
+
+  const applyReadReceipt = useCallback((userId: string, readAt: string) => {
+    setReadReceipts((prev) => {
+      const existing = prev[userId];
+      if (existing && new Date(existing) >= new Date(readAt)) return prev;
+      return { ...prev, [userId]: readAt };
+    });
   }, []);
 
   const {
@@ -397,6 +424,22 @@ export default function ChatWindowLayout({
     [onMessageDeleted],
   );
 
+  const handleMessageReadWithReceipt = useCallback(
+    (event: MessageReadEvent) => {
+      onMessageRead(event);
+      if (event.readBy) applyReadReceipt(event.readBy, event.readAt);
+    },
+    [onMessageRead, applyReadReceipt],
+  );
+
+  const handleAllMessagesReadWithReceipt = useCallback(
+    (event: AllMessagesReadEvent) => {
+      onAllMessagesRead(event);
+      if (event.readBy) applyReadReceipt(event.readBy, event.readAt);
+    },
+    [onAllMessagesRead, applyReadReceipt],
+  );
+
   // ── SignalR (chat) ─────────────────────────────────────────────────────────
   const {
     isConnected,
@@ -415,9 +458,9 @@ export default function ChatWindowLayout({
     onReceiveMessage: handleReceiveMessage,
     onMessageDeleted: handleMessageDeletedWithPins,
     onMessageEdited,
-    onMessageRead,
+    onMessageRead: handleMessageReadWithReceipt,
     onMessageDelivered,
-    onAllMessagesRead,
+    onAllMessagesRead: handleAllMessagesReadWithReceipt,
     onUserTyping,
     onUserStoppedTyping,
     onMembershipChanged: handleMembershipChanged,
@@ -918,6 +961,8 @@ export default function ChatWindowLayout({
             otherMember={otherMember}
             isConnected={isConnected}
             onBack={onBack}
+            chatListOpen={chatListOpen}
+            onToggleChatList={onToggleChatList}
             onAudioCall={
               remoteCallUserIds.length > 0
                 ? () => startCurrentCall("audio")
@@ -1006,6 +1051,10 @@ export default function ChatWindowLayout({
               messages={messages}
               currentUserId={user?.userId ?? ""}
               otherMember={otherMember}
+              members={currentChatroom.members}
+              groupName={currentChatroom.roomName}
+              groupAvatar={currentChatroom.avatar}
+              readReceipts={readReceipts}
               typingUsers={typingUsers}
               loadingInitial={loadingInitial}
               loadingMore={loadingMore}

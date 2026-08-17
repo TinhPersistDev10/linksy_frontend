@@ -1,5 +1,5 @@
 // src/components/chat/window/MessageInput.tsx
-import { Clock, ImagePlus, Mic, Paperclip, Send, Smile, Sticker, Trash2, X } from "lucide-react";
+import { Clock, ImagePlus, Mic, Paperclip, Send, Smile, Sticker, Trash2, Users, X } from "lucide-react";
 import type { MessageResponse, PendingMention } from "@/lib/types/message";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import type { ScheduledMessageResponse } from "@/lib/types/scheduled-message";
@@ -9,10 +9,12 @@ import { Textarea } from "../ui/textarea";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ChatAvatar from "./ChatAvatar";
 import {
+  EVERYONE_MENTION_ID,
   filterMentionMembers,
   findActiveMentionQuery,
   getMemberDisplayName,
   insertMentionToken,
+  matchesEveryoneQuery,
   syncPendingMentions,
 } from "@/lib/utils/mentions";
 import EmojiPickerPopover from "./EmojiPickerPopover";
@@ -90,6 +92,19 @@ function toDatetimeLocalValue(date: Date) {
 function defaultScheduleAt() {
   return new Date(Date.now() + 5 * 60 * 1000);
 }
+
+const EVERYONE_SUGGESTION: ChatroomMemberResponse = {
+  userId: EVERYONE_MENTION_ID,
+  username: "all",
+  fullname: "Tất cả mọi người",
+  avatar: null,
+  memberRole: "member",
+  joinedAt: "",
+  isOnline: false,
+  lastActiveAt: null,
+  lastReadAt: null,
+  nickname: null,
+};
 
 function formatScheduledAt(iso: string) {
   const date = new Date(iso);
@@ -220,11 +235,15 @@ export default function MessageInput({
 
   const suggestions = useMemo(() => {
     if (!mentionQuery) return [];
-    return filterMentionMembers(
+    const members = filterMentionMembers(
       mentionMembers,
       mentionQuery.query,
       currentUserId,
     );
+    if (mentionMembers.length > 0 && matchesEveryoneQuery(mentionQuery.query)) {
+      return [EVERYONE_SUGGESTION, ...members].slice(0, 8);
+    }
+    return members;
   }, [mentionQuery, mentionMembers, currentUserId]);
 
   useEffect(() => {
@@ -264,7 +283,8 @@ export default function MessageInput({
 
   const selectMention = (member: ChatroomMemberResponse) => {
     if (!mentionQuery) return;
-    const displayName = getMemberDisplayName(member);
+    const displayName =
+      member.userId === EVERYONE_MENTION_ID ? "all" : getMemberDisplayName(member);
     const inserted = insertMentionToken(
       value,
       cursor,
@@ -482,7 +502,10 @@ export default function MessageInput({
         {showSuggestions && !isRecording && (
           <div className="absolute bottom-full left-0 right-0 z-20 mb-1 max-h-56 overflow-y-auto rounded-lg border bg-background py-1 shadow-lg">
             {suggestions.map((member, index) => {
-              const displayName = getMemberDisplayName(member);
+              const isEveryone = member.userId === EVERYONE_MENTION_ID;
+              const displayName = isEveryone
+                ? "Tất cả mọi người"
+                : getMemberDisplayName(member);
               return (
                 <button
                   key={member.userId}
@@ -496,16 +519,22 @@ export default function MessageInput({
                     index === activeIndex && "bg-muted",
                   )}
                 >
-                  <ChatAvatar
-                    src={member.avatar ?? undefined}
-                    name={displayName}
-                    size={7}
-                  />
+                  {isEveryone ? (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-300">
+                      <Users size={14} />
+                    </span>
+                  ) : (
+                    <ChatAvatar
+                      src={member.avatar ?? undefined}
+                      name={displayName}
+                      size={7}
+                    />
+                  )}
                   <span className="min-w-0 flex-1 truncate font-medium">
                     {displayName}
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    @{member.username}
+                    {isEveryone ? "@all" : `@${member.username}`}
                   </span>
                 </button>
               );
