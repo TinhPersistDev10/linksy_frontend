@@ -33,6 +33,7 @@ export interface CallState {
   isCamOn: boolean;
   durationSec: number;
   startedAt: Date | null;
+  isScreenSharing: boolean;
   participants: CallParticipantView[];
   _pendingSdpOffer?: string;
 }
@@ -48,6 +49,7 @@ const INITIAL: CallState = {
   isCamOn: true,
   durationSec: 0,
   startedAt: null,
+  isScreenSharing: false,
   participants: [],
 };
 
@@ -162,6 +164,8 @@ export interface UseCallSignalRReturn {
   endCall: () => Promise<void>;
   toggleMic: () => void;
   toggleCam: () => void;
+  toggleScreenShare: () => Promise<void>;
+  isScreenSharing: boolean;
 }
 
 export function useCallSignalR({
@@ -196,6 +200,10 @@ export function useCallSignalR({
         ? parsed
         : Math.min(callStartRef.current, parsed);
   }, []);
+
+  const screenShareEndedRef = useRef<(needsRenegotiate: boolean) => void>(
+    () => undefined,
+  );
 
   const callInitiatedResolveRef = useRef<((id: string) => void) | null>(null);
   const callInitiatedRejectRef = useRef<((err: Error) => void) | null>(null);
@@ -423,6 +431,9 @@ export function useCallSignalR({
       },
       onIceConnectionFailed: (userId) => {
         void requestIceRestart(userId);
+      },
+      onScreenShareEnded: (needsRenegotiate) => {
+        screenShareEndedRef.current(needsRenegotiate);
       },
     });
     managerRef.current = manager;
@@ -860,10 +871,80 @@ export function useCallSignalR({
   }, [updateState]);
 
   const toggleCam = useCallback(() => {
+    if (stateRef.current.isScreenSharing) return;
     const next = !stateRef.current.isCamOn;
     managerRef.current?.setCamEnabled(next);
     updateState({ isCamOn: next });
   }, [updateState]);
+
+  const renegotiateAllPeers = useCallback(async () => {
+    const conn = connectionRef.current;
+    const manager = managerRef.current;
+    const { callLogId } = stateRef.current;
+    if (!conn || !manager || !callLogId) return;
+
+    for (const userId of manager.getPeerUserIds()) {
+      try {
+        const sdpOffer = await manager.createOffer(userId);
+        await conn.invoke("SendCallOffer", callLogId, userId, sdpOffer);
+        void flushOutgoingIce(userId);
+      } catch (err) {
+        console.error("[Call] screen-share renegotiate failed:", err);
+      }
+    }
+  }, [connectionRef, flushOutgoingIce]);
+
+  const toggleScreenShare = useCallback(async () => {
+    const manager = managerRef.current;
+    if (!manager) return;
+    const { status } = stateRef.current;
+    if (status !== "active" && status !== "calling") return;
+
+    try {
+      const sharing = manager.isScreenSharing();
+      if (sharing) {
+        await manager.stopScreenShare();
+      } else {
+        await manager.startScreenShare();
+      }
+
+      const localStream = manager.getLocalStream();
+      attachStreamToVideo(localVideoRef.current, localStream);
+      updateState({
+        isScreenSharing: manager.isScreenSharing(),
+        participants: stateRef.current.participants.map((participant) =>
+          participant.isLocal
+            ? { ...participant, stream: localStream }
+            : participant,
+        ),
+      });
+
+      await renegotiateAllPeers();
+    } catch (err) {
+      const message =
+        (err as Error)?.message?.trim() || "Không thể chia sẻ màn hình.";
+      if (
+        message.includes("Permission denied") ||
+        message.includes("NotAllowedError")
+      ) {
+        toast.error("Bạn đã hủy chia sẻ màn hình.");
+        return;
+      }
+      toast.error(message);
+    }
+  }, [attachStreamToVideo, localVideoRef, renegotiateAllPeers, updateState]);
+
+  screenShareEndedRef.current = (needsRenegotiate) => {
+    const localStream = managerRef.current?.getLocalStream() ?? null;
+    attachStreamToVideo(localVideoRef.current, localStream);
+    updateState({
+      isScreenSharing: false,
+      participants: stateRef.current.participants.map((participant) =>
+        participant.isLocal ? { ...participant, stream: localStream } : participant,
+      ),
+    });
+    void renegotiateAllPeers();
+  };
 
 
   useEffect(() => {
@@ -1182,5 +1263,7 @@ export function useCallSignalR({
     endCall,
     toggleMic,
     toggleCam,
+    toggleScreenShare,
+    isScreenSharing: callState.isScreenSharing,
   };
 }

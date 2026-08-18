@@ -5,11 +5,13 @@ import { chatroomsApi } from "@/lib/api/chatrooms";
 import { friendsApi } from "@/lib/api/friends";
 import { notificationsApi } from "@/lib/api/notifications";
 import { settingsApi } from "@/lib/api/settings";
+import { stickersApi } from "@/lib/api/stickers";
 import {
   chatroomQueryKeys,
   friendQueryKeys,
   notificationQueryKeys,
   settingsQueryKeys,
+  stickerQueryKeys,
 } from "@/lib/queries/queryKeys";
 import type { NotificationResponse } from "@/lib/types/notification";
 import type { NotificationSettingsData, PrivacySettingsData } from "@/lib/types/settings";
@@ -137,5 +139,14 @@ export function useFriendsQuery(userId: string | undefined) {
     queryFn: friendsApi.getFriends,
     enabled: Boolean(userId),
     staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useMyStickersQuery(userId: string | undefined) {
+  return useQuery({
+    queryKey: stickerQueryKeys.mine(userId ?? "anonymous"),
+    queryFn: stickersApi.getMyStickers,
+    enabled: Boolean(userId),
+    staleTime: 60 * 1000,
   });
 }

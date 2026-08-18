@@ -137,6 +137,9 @@ export default function MemberProfileDialog({
   const [relationship, setRelationship] = useState<RelationshipStatus | null>(
     null,
   );
+  const [relationshipRequestId, setRelationshipRequestId] = useState<
+    string | null
+  >(null);
   const [relationshipLoading, setRelationshipLoading] = useState(false);
   const [relationshipActionLoading, setRelationshipActionLoading] =
     useState(false);
@@ -179,6 +182,7 @@ export default function MemberProfileDialog({
   useEffect(() => {
     if (!open || !member?.userId || isSelf) {
       setRelationship(isSelf ? "self" : null);
+      setRelationshipRequestId(null);
       return;
     }
 
@@ -190,10 +194,12 @@ export default function MemberProfileDialog({
       .then((data) => {
         if (cancelled) return;
         setRelationship(data.status);
+        setRelationshipRequestId(data.requestId ?? null);
       })
       .catch(() => {
         if (!cancelled) {
           setRelationship(friendsSince ? "friends" : "none");
+          setRelationshipRequestId(null);
         }
       })
       .finally(() => {
@@ -229,6 +235,39 @@ export default function MemberProfileDialog({
     } catch (err) {
       toast.error(
         extractErrorMessage(err, "Không thể gửi lời mời kết bạn."),
+      );
+    } finally {
+      setRelationshipActionLoading(false);
+    }
+  };
+
+  const handleAcceptFriendRequest = async () => {
+    if (!relationshipRequestId || relationshipActionLoading) return;
+    setRelationshipActionLoading(true);
+    try {
+      await friendsApi.acceptRequest(relationshipRequestId);
+      setRelationship("friends");
+      toast.success("Đã chấp nhận lời mời kết bạn");
+    } catch (err) {
+      toast.error(
+        extractErrorMessage(err, "Không thể chấp nhận lời mời kết bạn."),
+      );
+    } finally {
+      setRelationshipActionLoading(false);
+    }
+  };
+
+  const handleRejectFriendRequest = async () => {
+    if (!relationshipRequestId || relationshipActionLoading) return;
+    setRelationshipActionLoading(true);
+    try {
+      await friendsApi.rejectRequest(relationshipRequestId);
+      setRelationship("none");
+      setRelationshipRequestId(null);
+      toast.success("Đã từ chối lời mời kết bạn");
+    } catch (err) {
+      toast.error(
+        extractErrorMessage(err, "Không thể từ chối lời mời kết bạn."),
       );
     } finally {
       setRelationshipActionLoading(false);
@@ -415,7 +454,14 @@ export default function MemberProfileDialog({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
+              <div
+                className={cn(
+                  "grid gap-2",
+                  relationshipStatus === "request_received"
+                    ? "grid-cols-3"
+                    : "grid-cols-2",
+                )}
+              >
                 {relationshipStatus === "none" ? (
                   <button
                     type="button"
@@ -430,6 +476,31 @@ export default function MemberProfileDialog({
                     )}
                     Kết bạn
                   </button>
+                ) : relationshipStatus === "request_received" ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={relationshipActionLoading || !relationshipRequestId}
+                      onClick={() => void handleAcceptFriendRequest()}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-sky-600 disabled:opacity-50"
+                    >
+                      {relationshipActionLoading ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : (
+                        <UserPlus size={15} />
+                      )}
+                      Chấp nhận
+                    </button>
+                    <button
+                      type="button"
+                      disabled={relationshipActionLoading || !relationshipRequestId}
+                      onClick={() => void handleRejectFriendRequest()}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/70 px-3 py-2.5 text-xs font-semibold text-foreground transition hover:bg-muted disabled:opacity-50"
+                    >
+                      <UserX size={15} />
+                      Từ chối
+                    </button>
+                  </>
                 ) : (
                   <button
                     type="button"
@@ -438,18 +509,19 @@ export default function MemberProfileDialog({
                       "flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold",
                       relationshipStatus === "friends"
                         ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                        : relationshipStatus === "request_sent" ||
-                            relationshipStatus === "request_received"
+                        : relationshipStatus === "request_sent"
                           ? "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                          : "border-border bg-muted/70 text-muted-foreground",
+                          : relationshipStatus === "blocked" ||
+                              relationshipStatus === "blocked_by"
+                            ? "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300"
+                            : "border-border bg-muted/70 text-muted-foreground",
                     )}
                   >
                     {relationshipLoading ? (
                       <Loader2 size={15} className="animate-spin" />
                     ) : relationshipStatus === "friends" ? (
                       <HeartHandshake size={15} />
-                    ) : relationshipStatus === "request_sent" ||
-                      relationshipStatus === "request_received" ? (
+                    ) : relationshipStatus === "request_sent" ? (
                       <Clock3 size={15} />
                     ) : relationshipStatus === "blocked" ||
                       relationshipStatus === "blocked_by" ? (

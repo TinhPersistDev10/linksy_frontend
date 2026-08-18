@@ -14,6 +14,13 @@ import { storage } from "@/lib/utils/storage";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 
+function safeReturnUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  const raw = new URLSearchParams(window.location.search).get("returnUrl");
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -104,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.user.isEmailVerified) {
         window.location.href = isSystemAdmin(response.user)
           ? "/admin"
-          : "/dashboard";
+          : safeReturnUrl() ?? "/dashboard";
       } else {
         router.push(
           `/verify-email?email=${encodeURIComponent(response.user.email)}`,

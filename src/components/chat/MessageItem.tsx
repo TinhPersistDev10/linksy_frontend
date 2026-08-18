@@ -4,6 +4,7 @@ import {
   CheckCheck,
   Copy,
   Eye,
+  MessageCircle,
   MoreVertical,
   Pencil,
   Phone,
@@ -27,6 +28,7 @@ import {
   isSameDay,
 } from "@/lib/utils/chatFormatters";
 import type { MessageResponse } from "@/lib/types/message";
+import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 import { parseCallLogPayload } from "@/lib/types/call";
 import {
   DropdownMenu,
@@ -61,6 +63,7 @@ function getMessagePreviewLabel(message: MessageResponse) {
   if (message.messageType === "image") return "Ảnh";
   if (message.messageType === "video") return "Video";
   if (message.messageType === "file") return "Tệp đính kèm";
+  if (message.messageType === "sticker") return "Sticker";
   return message.messageText || "Tin nhắn";
 }
 
@@ -71,6 +74,8 @@ interface MessageItemProps {
   currentUserId: string;
   onDelete: (messageId: string) => void;
   onReply: (message: MessageResponse) => void;
+  onReplyPrivately?: (message: MessageResponse) => void;
+  isGroupChat?: boolean;
   onEdit: (message: MessageResponse) => void;
   onShowDelivery?: (messageId: string) => void;
   onCallAgain?: (callType: "audio" | "video") => void;
@@ -82,6 +87,9 @@ interface MessageItemProps {
   onOpenGallery?: (images: GalleryImage[], startIndex: number) => void;
   onVotePoll?: (messageId: string, optionId: string) => void;
   onClosePoll?: (messageId: string) => void;
+  onOpenThread?: (message: MessageResponse) => void;
+  /** Members whose "last read" boundary lands on this message — shown as tiny seen-avatars below the bubble. */
+  readBy?: ChatroomMemberResponse[];
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
@@ -165,6 +173,8 @@ export default function MessageItem({
   currentUserId,
   onDelete,
   onReply,
+  onReplyPrivately,
+  isGroupChat = false,
   onEdit,
   onShowDelivery,
   onCallAgain,
@@ -176,6 +186,8 @@ export default function MessageItem({
   onOpenGallery,
   onVotePoll,
   onClosePoll,
+  onOpenThread,
+  readBy,
 }: MessageItemProps) {
   const [reactionOpen, setReactionOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -368,13 +380,22 @@ export default function MessageItem({
               </div>
             )}
           </div>
+          {(msg.replyCount ?? 0) > 0 && !msg.isDeleted && (
+            <button
+              type="button"
+              onClick={() => onOpenThread?.(msg)}
+              className="mt-2 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
+            >
+              {msg.replyCount} trả lời
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
   const isGrouped = !showDateDivider && prevMsg?.senderId === msg.senderId;
-  const showAvatar = !isOwn && (!nextMsg || nextMsg.senderId !== msg.senderId);
+  const showAvatar = !nextMsg || nextMsg.senderId !== msg.senderId;
   const deliveryLabel = getDeliveryLabel(msg, isTemp);
   const deliveryIconStatus =
     msg.readCount > 0
@@ -411,17 +432,20 @@ export default function MessageItem({
   const emojiTextClass = msg.messageText
     ? emojiOnlyTextClass(msg.messageText)
     : null;
+  const isSticker = msg.messageType === "sticker" && !msg.isDeleted;
   const hasTextBubbleContent = Boolean(
     isPinned ||
       msg.parentMessage ||
       otherAttachments.length > 0 ||
-      msg.messageText,
+      (msg.messageText && !isSticker),
   );
   const mediaOnly =
-    (imageAttachments.length > 0 || videoAttachments.length > 0) &&
+    (imageAttachments.length > 0 ||
+      videoAttachments.length > 0 ||
+      isSticker) &&
     !msg.parentMessage &&
     !otherAttachments.length &&
-    !msg.messageText;
+    (!msg.messageText || isSticker);
 
   return (
     <div data-msg-id={msg.messageId}>
@@ -544,6 +568,15 @@ export default function MessageItem({
                 </div>
               )}
 
+              {isSticker && !msg.isDeleted && msg.messageText && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={msg.messageText}
+                  alt="Sticker"
+                  className="h-32 w-32 object-contain"
+                />
+              )}
+
               {hasTextBubbleContent && (
             <div
               className={cn(
@@ -631,7 +664,7 @@ export default function MessageItem({
                 </div>
               )}
 
-              {msg.messageText && (
+              {msg.messageText && !isSticker && (
                 <MentionedText
                   text={msg.messageText}
                   mentions={msg.mentions}
@@ -759,6 +792,13 @@ export default function MessageItem({
                         Sao chép
                       </DropdownMenuItem>
 
+                      {isGroupChat && !isOwn && onReplyPrivately && (
+                        <DropdownMenuItem onSelect={() => onReplyPrivately(msg)}>
+                          <MessageCircle />
+                          Trả lời riêng
+                        </DropdownMenuItem>
+                      )}
+
                       {canPin && (
                         <DropdownMenuItem
                           onSelect={() =>
@@ -776,7 +816,8 @@ export default function MessageItem({
                         <>
                           {msg.messageType !== "audio" &&
                             msg.messageType !== "voice" &&
-                            msg.messageType !== "poll" && (
+                            msg.messageType !== "poll" &&
+                            msg.messageType !== "sticker" && (
                               <DropdownMenuItem onSelect={() => onEdit(msg)}>
                                 <Pencil />
                                 Chỉnh sửa
@@ -836,6 +877,42 @@ export default function MessageItem({
                   onToggleReaction?.(msg.messageId, emoji)
                 }
               />
+            </div>
+          )}
+
+          {(msg.replyCount ?? 0) > 0 && !msg.isDeleted && (
+            <button
+              type="button"
+              onClick={() => onOpenThread?.(msg)}
+              className={cn(
+                "mt-1 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400",
+                isOwn ? "self-end" : "self-start",
+              )}
+            >
+              {msg.replyCount} trả lời
+            </button>
+          )}
+
+          {readBy && readBy.length > 0 && (
+            <div
+              className={cn(
+                "mt-1 flex items-center -space-x-1.5",
+                isOwn ? "self-end" : "self-start",
+              )}
+            >
+              {readBy.map((member) => (
+                <div
+                  key={member.userId}
+                  title={`${member.fullname || member.username} đã xem`}
+                  className="rounded-full ring-2 ring-background"
+                >
+                  <ChatAvatar
+                    src={member.avatar ?? undefined}
+                    name={member.fullname || member.username}
+                    size={4}
+                  />
+                </div>
+              ))}
             </div>
           )}
 

@@ -1,6 +1,17 @@
 import type { MentionDto, PendingMention } from "@/lib/types/message";
 import type { ChatroomMemberResponse } from "@/lib/types/chatroom-member";
 
+/** Sentinel userId for the "@all"/"@everyone" suggestion — never sent as a real Guid to the API. */
+export const EVERYONE_MENTION_ID = "everyone";
+
+const EVERYONE_TOKEN_REGEX = /(?<![\w@])@(all|everyone)(?!\w)/gi;
+
+export function matchesEveryoneQuery(query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return "all".startsWith(q) || "everyone".startsWith(q);
+}
+
 export function getMemberDisplayName(
   member: Pick<ChatroomMemberResponse, "nickname" | "fullname" | "username">,
 ): string {
@@ -84,7 +95,7 @@ export function splitMessageTextWithMentions(
     .filter((m) => m.displayName?.trim())
     .sort((a, b) => b.displayName.length - a.displayName.length);
 
-  type Hit = { start: number; end: number; mention: MentionDto };
+  type Hit = { start: number; end: number; mention: MentionDto | null };
   const hits: Hit[] = [];
 
   for (const mention of uniqueMentions) {
@@ -108,6 +119,19 @@ export function splitMessageTextWithMentions(
     }
   }
 
+  // The server expands "@all"/"@everyone" into a real mention for every member
+  // instead of a display name, so highlight the literal token separately.
+  EVERYONE_TOKEN_REGEX.lastIndex = 0;
+  let everyoneMatch: RegExpExecArray | null;
+  while ((everyoneMatch = EVERYONE_TOKEN_REGEX.exec(text))) {
+    const start = everyoneMatch.index;
+    const end = start + everyoneMatch[0].length;
+    const overlaps = hits.some((hit) => start < hit.end && end > hit.start);
+    if (!overlaps) {
+      hits.push({ start, end, mention: null });
+    }
+  }
+
   hits.sort((a, b) => a.start - b.start);
 
   const segments: MessageTextSegment[] = [];
@@ -119,8 +143,10 @@ export function splitMessageTextWithMentions(
     segments.push({
       type: "mention",
       value: text.slice(hit.start, hit.end),
-      userId: hit.mention.userId,
-      isSelf: Boolean(currentUserId && hit.mention.userId === currentUserId),
+      userId: hit.mention?.userId ?? EVERYONE_MENTION_ID,
+      isSelf: hit.mention
+        ? Boolean(currentUserId && hit.mention.userId === currentUserId)
+        : Boolean(currentUserId),
     });
     cursor = hit.end;
   }

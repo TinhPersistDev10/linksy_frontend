@@ -13,7 +13,6 @@ import {
   Hash,
   User,
   UserPlus,
-  UserRoundPlus,
   UsersRound,
 } from "lucide-react";
 import SettingsPanel from "../settings/SettingsPanel";
@@ -57,8 +56,7 @@ export type SocialView =
   | "messages"
   | "friends-directory"
   | "groups-directory"
-  | "friend-requests"
-  | "group-invitations";
+  | "friend-requests";
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onSelectChat?: (chatroom: ChatroomResponse) => void;
   onOpenSocialView?: (view: SocialView) => void;
@@ -66,6 +64,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   refreshTrigger?: number;
   onRemovedFromGroup?: (chatroomId: string) => void;
   mobileHidden?: boolean;
+  listCollapsed?: boolean;
 }
 
 type NavTab = "messages" | "friends" | "groups";
@@ -137,6 +136,7 @@ export function AppSidebar({
   onOpenSocialView,
   onRemovedFromGroup,
   mobileHidden = false,
+  listCollapsed = false,
   ...props
 }: AppSidebarProps) {
   const { user, logout } = useAuth();
@@ -496,7 +496,10 @@ export function AppSidebar({
 
         <Sidebar
           collapsible="none"
-          className="w-screen shrink-0 border-r border-sidebar-border flex flex-col h-full min-h-0 sm:w-80 md:w-72"
+          className={cn(
+            "flex w-screen shrink-0 border-r border-sidebar-border flex-col h-full min-h-0 sm:w-80 md:w-72",
+            listCollapsed && "md:hidden",
+          )}
           {...props}
         >
           <SidebarHeader className="px-4 py-3 border-b border-sidebar-border">
@@ -664,15 +667,6 @@ export function AppSidebar({
                     setActiveTab("friends");
                     setFriendView("requests");
                     openSocialView("friend-requests");
-                  }}
-                />
-                <SocialMenuButton
-                  active={currentSocialView === "group-invitations"}
-                  icon={UserRoundPlus}
-                  label="Lời mời vào nhóm"
-                  onClick={() => {
-                    setActiveTab("groups");
-                    openSocialView("group-invitations");
                   }}
                 />
               </div>

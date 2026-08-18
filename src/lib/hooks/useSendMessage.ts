@@ -6,6 +6,7 @@ import { messagesApi } from "@/lib/api/messages";
 import type { MessageResponse, PendingMention } from "@/lib/types/message";
 import type { User } from "@/lib/types/user";
 import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
+import { EVERYONE_MENTION_ID } from "@/lib/utils/mentions";
 import getAttachmentType from "../utils/getAttachmentType";
 
 const TYPING_DEBOUNCE_MS = 2000;
@@ -203,7 +204,11 @@ export function useSendMessage({
       const content = input.trim();
       const files = selectedFiles;
       const mentionsToSend = options?.mentions ?? pendingMentions;
-      const mentionIds = mentionsToSend.map((m) => m.userId);
+      // "@all"/"@everyone" is detected server-side from the message text, so the
+      // sentinel id is only kept for local rendering/backspace UX, never sent as a Guid.
+      const mentionIds = mentionsToSend
+        .map((m) => m.userId)
+        .filter((id) => id !== EVERYONE_MENTION_ID);
 
       if ((!content && files.length === 0) || !chatroomId || sending || !user)
         return;
@@ -347,12 +352,85 @@ export function useSendMessage({
     ],
   );
 
+  const handleSendSticker = useCallback(
+    async (src: string, options?: { parentMessageId?: string | null }) => {
+      if (!chatroomId || sending || !user || !src.trim()) return;
+
+      await stopTypingNow();
+      setSending(true);
+
+      const tempId = `temp-${Math.random().toString(36).slice(2)}`;
+      appendOptimistic({
+        messageId: tempId,
+        chatroomId,
+        senderId: user.userId,
+        senderUsername: user.username,
+        senderFullname: user.fullname,
+        senderAvatar: user.avatar || null,
+        senderNickname: null,
+        messageType: "sticker",
+        messageText: src,
+        parentMessageId: options?.parentMessageId ?? null,
+        parentMessage: null,
+        isEdited: false,
+        isDeleted: false,
+        isOwn: true,
+        sentAt: new Date().toISOString(),
+        editedAt: null,
+        deletedAt: null,
+        attachments: null,
+        deliveryStatus: "sent",
+        recipientCount: 0,
+        deliveredCount: 0,
+        readCount: 0,
+        mentions: null,
+      });
+
+      try {
+        await signalRSend(
+          chatroomId,
+          src,
+          "sticker",
+          undefined,
+          options?.parentMessageId,
+        );
+      } catch (signalRErr) {
+        try {
+          const sent = await messagesApi.sendMessage({
+            chatroomId,
+            messageText: src,
+            messageType: "sticker",
+            parentMessageId: options?.parentMessageId,
+          });
+          replaceOptimistic(tempId, sent);
+        } catch (apiErr) {
+          removeOptimistic(tempId);
+          reportSendError(extractErrorMessage(apiErr, "Không thể gửi sticker"));
+        }
+      } finally {
+        setSending(false);
+      }
+    },
+    [
+      chatroomId,
+      sending,
+      user,
+      stopTypingNow,
+      appendOptimistic,
+      replaceOptimistic,
+      removeOptimistic,
+      signalRSend,
+      reportSendError,
+    ],
+  );
+
   return {
     input,
     setInput,
     sending,
     handleSend,
     handleSendVoice,
+    handleSendSticker,
     notifyTyping,
     selectedFiles,
     addSelectedFiles,

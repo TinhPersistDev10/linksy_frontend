@@ -23,36 +23,55 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import ConversationInfoPanel from "./ConversationInfoPanel";
+import MessageThreadPanel from "./MessageThreadPanel";
 import PinnedMessagesBanner from "./PinnedMessagesBanner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { blockedUsersApi } from "@/lib/api/blocked-users";
 import { messagesApi } from "@/lib/api/messages";
 import { chatroomsApi } from "@/lib/api/chatrooms";
+import { scheduledMessagesApi } from "@/lib/api/scheduled-messages";
 import {
   blockedUserQueryKeys,
   chatroomQueryKeys,
+  scheduledMessageQueryKeys,
 } from "@/lib/queries/queryKeys";
 import type {
+  AllMessagesReadEvent,
   CreatePollRequest,
   MessageDeliveryStatusResponse,
   MessagePinnedEvent,
+  MessageReadEvent,
   MessageResponse,
   MessageUnpinnedEvent,
   PinnedMessageResponse,
 } from "@/lib/types/message";
 import CreatePollDialog from "./CreatePollDialog";
+import { toast } from "@/lib/stores/toastStore";
+import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
 import {
   COMMUNITY_VIOLATION_MESSAGE,
   containsBannedContent,
 } from "@/lib/utils/contentModeration";
 
+export type PrivateReplyQuote = {
+  authorName: string;
+  text: string;
+};
+
 interface ChatWindowLayoutProps {
   chatroom: ChatroomResponse | null;
   onBack?: () => void;
+  chatListOpen?: boolean;
+  onToggleChatList?: () => void;
   onReadChatroom?: () => void;
   onChatroomUpdated?: (chatroom: ChatroomResponse) => void;
-  onOpenChatroom?: (chatroom: ChatroomResponse) => void;
+  onOpenChatroom?: (
+    chatroom: ChatroomResponse,
+    quote?: PrivateReplyQuote | null,
+  ) => void;
+  initialQuote?: PrivateReplyQuote | null;
+  onQuoteConsumed?: () => void;
   callController?: Pick<UseCallSignalRReturn, "initiateCall">;
 }
 
@@ -61,9 +80,13 @@ interface ChatWindowLayoutProps {
 export default function ChatWindowLayout({
   chatroom,
   onBack,
+  chatListOpen,
+  onToggleChatList,
   onReadChatroom,
   onChatroomUpdated,
   onOpenChatroom,
+  initialQuote = null,
+  onQuoteConsumed,
   callController,
 }: ChatWindowLayoutProps) {
   const { user } = useAuth();
@@ -72,6 +95,7 @@ export default function ChatWindowLayout({
     chatroom,
   );
   const [infoOpen, setInfoOpen] = useState(false);
+  const [threadRoot, setThreadRoot] = useState<MessageResponse | null>(null);
   const [notice, setNotice] = useState<{
     title: string;
     description: string;
@@ -105,10 +129,17 @@ export default function ChatWindowLayout({
       .catch(() => undefined);
   }, [chatroomId, handleChatroomChange]);
 
+  const initialQuoteRef = useRef(initialQuote);
+  const onQuoteConsumedRef = useRef(onQuoteConsumed);
+  initialQuoteRef.current = initialQuote;
+  onQuoteConsumedRef.current = onQuoteConsumed;
+
   useEffect(() => {
     setInfoOpen(false);
+    setThreadRoot(null);
     setComposerError(null);
     setBlockedByOtherLocal(false);
+    setReplyTo(null);
     nearBottomRef.current = true;
   }, [chatroomId]);
   const otherMember = currentChatroom?.members?.find(
@@ -133,6 +164,13 @@ export default function ChatWindowLayout({
     enabled: Boolean(user?.userId && otherMember?.userId && isDirectChat),
     staleTime: 15_000,
     retry: 1,
+  });
+
+  const { data: scheduledPending = [] } = useQuery({
+    queryKey: scheduledMessageQueryKeys.pending(chatroomId ?? "none"),
+    queryFn: () => scheduledMessagesApi.listPending(chatroomId!),
+    enabled: Boolean(chatroomId && user?.userId),
+    staleTime: 10_000,
   });
 
   const iBlockedOther =
@@ -192,6 +230,9 @@ export default function ChatWindowLayout({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const onReadChatroomRef = useRef(onReadChatroom);
   const [replyTo, setReplyTo] = useState<MessageResponse | null>(null);
+  const [privateQuote, setPrivateQuote] = useState<PrivateReplyQuote | null>(
+    null,
+  );
   const [editingMessage, setEditingMessage] = useState<MessageResponse | null>(
     null,
   );
@@ -201,6 +242,10 @@ export default function ChatWindowLayout({
   const [typingUsers, setTypingUsers] = useState<
     { userId: string; username: string }[]
   >([]);
+  // userId -> ISO timestamp of the newest message that user has read.
+  // Seeded from the chatroom's member list, then kept fresh from the
+  // MessageRead/AllMessagesRead SignalR events below.
+  const [readReceipts, setReadReceipts] = useState<Record<string, string>>({});
   const [deliveryStatus, setDeliveryStatus] =
     useState<MessageDeliveryStatusResponse | null>(null);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
@@ -237,6 +282,23 @@ export default function ChatWindowLayout({
 
   const onUserStoppedTyping = useCallback(({ userId }: { userId: string }) => {
     setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
+  }, []);
+
+  // Seed read-receipt state whenever the open chatroom changes.
+  useEffect(() => {
+    const initial: Record<string, string> = {};
+    for (const member of currentChatroom?.members ?? []) {
+      if (member.lastReadAt) initial[member.userId] = member.lastReadAt;
+    }
+    setReadReceipts(initial);
+  }, [chatroomId, currentChatroom?.members]);
+
+  const applyReadReceipt = useCallback((userId: string, readAt: string) => {
+    setReadReceipts((prev) => {
+      const existing = prev[userId];
+      if (existing && new Date(existing) >= new Date(readAt)) return prev;
+      return { ...prev, [userId]: readAt };
+    });
   }, []);
 
   const {
@@ -362,6 +424,22 @@ export default function ChatWindowLayout({
     [onMessageDeleted],
   );
 
+  const handleMessageReadWithReceipt = useCallback(
+    (event: MessageReadEvent) => {
+      onMessageRead(event);
+      if (event.readBy) applyReadReceipt(event.readBy, event.readAt);
+    },
+    [onMessageRead, applyReadReceipt],
+  );
+
+  const handleAllMessagesReadWithReceipt = useCallback(
+    (event: AllMessagesReadEvent) => {
+      onAllMessagesRead(event);
+      if (event.readBy) applyReadReceipt(event.readBy, event.readAt);
+    },
+    [onAllMessagesRead, applyReadReceipt],
+  );
+
   // ── SignalR (chat) ─────────────────────────────────────────────────────────
   const {
     isConnected,
@@ -380,9 +458,9 @@ export default function ChatWindowLayout({
     onReceiveMessage: handleReceiveMessage,
     onMessageDeleted: handleMessageDeletedWithPins,
     onMessageEdited,
-    onMessageRead,
+    onMessageRead: handleMessageReadWithReceipt,
     onMessageDelivered,
-    onAllMessagesRead,
+    onAllMessagesRead: handleAllMessagesReadWithReceipt,
     onUserTyping,
     onUserStoppedTyping,
     onMembershipChanged: handleMembershipChanged,
@@ -399,6 +477,7 @@ export default function ChatWindowLayout({
     sending,
     handleSend,
     handleSendVoice,
+    handleSendSticker,
     notifyTyping,
     selectedFiles,
     addSelectedFiles,
@@ -437,6 +516,34 @@ export default function ChatWindowLayout({
 
   const isGroupChat =
     currentChatroom?.roomType?.toLowerCase() === "group";
+
+  const handleReplyPrivately = useCallback(
+    async (message: MessageResponse) => {
+      try {
+        const direct = await chatroomsApi.createDirect(message.senderId);
+        const text =
+          message.messageType === "sticker"
+            ? "Sticker"
+            : message.messageType === "image"
+              ? "Ảnh"
+              : message.messageType === "audio" || message.messageType === "voice"
+                ? "Tin nhắn thoại"
+                : message.messageText || "Tin nhắn";
+        onOpenChatroom?.(direct, {
+          authorName: message.senderFullname || message.senderUsername,
+          text,
+        });
+      } catch (err) {
+        const messageText = extractErrorMessage(
+          err,
+          "Không thể mở trò chuyện riêng.",
+        );
+        toast.error(messageText);
+        setComposerError(messageText);
+      }
+    },
+    [onOpenChatroom],
+  );
   const canPin =
     isDirectChat ||
     currentChatroom?.myMemberInfo?.memberRole === "admin" ||
@@ -664,6 +771,7 @@ export default function ChatWindowLayout({
         return;
       }
       await handleSend({ mentions: pendingMentions });
+      setPrivateQuote(null);
     } catch (error) {
       const message =
         error instanceof Error
@@ -687,6 +795,61 @@ export default function ChatWindowLayout({
     }
   };
 
+  const handleSchedule = async (payload: {
+    messageType: "text" | "sticker";
+    messageText: string;
+    sendAt: Date;
+  }) => {
+    if (!chatroomId || composerSubmitting) return;
+    const text = payload.messageText.trim();
+    if (!text) return;
+    if (payload.messageType === "text" && containsBannedContent(text)) {
+      setNotice({
+        title: "Vi phạm tiêu chuẩn cộng đồng",
+        description: COMMUNITY_VIOLATION_MESSAGE,
+      });
+      return;
+    }
+
+    setComposerSubmitting(true);
+    try {
+      await scheduledMessagesApi.schedule({
+        chatroomId,
+        messageType: payload.messageType,
+        messageText: text,
+        parentMessageId: privateQuote ? null : replyTo?.messageId,
+        sendAt: payload.sendAt.toISOString(),
+      });
+      if (payload.messageType === "text") {
+        setInput("");
+        clearPendingMentions();
+      }
+      setReplyTo(null);
+      setPrivateQuote(null);
+      toast.success("Đã hẹn giờ tin nhắn");
+      await queryClient.invalidateQueries({
+        queryKey: scheduledMessageQueryKeys.pending(chatroomId),
+      });
+    } catch (error) {
+      toast.error(extractErrorMessage(error, "Không thể hẹn giờ tin nhắn"));
+    } finally {
+      setComposerSubmitting(false);
+    }
+  };
+
+  const handleCancelScheduled = async (id: string) => {
+    if (!chatroomId) return;
+    try {
+      await scheduledMessagesApi.cancel(id);
+      toast.success("Đã hủy tin nhắn hẹn giờ");
+      await queryClient.invalidateQueries({
+        queryKey: scheduledMessageQueryKeys.pending(chatroomId),
+      });
+    } catch (error) {
+      toast.error(extractErrorMessage(error, "Không thể hủy tin nhắn hẹn giờ"));
+    }
+  };
+
   useEffect(() => {
     if (!chatroomId) return;
     setTypingUsers([]);
@@ -695,6 +858,9 @@ export default function ChatWindowLayout({
     setDeliveryOpen(false);
     setDeliveryStatus(null);
     setReplyTo(null);
+    const quote = initialQuoteRef.current;
+    setPrivateQuote(quote ?? null);
+    if (quote) onQuoteConsumedRef.current?.();
     setEditingMessage(null);
     setInput("");
     clearSelectedFiles();
@@ -702,6 +868,7 @@ export default function ChatWindowLayout({
     setPinnedMessages([]);
     setPollDialogOpen(false);
     setComposerSubmitting(false);
+    setThreadRoot(null);
 
     messagesApi
       .markAllRead(chatroomId)
@@ -794,6 +961,8 @@ export default function ChatWindowLayout({
             otherMember={otherMember}
             isConnected={isConnected}
             onBack={onBack}
+            chatListOpen={chatListOpen}
+            onToggleChatList={onToggleChatList}
             onAudioCall={
               remoteCallUserIds.length > 0
                 ? () => startCurrentCall("audio")
@@ -805,7 +974,10 @@ export default function ChatWindowLayout({
                 : undefined
             }
             infoOpen={infoOpen}
-            onToggleInfo={() => setInfoOpen((open) => !open)}
+            onToggleInfo={() => {
+              setInfoOpen((open) => !open);
+              setThreadRoot(null);
+            }}
             onOpenDirectChat={(directChatroom) => {
               onOpenChatroom?.(directChatroom);
             }}
@@ -879,6 +1051,10 @@ export default function ChatWindowLayout({
               messages={messages}
               currentUserId={user?.userId ?? ""}
               otherMember={otherMember}
+              members={currentChatroom.members}
+              groupName={currentChatroom.roomName}
+              groupAvatar={currentChatroom.avatar}
+              readReceipts={readReceipts}
               typingUsers={typingUsers}
               loadingInitial={loadingInitial}
               loadingMore={loadingMore}
@@ -893,6 +1069,7 @@ export default function ChatWindowLayout({
               onShowDelivery={handleShowDelivery}
               onReply={(message) => {
                 setReplyTo(message);
+                setPrivateQuote(null);
                 setEditingMessage(null);
                 clearSelectedFiles();
               }}
@@ -914,6 +1091,12 @@ export default function ChatWindowLayout({
                 void handleVotePoll(messageId, optionId)
               }
               onClosePoll={(messageId) => void handleClosePoll(messageId)}
+              onOpenThread={(message) => {
+                setThreadRoot(message);
+                setInfoOpen(false);
+              }}
+              isGroupChat={isGroupChat}
+              onReplyPrivately={(message) => void handleReplyPrivately(message)}
             />
           </div>
 
@@ -979,6 +1162,7 @@ export default function ChatWindowLayout({
               value={input}
               sending={sending || composerSubmitting}
               replyTo={replyTo}
+              privateQuote={privateQuote}
               editingMessage={editingMessage}
               selectedFiles={selectedFiles}
               onFilesSelected={addSelectedFiles}
@@ -991,8 +1175,17 @@ export default function ChatWindowLayout({
               onKeyDown={handleKeyDown}
               onSend={() => void handleSubmit()}
               onInsertEmoji={handleInsertEmoji}
+              onSendSticker={(src) => {
+                void handleSendSticker(src, {
+                  parentMessageId: privateQuote ? null : replyTo?.messageId,
+                }).then(() => {
+                  setReplyTo(null);
+                  setPrivateQuote(null);
+                });
+              }}
               onCancelMode={() => {
                 setReplyTo(null);
+                setPrivateQuote(null);
                 setEditingMessage(null);
                 setInput("");
                 clearSelectedFiles();
@@ -1004,6 +1197,10 @@ export default function ChatWindowLayout({
               pendingMentions={pendingMentions}
               onPendingMentionsChange={setPendingMentions}
               canSendVoice={canSendVoice && !editingMessage}
+              onSchedule={handleSchedule}
+              scheduling={composerSubmitting}
+              scheduledPending={scheduledPending}
+              onCancelScheduled={(id) => void handleCancelScheduled(id)}
               onSendVoice={async (file) => {
                 // Wait briefly if another send is in flight (e.g. voice auto-stop at 60s).
                 let waits = 0;
@@ -1015,9 +1212,10 @@ export default function ChatWindowLayout({
                 setComposerSubmitting(true);
                 try {
                   await handleSendVoice(file, {
-                    parentMessageId: replyTo?.messageId,
+                    parentMessageId: privateQuote ? null : replyTo?.messageId,
                   });
                   setReplyTo(null);
+                  setPrivateQuote(null);
                 } finally {
                   setComposerSubmitting(false);
                 }
@@ -1065,6 +1263,47 @@ export default function ChatWindowLayout({
           )}
         </div>
 
+        <MessageThreadPanel
+          open={threadRoot !== null}
+          rootMessage={threadRoot}
+          currentUserId={user?.userId ?? ""}
+          liveMessages={messages}
+          sending={sending || composerSubmitting}
+          onClose={() => setThreadRoot(null)}
+          onOpenThread={(message) => {
+            setThreadRoot(message);
+            setInfoOpen(false);
+          }}
+          onSendReply={async (text, parentMessageId) => {
+            if (!chatroomId) return;
+            if (containsBannedContent(text)) {
+              setNotice({
+                title: "Vi phạm tiêu chuẩn cộng đồng",
+                description: COMMUNITY_VIOLATION_MESSAGE,
+              });
+              return;
+            }
+            setComposerSubmitting(true);
+            try {
+              await signalRSend(
+                chatroomId,
+                text,
+                "text",
+                undefined,
+                parentMessageId,
+              );
+            } catch (error) {
+              const message =
+                error instanceof Error
+                  ? error.message
+                  : "Không thể gửi trả lời.";
+              setComposerError(message);
+            } finally {
+              setComposerSubmitting(false);
+            }
+          }}
+        />
+
         <ConversationInfoPanel
           chatroom={currentChatroom}
           otherMember={otherMember}
@@ -1073,6 +1312,8 @@ export default function ChatWindowLayout({
           onChatroomChange={handleChatroomChange}
           onLeaveChatroom={onBack}
           pinnedCount={pinnedMessages.length}
+          scheduledPending={scheduledPending}
+          onCancelScheduled={(id) => void handleCancelScheduled(id)}
           onSearchInChat={() => {
             searchInputRef.current?.focus();
             searchInputRef.current?.scrollIntoView({

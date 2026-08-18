@@ -15,10 +15,13 @@ interface GroupWebRtcManagerOptions {
     state: RTCPeerConnectionState,
   ) => void;
   onIceConnectionFailed?: (userId: string) => void;
+  onScreenShareEnded?: (needsRenegotiate: boolean) => void;
 }
 
 export class GroupWebRtcManager {
   private localStream: MediaStream | null = null;
+  private cameraVideoTrack: MediaStreamTrack | null = null;
+  private screenStream: MediaStream | null = null;
   private readonly peers = new Map<string, PeerState>();
   private readonly earlyCandidates = new Map<string, string[]>();
   private readonly iceRestartRequested = new Set<string>();
@@ -76,9 +79,94 @@ export class GroupWebRtcManager {
   }
 
   setCamEnabled(enabled: boolean): void {
+    if (this.screenStream) return;
     this.localStream?.getVideoTracks().forEach((track) => {
       track.enabled = enabled;
     });
+  }
+
+  getPeerUserIds(): string[] {
+    return [...this.peers.keys()];
+  }
+
+  isScreenSharing(): boolean {
+    return this.screenStream != null;
+  }
+
+  async startScreenShare(): Promise<{ needsRenegotiate: boolean }> {
+    if (this.screenStream) return { needsRenegotiate: false };
+
+    const displayStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+    });
+    const screenTrack = displayStream.getVideoTracks()[0];
+    if (!screenTrack) {
+      displayStream.getTracks().forEach((track) => track.stop());
+      throw new Error("Không lấy được video màn hình.");
+    }
+
+    this.screenStream = displayStream;
+    if (!this.localStream) {
+      this.localStream = new MediaStream();
+    }
+
+    const currentVideo = this.localStream.getVideoTracks()[0] ?? null;
+    if (currentVideo && currentVideo !== screenTrack) {
+      this.cameraVideoTrack = currentVideo;
+      this.localStream.removeTrack(currentVideo);
+    }
+
+    this.localStream.addTrack(screenTrack);
+
+    let needsRenegotiate = false;
+    for (const peer of this.peers.values()) {
+      const videoSender = this.findVideoSender(peer, screenTrack);
+      if (videoSender) {
+        await videoSender.replaceTrack(screenTrack);
+      } else {
+        peer.pc.addTrack(screenTrack, this.localStream);
+        needsRenegotiate = true;
+      }
+    }
+
+    screenTrack.addEventListener("ended", this.handleScreenTrackEnded);
+    return { needsRenegotiate };
+  }
+
+  async stopScreenShare(): Promise<{ needsRenegotiate: boolean }> {
+    const displayStream = this.screenStream;
+    if (!displayStream) return { needsRenegotiate: false };
+
+    const screenTrack = displayStream.getVideoTracks()[0] ?? null;
+    screenTrack?.removeEventListener("ended", this.handleScreenTrackEnded);
+
+    const restoreTrack = this.cameraVideoTrack;
+    let needsRenegotiate = false;
+
+    for (const peer of this.peers.values()) {
+      const videoSender = this.findVideoSender(peer, screenTrack);
+      if (!videoSender) continue;
+      if (restoreTrack) {
+        await videoSender.replaceTrack(restoreTrack);
+      } else {
+        await videoSender.replaceTrack(null);
+        needsRenegotiate = true;
+      }
+    }
+
+    if (this.localStream && screenTrack) {
+      this.localStream.removeTrack(screenTrack);
+    }
+    if (restoreTrack && this.localStream) {
+      if (!this.localStream.getVideoTracks().includes(restoreTrack)) {
+        this.localStream.addTrack(restoreTrack);
+      }
+    }
+
+    displayStream.getTracks().forEach((track) => track.stop());
+    this.screenStream = null;
+    this.cameraVideoTrack = null;
+    return { needsRenegotiate };
   }
 
   async createOffer(userId: string, iceRestart = false): Promise<string> {
@@ -139,6 +227,9 @@ export class GroupWebRtcManager {
     this.peers.clear();
     this.earlyCandidates.clear();
     this.iceRestartRequested.clear();
+    this.stopScreenTracks();
+    this.cameraVideoTrack?.stop();
+    this.cameraVideoTrack = null;
     this.localStream?.getTracks().forEach((track) => track.stop());
     this.localStream = null;
   }
@@ -224,6 +315,34 @@ export class GroupWebRtcManager {
     for (const peer of this.peers.values()) {
       this.attachLocalTracks(peer);
     }
+  }
+
+  private findVideoSender(
+    peer: PeerState,
+    screenTrack: MediaStreamTrack | null,
+  ): RTCRtpSender | undefined {
+    return peer.pc.getSenders().find(
+      (sender) => sender.track === screenTrack || sender.track?.kind === "video",
+    );
+  }
+
+  private handleScreenTrackEnded = () => {
+    void (async () => {
+      try {
+        const result = await this.stopScreenShare();
+        this.options.onScreenShareEnded?.(result.needsRenegotiate);
+      } catch (err) {
+        console.warn("[GroupWebRTC] restore camera after screen share ended:", err);
+        this.options.onScreenShareEnded?.(true);
+      }
+    })();
+  };
+
+  private stopScreenTracks(): void {
+    const screenTrack = this.screenStream?.getVideoTracks()[0];
+    screenTrack?.removeEventListener("ended", this.handleScreenTrackEnded);
+    this.screenStream?.getTracks().forEach((track) => track.stop());
+    this.screenStream = null;
   }
 
   private async flushPendingCandidates(peer: PeerState): Promise<void> {

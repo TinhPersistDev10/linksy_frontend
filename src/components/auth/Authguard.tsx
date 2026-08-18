@@ -11,7 +11,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Chỉ redirect sau khi đã verify xong session từ server
     if (!loading && !isAuthenticated) {
-      router.replace('/login');
+      const { pathname, search } = window.location;
+      const next = `${pathname}${search}`;
+      const returnUrl =
+        pathname.startsWith("/add-friend") && next.startsWith("/")
+          ? `?returnUrl=${encodeURIComponent(next)}`
+          : "";
+      router.replace(`/login${returnUrl}`);
     }
   }, [isAuthenticated, loading, router]);
 

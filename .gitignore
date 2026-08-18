@@ -45,6 +45,8 @@ temp/
 # IDE and OS files
 .DS_Store
 Thumbs.db
+# Stray file created when a "2>nul" cmd.exe redirect runs under Git Bash/MSYS
+nul
 .idea/
 .vscode/*
 !.vscode/extensions.json
