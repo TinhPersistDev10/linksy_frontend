@@ -52,6 +52,11 @@ export const adminQueryKeys = {
   reports: (page: number, pageSize: number, status: string) =>
     ["admin", "reports", page, pageSize, status] as const,
   report: (reportId: string) => ["admin", "reports", reportId] as const,
+  contentModerationSettings: ["admin", "content-moderation"] as const,
+};
+
+export const contentModerationQueryKeys = {
+  config: ["content-moderation", "config"] as const,
 };
 
 export const scheduledMessageQueryKeys = {

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MessageCircle,
   MoreHorizontal,
   Phone,
+  ShieldMinus,
+  ShieldPlus,
   UserMinus,
   UserRound,
   UserX,
@@ -20,6 +22,12 @@ import type {
 } from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import ChatAvatar from "./ChatAvatar";
 import MemberProfileDialog from "./MemberProfileDialog";
 
@@ -27,7 +35,9 @@ type MembersTab = "all" | "admins";
 
 type PendingConfirm =
   | { type: "block"; member: ChatroomMemberResponse }
-  | { type: "remove"; member: ChatroomMemberResponse };
+  | { type: "remove"; member: ChatroomMemberResponse }
+  | { type: "promote"; member: ChatroomMemberResponse }
+  | { type: "demote"; member: ChatroomMemberResponse };
 
 type GroupMembersDialogProps = {
   open: boolean;
@@ -48,9 +58,10 @@ function requestMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function memberSubtitle(member: ChatroomMemberResponse) {
+function memberSubtitle(member: ChatroomMemberResponse, ownerId?: string) {
   const parts: string[] = [];
-  if (member.memberRole === "admin") parts.push("Quản trị viên");
+  if (member.userId === ownerId) parts.push("Trưởng nhóm");
+  else if (member.memberRole === "admin") parts.push("Phó nhóm");
   const addedBy =
     member.addedByFullname?.trim() ||
     member.addedByUsername?.trim() ||
@@ -69,7 +80,6 @@ export default function GroupMembersDialog({
   onMembersChanged,
 }: GroupMembersDialogProps) {
   const { user } = useAuth();
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const [tab, setTab] = useState<MembersTab>("all");
   const [menuMemberId, setMenuMemberId] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] =
@@ -83,6 +93,7 @@ export default function GroupMembersDialog({
   const isAdmin = chatroom.myMemberInfo?.memberRole === "admin";
   const canRemoveMembers =
     isAdmin || Boolean(chatroom.myMemberInfo?.permissions?.canRemoveMembers);
+  const isOwner = Boolean(user?.userId) && chatroom.createdBy === user?.userId;
 
   const members = useMemo(
     () => chatroom.members ?? [],
@@ -110,17 +121,6 @@ export default function GroupMembersDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, chatroom.chatroomId]);
 
-  useEffect(() => {
-    if (!menuMemberId) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuMemberId(null);
-      }
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [menuMemberId]);
-
   const messageMember = async (member: ChatroomMemberResponse) => {
     setActionLoading(true);
     setMenuMemberId(null);
@@ -146,6 +146,16 @@ export default function GroupMembersDialog({
     setConfirmAction({ type: "remove", member });
   };
 
+  const promoteMember = (member: ChatroomMemberResponse) => {
+    setMenuMemberId(null);
+    setConfirmAction({ type: "promote", member });
+  };
+
+  const demoteMember = (member: ChatroomMemberResponse) => {
+    setMenuMemberId(null);
+    setConfirmAction({ type: "demote", member });
+  };
+
   const executeConfirmedAction = async () => {
     if (!confirmAction) return;
     setActionLoading(true);
@@ -157,19 +167,32 @@ export default function GroupMembersDialog({
           confirmAction.member.userId,
         );
         onMembersChanged?.();
+      } else if (confirmAction.type === "promote") {
+        await chatroomsApi.promoteMember(
+          chatroom.chatroomId,
+          confirmAction.member.userId,
+        );
+        onMembersChanged?.();
+      } else if (confirmAction.type === "demote") {
+        await chatroomsApi.demoteMember(
+          chatroom.chatroomId,
+          confirmAction.member.userId,
+        );
+        onMembersChanged?.();
       } else {
         await blockedUsersApi.blockUser(confirmAction.member.userId);
       }
       setConfirmAction(null);
     } catch (requestError) {
-      setError(
-        requestMessage(
-          requestError,
-          confirmAction.type === "remove"
-            ? "Xóa thành viên thất bại."
-            : "Chặn người dùng thất bại.",
-        ),
-      );
+      const fallback =
+        confirmAction.type === "remove"
+          ? "Xóa thành viên thất bại."
+          : confirmAction.type === "promote"
+            ? "Bổ nhiệm phó nhóm thất bại."
+            : confirmAction.type === "demote"
+              ? "Thu hồi quyền phó nhóm thất bại."
+              : "Chặn người dùng thất bại.";
+      setError(requestMessage(requestError, fallback));
     } finally {
       setActionLoading(false);
     }
@@ -266,88 +289,82 @@ export default function GroupMembersDialog({
                           {isSelf ? " (Bạn)" : ""}
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">
-                          {memberSubtitle(member)}
+                          {memberSubtitle(member, chatroom.createdBy)}
                         </span>
                       </span>
                     </button>
 
                     {!isSelf && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setMenuMemberId((current) =>
-                            current === member.userId ? null : member.userId,
-                          )
+                      <DropdownMenu
+                        open={menuMemberId === member.userId}
+                        onOpenChange={(nextOpen) =>
+                          setMenuMemberId(nextOpen ? member.userId : null)
                         }
-                        className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"
-                        title="Tùy chọn"
                       >
-                        <MoreHorizontal size={18} />
-                      </button>
-                    )}
-
-                    {menuMemberId === member.userId && !isSelf && (
-                      <div
-                        ref={menuRef}
-                        className="absolute right-4 top-12 z-20 w-52 overflow-hidden rounded-xl border bg-card py-1 shadow-xl"
-                      >
-                        <button
-                          type="button"
-                          disabled={actionLoading}
-                          onClick={() => void messageMember(member)}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60 disabled:opacity-50"
-                        >
-                          <MessageCircle size={17} /> Nhắn tin
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setMenuMemberId(null);
-                            setSelectedMember(member);
-                          }}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60"
-                        >
-                          <UserRound size={17} /> Xem hồ sơ
-                        </button>
-                        <button
-                          type="button"
-                          disabled={actionLoading}
-                          onClick={() => void blockMember(member)}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60 disabled:opacity-50"
-                        >
-                          <UserX size={17} /> Chặn
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setMenuMemberId(null);
-                            onCallMember?.(member.userId, "audio");
-                          }}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60"
-                        >
-                          <Phone size={17} /> Gọi thoại
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setMenuMemberId(null);
-                            onCallMember?.(member.userId, "video");
-                          }}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60"
-                        >
-                          <Video size={17} /> Gọi video
-                        </button>
-                        {canRemoveMembers && (
+                        <DropdownMenuTrigger asChild>
                           <button
                             type="button"
-                            disabled={actionLoading}
-                            onClick={() => void removeMember(member)}
-                            className="flex w-full items-center gap-3 border-t px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"
+                            title="Tùy chọn"
                           >
-                            <UserMinus size={17} /> Xóa khỏi nhóm
+                            <MoreHorizontal size={18} />
                           </button>
-                        )}
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="z-[95] w-52">
+                          <DropdownMenuItem
+                            disabled={actionLoading}
+                            onSelect={() => void messageMember(member)}
+                          >
+                            <MessageCircle size={17} /> Nhắn tin
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => setSelectedMember(member)}
+                          >
+                            <UserRound size={17} /> Xem hồ sơ
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={actionLoading}
+                            onSelect={() => void blockMember(member)}
+                          >
+                            <UserX size={17} /> Chặn
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => onCallMember?.(member.userId, "audio")}
+                          >
+                            <Phone size={17} /> Gọi thoại
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => onCallMember?.(member.userId, "video")}
+                          >
+                            <Video size={17} /> Gọi video
+                          </DropdownMenuItem>
+                          {isOwner && member.memberRole !== "admin" && (
+                            <DropdownMenuItem
+                              disabled={actionLoading}
+                              onSelect={() => void promoteMember(member)}
+                            >
+                              <ShieldPlus size={17} /> Bổ nhiệm phó nhóm
+                            </DropdownMenuItem>
+                          )}
+                          {isOwner && member.memberRole === "admin" && (
+                            <DropdownMenuItem
+                              disabled={actionLoading}
+                              onSelect={() => void demoteMember(member)}
+                            >
+                              <ShieldMinus size={17} /> Thu hồi quyền phó nhóm
+                            </DropdownMenuItem>
+                          )}
+                          {canRemoveMembers && (
+                            <DropdownMenuItem
+                              variant="destructive"
+                              disabled={actionLoading}
+                              onSelect={() => void removeMember(member)}
+                            >
+                              <UserMinus size={17} /> Xóa khỏi nhóm
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 );
@@ -397,7 +414,13 @@ export default function GroupMembersDialog({
           if (!open && !actionLoading) setConfirmAction(null);
         }}
         title={
-          confirmAction?.type === "remove" ? "Xóa thành viên" : "Chặn người dùng"
+          confirmAction?.type === "remove"
+            ? "Xóa thành viên"
+            : confirmAction?.type === "promote"
+              ? "Bổ nhiệm phó nhóm"
+              : confirmAction?.type === "demote"
+                ? "Thu hồi quyền phó nhóm"
+                : "Chặn người dùng"
         }
         description={
           confirmAction?.type === "remove" ? (
@@ -409,6 +432,22 @@ export default function GroupMembersDialog({
               khỏi nhóm{" "}
               <span className="font-semibold text-foreground">{groupName}</span>?
             </>
+          ) : confirmAction?.type === "promote" ? (
+            <>
+              Bổ nhiệm{" "}
+              <span className="font-semibold text-foreground">
+                {confirmMemberName}
+              </span>{" "}
+              làm phó nhóm? Họ sẽ có quyền quản trị nhóm.
+            </>
+          ) : confirmAction?.type === "demote" ? (
+            <>
+              Thu hồi quyền phó nhóm của{" "}
+              <span className="font-semibold text-foreground">
+                {confirmMemberName}
+              </span>
+              ?
+            </>
           ) : (
             <>
               Bạn có chắc chắn muốn chặn{" "}
@@ -419,7 +458,15 @@ export default function GroupMembersDialog({
             </>
           )
         }
-        confirmLabel={confirmAction?.type === "remove" ? "Xóa" : "Chặn"}
+        confirmLabel={
+          confirmAction?.type === "remove"
+            ? "Xóa"
+            : confirmAction?.type === "promote"
+              ? "Bổ nhiệm"
+              : confirmAction?.type === "demote"
+                ? "Thu hồi"
+                : "Chặn"
+        }
         cancelLabel="Hủy"
         variant="destructive"
         loading={actionLoading}

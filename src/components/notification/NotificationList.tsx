@@ -21,6 +21,7 @@ import {
 import { notificationQueryKeys } from "@/lib/queries/queryKeys";
 import type { NotificationResponse } from "@/lib/types/notification";
 import { formatRelativeTime } from "@/lib/utils/datetime";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 type NotificationFilter = "all" | "unread" | "read";
 
@@ -90,6 +91,7 @@ export default function NotificationList({
   const { data: globalUnreadCount = 0 } =
     useUnreadNotificationCountQuery(user?.userId);
   const [filter, setFilter] = useState<NotificationFilter>("all");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const unreadCount = useMemo(
     () => items.filter((item) => !item.isRead).length,
@@ -363,9 +365,7 @@ export default function NotificationList({
               <button
                 type="button"
                 title="Xóa thông báo"
-                onClick={() => {
-                  void deleteNotification(item.notificationId);
-                }}
+                onClick={() => setConfirmDeleteId(item.notificationId)}
                 className="mt-1 shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition hover:bg-red-500/10 hover:text-red-600 group-hover:opacity-100 dark:hover:text-red-400"
               >
                 <Trash2 size={14} />
@@ -374,6 +374,21 @@ export default function NotificationList({
           );
         })
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteId(null);
+        }}
+        title="Xóa thông báo"
+        description="Bạn có chắc chắn muốn xóa thông báo này?"
+        confirmLabel="Xóa"
+        variant="destructive"
+        onConfirm={() => {
+          if (confirmDeleteId) void deleteNotification(confirmDeleteId);
+          setConfirmDeleteId(null);
+        }}
+      />
     </div>
   );
 }

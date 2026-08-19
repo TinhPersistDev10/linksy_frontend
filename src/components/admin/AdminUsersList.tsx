@@ -24,6 +24,7 @@ import {
 import type { AdminUser } from "@/lib/types/admin";
 import { formatAdminDate, getApiErrorMessage } from "@/lib/utils/admin-errors";
 import { useAuth } from "@/lib/hooks/useAuth";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 const PAGE_SIZE = 10;
 
@@ -34,6 +35,7 @@ export function AdminUsersList() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
+  const [toggleTarget, setToggleTarget] = useState<AdminUser | null>(null);
   const [actionError, setActionError] = useState("");
 
   const usersQuery = useAdminUsersQuery(page, PAGE_SIZE, search);
@@ -57,6 +59,7 @@ export function AdminUsersList() {
 
     try {
       await toggleMutation.mutateAsync(target.userId);
+      setToggleTarget(null);
     } catch (err) {
       setActionError(getApiErrorMessage(err, "Không thể thay đổi trạng thái"));
     }
@@ -197,7 +200,7 @@ export function AdminUsersList() {
                               toggleMutation.isPending ||
                               item.userId === currentUser?.userId
                             }
-                            onClick={() => handleToggle(item)}
+                            onClick={() => setToggleTarget(item)}
                           >
                             <Power />
                             {item.isActive ? "Khóa" : "Mở"}
@@ -253,6 +256,31 @@ export function AdminUsersList() {
           username={resetTarget.username}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={toggleTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !toggleMutation.isPending) setToggleTarget(null);
+        }}
+        title={toggleTarget?.isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+        description={
+          <>
+            Bạn có chắc chắn muốn{" "}
+            {toggleTarget?.isActive ? "khóa" : "mở khóa"} tài khoản{" "}
+            <span className="font-semibold text-foreground">
+              {toggleTarget?.fullname || toggleTarget?.username}
+            </span>
+            ?
+          </>
+        }
+        confirmLabel={toggleTarget?.isActive ? "Khóa" : "Mở khóa"}
+        cancelLabel="Hủy"
+        variant={toggleTarget?.isActive ? "destructive" : "default"}
+        loading={toggleMutation.isPending}
+        onConfirm={() => {
+          if (toggleTarget) void handleToggle(toggleTarget);
+        }}
+      />
     </AdminShell>
   );
 }

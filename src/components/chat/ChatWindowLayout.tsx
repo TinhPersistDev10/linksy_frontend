@@ -1,14 +1,5 @@
 "use client";
 
-/**
- * ChatWindowLayout.tsx
- *
- * Cuộc gọi kết thúc được ghi lại thành một Message thật ở backend
- * (messageType "call_log") và phát tới chatroom qua sự kiện "ReceiveMessage"
- * hiện có, nên nó tự động xuất hiện trong `messages` và vẫn còn sau khi
- * reload/chuyển tab — không cần inject message giả ở client nữa.
- */
-
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { AlertCircle, Loader2, Send, X } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +10,7 @@ import type { UseCallSignalRReturn } from "@/lib/hooks/useCallSignalR";
 
 import { useMessages, PAGE_SIZE } from "@/lib/hooks/useMessages";
 import { useSendMessage } from "@/lib/hooks/useSendMessage";
+import { useContentModerationConfigQuery } from "@/lib/hooks/useServerStateQueries";
 import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
@@ -91,6 +83,9 @@ export default function ChatWindowLayout({
 }: ChatWindowLayoutProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { data: contentModerationConfig } = useContentModerationConfigQuery(
+    user?.userId,
+  );
   const [activeChatroom, setActiveChatroom] = useState<ChatroomResponse | null>(
     chatroom,
   );
@@ -100,6 +95,10 @@ export default function ChatWindowLayout({
     title: string;
     description: string;
   } | null>(null);
+  const [confirmDeleteMessageId, setConfirmDeleteMessageId] = useState<
+    string | null
+  >(null);
+  const [deletingMessage, setDeletingMessage] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [unblocking, setUnblocking] = useState(false);
   const [blockedByOtherLocal, setBlockedByOtherLocal] = useState(false);
@@ -714,11 +713,20 @@ export default function ChatWindowLayout({
     [callController, currentChatroom, remoteCallUserIds],
   );
 
-  const handleDelete = async (messageId: string) => {
+  const requestDeleteMessage = (messageId: string) => {
+    setConfirmDeleteMessageId(messageId);
+  };
+
+  const confirmDeleteMessage = async () => {
+    if (!confirmDeleteMessageId) return;
+    setDeletingMessage(true);
     try {
-      await signalRDelete(messageId);
+      await signalRDelete(confirmDeleteMessageId);
+      setConfirmDeleteMessageId(null);
     } catch (error) {
       console.error("Delete message failed:", error);
+    } finally {
+      setDeletingMessage(false);
     }
   };
 
@@ -745,7 +753,7 @@ export default function ChatWindowLayout({
     )
       return;
 
-    if (content && containsBannedContent(content)) {
+    if (content && containsBannedContent(content, contentModerationConfig)) {
       setNotice({
         title: "Vi phạm tiêu chuẩn cộng đồng",
         description: COMMUNITY_VIOLATION_MESSAGE,
@@ -803,7 +811,10 @@ export default function ChatWindowLayout({
     if (!chatroomId || composerSubmitting) return;
     const text = payload.messageText.trim();
     if (!text) return;
-    if (payload.messageType === "text" && containsBannedContent(text)) {
+    if (
+      payload.messageType === "text" &&
+      containsBannedContent(text, contentModerationConfig)
+    ) {
       setNotice({
         title: "Vi phạm tiêu chuẩn cộng đồng",
         description: COMMUNITY_VIOLATION_MESSAGE,
@@ -1061,7 +1072,7 @@ export default function ChatWindowLayout({
               hasMore={hasMore}
               pageSize={PAGE_SIZE}
               onLoadMore={loadMore}
-              onDelete={handleDelete}
+              onDelete={requestDeleteMessage}
               scrollToBottomRef={scrollToBottomRef}
               onNearBottom={(near) => {
                 nearBottomRef.current = near;
@@ -1228,6 +1239,7 @@ export default function ChatWindowLayout({
             submitting={composerSubmitting}
             onClose={() => setPollDialogOpen(false)}
             onSubmit={handleCreatePoll}
+            contentModerationConfig={contentModerationConfig}
           />
 
           {deliveryOpen && deliveryStatus && (
@@ -1276,7 +1288,7 @@ export default function ChatWindowLayout({
           }}
           onSendReply={async (text, parentMessageId) => {
             if (!chatroomId) return;
-            if (containsBannedContent(text)) {
+            if (containsBannedContent(text, contentModerationConfig)) {
               setNotice({
                 title: "Vi phạm tiêu chuẩn cộng đồng",
                 description: COMMUNITY_VIOLATION_MESSAGE,
@@ -1369,6 +1381,19 @@ export default function ChatWindowLayout({
         confirmLabel="Đã hiểu"
         variant="info"
         onConfirm={() => setNotice(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteMessageId !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteMessageId(null);
+        }}
+        title="Xóa tin nhắn"
+        description="Bạn có chắc chắn muốn xóa tin nhắn này? Hành động này không thể hoàn tác."
+        confirmLabel="Xóa"
+        variant="destructive"
+        loading={deletingMessage}
+        onConfirm={() => void confirmDeleteMessage()}
       />
     </>
   );

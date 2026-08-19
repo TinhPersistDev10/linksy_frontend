@@ -17,10 +17,16 @@ import { friendsApi } from "@/lib/api/friends";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { friendQueryKeys } from "@/lib/queries/queryKeys";
 import type { ChatroomResponse, FriendRequest } from "@/lib/types/chatroom";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 interface FriendRequestsViewProps {
   onSelectChat?: (chatroom: ChatroomResponse) => void;
 }
+
+type PendingConfirm =
+  | { type: "reject"; request: FriendRequest }
+  | { type: "cancel"; request: FriendRequest }
+  | { type: "block"; request: FriendRequest };
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "";
@@ -81,6 +87,9 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
   const [profileRequest, setProfileRequest] = useState<FriendRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<PendingConfirm | null>(
+    null,
+  );
 
   const syncReceivedBadge = (requests: FriendRequest[]) => {
     if (!user?.userId) return;
@@ -157,6 +166,15 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
     } finally {
       setBusyId(null);
     }
+  };
+
+  const executeConfirmedAction = async () => {
+    if (!confirmAction) return;
+    const { type, request } = confirmAction;
+    if (type === "reject") await reject(request.requestId);
+    else if (type === "cancel") await cancel(request.requestId);
+    else await block(request);
+    setConfirmAction(null);
   };
 
   const openDirectChat = async (request: FriendRequest) => {
@@ -238,7 +256,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                         disabled={busyId === request.requestId}
                         onClick={(event) => {
                           event.stopPropagation();
-                          reject(request.requestId);
+                          setConfirmAction({ type: "reject", request });
                         }}
                         className="h-10 rounded-md bg-muted text-sm font-semibold text-foreground hover:bg-muted/80 disabled:opacity-60"
                       >
@@ -286,7 +304,7 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
                     <button
                       type="button"
                       disabled={busyId === request.requestId}
-                      onClick={() => cancel(request.requestId)}
+                      onClick={() => setConfirmAction({ type: "cancel", request })}
                       className="h-10 w-full rounded-md bg-muted text-sm font-semibold text-foreground hover:bg-muted/80 disabled:opacity-60"
                     >
                       Thu hồi lời mời
@@ -379,7 +397,9 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
               <button
                 type="button"
                 disabled={busyId === profileRequest.requestId || !profileRequest.senderId}
-                onClick={() => block(profileRequest)}
+                onClick={() =>
+                  setConfirmAction({ type: "block", request: profileRequest })
+                }
                 className="flex h-10 items-center justify-center gap-2 rounded-md bg-red-50 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
               >
                 <ShieldBan size={16} /> Chặn
@@ -387,7 +407,9 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
               <button
                 type="button"
                 disabled={busyId === profileRequest.requestId}
-                onClick={() => reject(profileRequest.requestId)}
+                onClick={() =>
+                  setConfirmAction({ type: "reject", request: profileRequest })
+                }
                 className="h-10 rounded-md bg-muted text-sm font-semibold text-foreground hover:bg-muted/80 disabled:opacity-60"
               >
                 Từ chối
@@ -396,6 +418,39 @@ export default function FriendRequestsView({ onSelectChat }: FriendRequestsViewP
           </article>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}
+        title={
+          confirmAction?.type === "reject"
+            ? "Từ chối lời mời"
+            : confirmAction?.type === "cancel"
+              ? "Thu hồi lời mời"
+              : "Chặn người dùng"
+        }
+        description={
+          confirmAction
+            ? confirmAction.type === "reject"
+              ? `Bạn có chắc chắn muốn từ chối lời mời kết bạn từ ${requestName(confirmAction.request, "sender")}?`
+              : confirmAction.type === "cancel"
+                ? `Bạn có chắc chắn muốn thu hồi lời mời kết bạn đã gửi tới ${requestName(confirmAction.request, "receiver")}?`
+                : `Bạn có chắc chắn muốn chặn ${requestName(confirmAction.request, "sender")}? Người này sẽ không thể nhắn tin cho bạn.`
+            : ""
+        }
+        confirmLabel={
+          confirmAction?.type === "reject"
+            ? "Từ chối"
+            : confirmAction?.type === "cancel"
+              ? "Thu hồi"
+              : "Chặn"
+        }
+        variant="destructive"
+        loading={confirmAction !== null && busyId === confirmAction.request.requestId}
+        onConfirm={() => void executeConfirmedAction()}
+      />
     </>
   );
 }

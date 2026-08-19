@@ -19,6 +19,7 @@ import {
 } from "@/lib/utils/mentions";
 import EmojiPickerPopover from "./EmojiPickerPopover";
 import StickerPicker from "./StickerPicker";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import {
   formatVoiceDuration,
   useVoiceRecorder,
@@ -159,6 +160,9 @@ export default function MessageInput({
     toDatetimeLocalValue(defaultScheduleAt()),
   );
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [confirmCancelScheduledId, setConfirmCancelScheduledId] = useState<
+    string | null
+  >(null);
 
   const canSendText = value.trim().length > 0 || selectedFiles.length > 0;
   const canScheduleText =
@@ -660,7 +664,7 @@ export default function MessageInput({
                           <button
                             type="button"
                             className="shrink-0 text-red-600 hover:underline"
-                            onClick={() => onCancelScheduled(item.id)}
+                            onClick={() => setConfirmCancelScheduledId(item.id)}
                           >
                             Hủy
                           </button>
@@ -879,6 +883,24 @@ export default function MessageInput({
               onSchedule ? " · Đồng hồ để hẹn giờ" : ""
             }`}
       </p>
+
+      <ConfirmDialog
+        open={confirmCancelScheduledId !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmCancelScheduledId(null);
+        }}
+        title="Hủy tin nhắn hẹn giờ"
+        description="Bạn có chắc chắn muốn hủy tin nhắn hẹn giờ này?"
+        confirmLabel="Hủy tin nhắn"
+        cancelLabel="Đóng"
+        variant="destructive"
+        onConfirm={() => {
+          if (confirmCancelScheduledId) {
+            onCancelScheduled?.(confirmCancelScheduledId);
+          }
+          setConfirmCancelScheduledId(null);
+        }}
+      />
     </div>
   );
 }

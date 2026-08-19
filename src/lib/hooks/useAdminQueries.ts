@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { adminApi } from "@/lib/api/admin";
 import { reportsApi } from "@/lib/api/reports";
-import { adminQueryKeys } from "@/lib/queries/queryKeys";
+import { adminQueryKeys, contentModerationQueryKeys } from "@/lib/queries/queryKeys";
 import type {
   AssignRoleRequest,
   CreateAdminUserRequest,
@@ -15,6 +15,7 @@ import type {
 } from "@/lib/types/admin";
 import type { UpdateReportStatusRequest } from "@/lib/types/report";
 import type { ApplyModerationRequest } from "@/lib/types/report";
+import type { UpdateContentModerationSettingsRequest } from "@/lib/types/contentModeration";
 import { isSystemAdmin } from "@/lib/types/user";
 import type { User } from "@/lib/types/user";
 
@@ -110,6 +111,32 @@ export function useAdminReportsQuery(
       reportsApi.getAdminReports(page, pageSize, status || undefined),
     enabled,
     staleTime: 30 * 1000,
+  });
+}
+
+export function useAdminContentModerationSettingsQuery(enabled = true) {
+  return useQuery({
+    queryKey: adminQueryKeys.contentModerationSettings,
+    queryFn: adminApi.getContentModerationSettings,
+    enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useUpdateContentModerationSettingsMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: UpdateContentModerationSettingsRequest) =>
+      adminApi.updateContentModerationSettings(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.contentModerationSettings,
+      });
+      queryClient.invalidateQueries({
+        queryKey: contentModerationQueryKeys.config,
+      });
+    },
   });
 }
 

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Check, Loader2, Search, X } from "lucide-react";
 import { chatroomsApi } from "@/lib/api/chatrooms";
 import type { ChatroomResponse, Friend } from "@/lib/types/chatroom";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 interface CreateGroupDialogProps {
   open: boolean;
@@ -51,6 +52,7 @@ export default function CreateGroupDialog({
   const [error, setError] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -64,6 +66,7 @@ export default function CreateGroupDialog({
       if (current) URL.revokeObjectURL(current);
       return null;
     });
+    setConfirmCloseOpen(false);
   }, [open]);
 
   useEffect(() => {
@@ -164,13 +167,25 @@ export default function CreateGroupDialog({
   if (!open) return null;
 
   const canCreate = roomName.trim().length > 0 && selectedIds.length >= 2 && !creating;
+  const hasUnsavedChanges =
+    roomName.trim().length > 0 || selectedIds.length > 0 || avatarFile !== null;
+
+  const requestClose = () => {
+    if (creating) return;
+    if (hasUnsavedChanges) {
+      setConfirmCloseOpen(true);
+      return;
+    }
+    onClose();
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={onClose}>
+    <>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={requestClose}>
       <section className="flex max-h-[90svh] w-full max-w-[540px] flex-col overflow-hidden rounded-md bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 sm:px-5">
           <h2 className="text-base font-semibold text-foreground">Tạo nhóm</h2>
-          <button type="button" onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-muted">
+          <button type="button" onClick={requestClose} className="rounded-full p-1 text-muted-foreground hover:bg-muted">
             <X size={22} />
           </button>
         </header>
@@ -270,7 +285,7 @@ export default function CreateGroupDialog({
         <footer className="flex shrink-0 flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
           <p className="text-sm text-muted-foreground">Đã chọn {selectedIds.length} thành viên</p>
           <div className="flex w-full gap-2 sm:w-auto">
-            <button type="button" onClick={onClose} className="h-10 flex-1 rounded-md bg-muted px-5 text-sm font-semibold text-foreground hover:bg-muted/80 sm:flex-none">
+            <button type="button" onClick={requestClose} className="h-10 flex-1 rounded-md bg-muted px-5 text-sm font-semibold text-foreground hover:bg-muted/80 sm:flex-none">
               Hủy
             </button>
             <button
@@ -286,5 +301,20 @@ export default function CreateGroupDialog({
         </footer>
       </section>
     </div>
+
+    <ConfirmDialog
+      open={confirmCloseOpen}
+      onOpenChange={setConfirmCloseOpen}
+      title="Hủy tạo nhóm?"
+      description="Thông tin nhóm bạn đã nhập (tên nhóm, ảnh, thành viên đã chọn) sẽ không được lưu."
+      confirmLabel="Hủy tạo nhóm"
+      cancelLabel="Tiếp tục tạo"
+      variant="destructive"
+      onConfirm={() => {
+        setConfirmCloseOpen(false);
+        onClose();
+      }}
+    />
+    </>
   );
 }

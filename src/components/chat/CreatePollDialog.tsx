@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 import Button from "../ui/Button";
 import { cn } from "@/lib/utils/cn";
 import type { CreatePollRequest } from "@/lib/types/message";
+import type { ContentModerationConfig } from "@/lib/types/contentModeration";
 import {
   COMMUNITY_VIOLATION_MESSAGE,
   containsBannedContent,
@@ -15,6 +16,7 @@ interface CreatePollDialogProps {
   submitting?: boolean;
   onClose: () => void;
   onSubmit: (poll: CreatePollRequest) => void | Promise<void>;
+  contentModerationConfig?: ContentModerationConfig;
 }
 
 export default function CreatePollDialog({
@@ -22,6 +24,7 @@ export default function CreatePollDialog({
   submitting = false,
   onClose,
   onSubmit,
+  contentModerationConfig,
 }: CreatePollDialogProps) {
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState(["", ""]);
@@ -68,8 +71,10 @@ export default function CreatePollDialog({
     }
 
     if (
-      containsBannedContent(q) ||
-      opts.some((option) => containsBannedContent(option))
+      containsBannedContent(q, contentModerationConfig) ||
+      opts.some((option) =>
+        containsBannedContent(option, contentModerationConfig),
+      )
     ) {
       setError(COMMUNITY_VIOLATION_MESSAGE);
       return;

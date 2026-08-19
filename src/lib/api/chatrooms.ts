@@ -117,6 +117,18 @@ export const chatroomsApi = {
     await apiClient.delete(`/chatrooms/${chatroomId}/members/${userId}`);
   },
 
+  promoteMember: async (chatroomId: string, userId: string): Promise<void> => {
+    await apiClient.put(`/chatrooms/${chatroomId}/members/${userId}/promote`);
+  },
+
+  demoteMember: async (chatroomId: string, userId: string): Promise<void> => {
+    await apiClient.put(`/chatrooms/${chatroomId}/members/${userId}/demote`);
+  },
+
+  disbandChatroom: async (chatroomId: string): Promise<void> => {
+    await apiClient.delete(`/chatrooms/${chatroomId}`);
+  },
+
   updateGroupAvatar: async (chatroomId: string, file: File): Promise<AvatarResponse> => {
     const formData = new FormData();
     formData.append('avatarFile', file);

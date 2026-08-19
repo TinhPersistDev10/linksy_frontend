@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LogOut,
   MessageCircle,
+  Settings,
   Users,
 } from "lucide-react";
 import {
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/admin", label: "Tổng quan", icon: LayoutDashboard, exact: true },
   { href: "/admin/users", label: "Người dùng", icon: Users, exact: false },
   { href: "/admin/reports", label: "Báo cáo", icon: Flag, exact: false },
+  { href: "/admin/settings", label: "Cài đặt", icon: Settings, exact: false },
 ] as const;
 
 export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {

@@ -1,13 +1,5 @@
 "use client";
 
-/**
- * IncomingCallModal
- * Hiển thị khi có cuộc gọi đến (callState.status === "incoming").
- * Tự phát chuông reo bằng Web Audio API (không cần file âm thanh).
- *
- * Đặt file tại: src/components/chat/IncomingCallModal.tsx
- */
-
 import { useEffect } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import type { CallState } from "@/lib/hooks/useCallSignalR";

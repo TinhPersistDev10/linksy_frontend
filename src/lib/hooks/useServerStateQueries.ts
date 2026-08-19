@@ -2,12 +2,14 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { chatroomsApi } from "@/lib/api/chatrooms";
+import { contentModerationApi } from "@/lib/api/contentModeration";
 import { friendsApi } from "@/lib/api/friends";
 import { notificationsApi } from "@/lib/api/notifications";
 import { settingsApi } from "@/lib/api/settings";
 import { stickersApi } from "@/lib/api/stickers";
 import {
   chatroomQueryKeys,
+  contentModerationQueryKeys,
   friendQueryKeys,
   notificationQueryKeys,
   settingsQueryKeys,
@@ -67,6 +69,19 @@ export function useUnreadNotificationCountQuery(userId: string | undefined) {
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
     refetchIntervalInBackground: false,
+  });
+}
+
+/** Content moderation config, fail-open (enabled: true, empty list) while loading/erroring. */
+export function useContentModerationConfigQuery(userId: string | undefined) {
+  return useQuery({
+    queryKey: contentModerationQueryKeys.config,
+    queryFn: contentModerationApi.getConfig,
+    enabled: Boolean(userId),
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 }
 

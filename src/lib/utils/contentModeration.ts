@@ -1,31 +1,12 @@
+import type { ContentModerationConfig } from "@/lib/types/contentModeration";
+
 export const COMMUNITY_VIOLATION_MESSAGE =
   "Tin nhắn của bạn có từ khóa vi phạm tiêu chuẩn cộng đồng.";
 
-const BANNED_WORDS = [
-  "dit",
-  "deo",
-  "cac",
-  "buoi",
-  "dmm",
-  "vcl",
-  "clgt",
-  "oc cho",
-  "occho",
-  "fuck",
-  "fucker",
-  "motherfucker",
-  "shit",
-  "bitch",
-  "asshole",
-  "dick",
-  "pussy",
-  "cunt",
-  "ditmemay",
-  "ditme",
-  "giet",
-  "kill",
-  "chem"
-];
+const ZERO_WIDTH_PATTERN = new RegExp(
+  `[${String.fromCharCode(0x200b, 0x200c, 0x200d, 0xfeff)}]`,
+  "g",
+);
 
 function normalize(input: string): string {
   return input
@@ -34,19 +15,24 @@ function normalize(input: string): string {
     .replace(/đ/g, "d")
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
-    .replace(/[\u200B-\u200D\uFEFF]/g, "");
+    .replace(ZERO_WIDTH_PATTERN, "");
 }
 
-const bannedTokens = new Set(
-  BANNED_WORDS.map(normalize).filter((w) => w.length > 0 && !w.includes(" ")),
-);
-
-const bannedPhrases = BANNED_WORDS.map(normalize).filter((w) =>
-  w.includes(" "),
-);
-
-export function containsBannedContent(text: string | null | undefined): boolean {
+export function containsBannedContent(
+  text: string | null | undefined,
+  config: ContentModerationConfig | null | undefined,
+): boolean {
+  if (!config?.enabled) return false;
   if (!text || !text.trim()) return false;
+
+  const bannedTokens = new Set(
+    config.bannedWords
+      .map(normalize)
+      .filter((w) => w.length > 0 && !w.includes(" ")),
+  );
+  const bannedPhrases = config.bannedWords
+    .map(normalize)
+    .filter((w) => w.includes(" "));
 
   const normalized = normalize(text);
   if (!normalized) return false;
@@ -64,8 +50,11 @@ export function containsBannedContent(text: string | null | undefined): boolean 
   return tokens.some((token) => bannedTokens.has(token));
 }
 
-export function ensureMessageAllowed(text: string | null | undefined): void {
-  if (containsBannedContent(text)) {
+export function ensureMessageAllowed(
+  text: string | null | undefined,
+  config: ContentModerationConfig | null | undefined,
+): void {
+  if (containsBannedContent(text, config)) {
     throw new Error(COMMUNITY_VIOLATION_MESSAGE);
   }
 }

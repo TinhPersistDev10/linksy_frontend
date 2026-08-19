@@ -19,6 +19,7 @@ import { toast } from "@/lib/stores/toastStore";
 import { extractErrorMessage } from "@/lib/utils/extractErrorMessage";
 import { cn } from "@/lib/utils/cn";
 import ChatAvatar from "@/components/chat/ChatAvatar";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 const STATUS_FILTERS = [
   { value: "", label: "Tất cả" },
@@ -69,6 +70,9 @@ export function AdminReportsList() {
   const [moderationAction, setModerationAction] =
     useState<ModerationLevel>("none");
   const [durationDays, setDurationDays] = useState(7);
+  const [confirmStatus, setConfirmStatus] = useState<
+    "reviewing" | "resolved" | "dismissed" | null
+  >(null);
 
   const query = useAdminReportsQuery(page, 15, status);
   const updateMutation = useUpdateAdminReportMutation();
@@ -82,6 +86,7 @@ export function AdminReportsList() {
     setAdminNote(report.adminNote ?? "");
     setModerationAction("none");
     setDurationDays(7);
+    setConfirmStatus(null);
   };
 
   const applyStatus = async (
@@ -108,6 +113,7 @@ export function AdminReportsList() {
       });
       toast.success("Đã cập nhật báo cáo");
       setSelected(updated);
+      setConfirmStatus(null);
       await query.refetch();
     } catch (err) {
       toast.error(extractErrorMessage(err, "Cập nhật thất bại"));
@@ -306,10 +312,14 @@ export function AdminReportsList() {
                     const def = MODERATION_DURATION_DEFAULTS[next];
                     if (def) setDurationDays(def);
                   }}
-                  className="mt-1 h-10 w-full rounded-lg border bg-transparent px-3 text-sm outline-none focus:border-sky-400"
+                  className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm text-foreground outline-none focus:border-sky-400"
                 >
                   {MODERATION_ACTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
+                    <option
+                      key={opt.value}
+                      value={opt.value}
+                      className="bg-background text-foreground"
+                    >
                       {opt.label}
                     </option>
                   ))}
@@ -347,7 +357,7 @@ export function AdminReportsList() {
               <button
                 type="button"
                 disabled={updateMutation.isPending}
-                onClick={() => void applyStatus("reviewing")}
+                onClick={() => setConfirmStatus("reviewing")}
                 className="rounded-lg border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
               >
                 Đang xem xét
@@ -355,7 +365,7 @@ export function AdminReportsList() {
               <button
                 type="button"
                 disabled={updateMutation.isPending}
-                onClick={() => void applyStatus("dismissed")}
+                onClick={() => setConfirmStatus("dismissed")}
                 className="rounded-lg border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
               >
                 Từ chối
@@ -363,7 +373,7 @@ export function AdminReportsList() {
               <button
                 type="button"
                 disabled={updateMutation.isPending}
-                onClick={() => void applyStatus("resolved")}
+                onClick={() => setConfirmStatus("resolved")}
                 className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
               >
                 Đã xử lý
@@ -372,6 +382,60 @@ export function AdminReportsList() {
           </section>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmStatus !== null}
+        onOpenChange={(open) => {
+          if (!open && !updateMutation.isPending) setConfirmStatus(null);
+        }}
+        title={
+          confirmStatus === "resolved"
+            ? "Đánh dấu đã xử lý"
+            : confirmStatus === "dismissed"
+              ? "Từ chối báo cáo"
+              : "Chuyển sang đang xem xét"
+        }
+        description={
+          confirmStatus === "resolved" ? (
+            moderationAction !== "none" ? (
+              <>
+                Đánh dấu báo cáo này là đã xử lý và áp dụng mức{" "}
+                <span className="font-semibold text-foreground">
+                  {MODERATION_LEVEL_LABELS[moderationAction]}
+                </span>{" "}
+                cho tài khoản{" "}
+                <span className="font-semibold text-foreground">
+                  {selected?.reportedFullname || selected?.reportedUsername}
+                </span>
+                ?
+              </>
+            ) : (
+              "Đánh dấu báo cáo này là đã xử lý? Không có hành động xử lý nào được áp dụng lên tài khoản bị báo cáo (đang chọn \"Không\")."
+            )
+          ) : confirmStatus === "dismissed" ? (
+            "Từ chối báo cáo này? Báo cáo sẽ được đóng và không có hành động nào được áp dụng."
+          ) : (
+            "Chuyển báo cáo này sang trạng thái đang xem xét?"
+          )
+        }
+        confirmLabel={
+          confirmStatus === "resolved"
+            ? "Xác nhận"
+            : confirmStatus === "dismissed"
+              ? "Từ chối"
+              : "Xác nhận"
+        }
+        cancelLabel="Hủy"
+        variant={
+          confirmStatus === "resolved" && moderationAction !== "none"
+            ? "destructive"
+            : "default"
+        }
+        loading={updateMutation.isPending}
+        onConfirm={() => {
+          if (confirmStatus) void applyStatus(confirmStatus);
+        }}
+      />
     </div>
   );
 }

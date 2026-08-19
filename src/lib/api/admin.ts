@@ -18,6 +18,10 @@ import type {
   ApplyModerationRequest,
   UserModerationStatus,
 } from "../types/report";
+import type {
+  ContentModerationSettings,
+  UpdateContentModerationSettingsRequest,
+} from "../types/contentModeration";
 
 function unwrap<T>(response: ApiResponse<T>, fallback?: T): T {
   if (response.data == null) {
@@ -170,6 +174,23 @@ export const adminApi = {
   ): Promise<UserModerationStatus> => {
     const res = await apiClient.post<ApiResponse<UserModerationStatus>>(
       `/admin/users/${userId}/moderation`,
+      payload,
+    );
+    return unwrap(res.data);
+  },
+
+  getContentModerationSettings: async (): Promise<ContentModerationSettings> => {
+    const res = await apiClient.get<ApiResponse<ContentModerationSettings>>(
+      "/admin/content-moderation",
+    );
+    return unwrap(res.data);
+  },
+
+  updateContentModerationSettings: async (
+    payload: UpdateContentModerationSettingsRequest,
+  ): Promise<ContentModerationSettings> => {
+    const res = await apiClient.put<ApiResponse<ContentModerationSettings>>(
+      "/admin/content-moderation",
       payload,
     );
     return unwrap(res.data);

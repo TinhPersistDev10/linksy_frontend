@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   MessageCircle,
@@ -8,6 +9,7 @@ import {
   PenSquare,
   Search,
   Settings,
+  Shield,
   LogOut,
   Bell,
   Hash,
@@ -31,6 +33,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/hooks/useAuth";
 import type { ChatroomResponse } from "@/lib/types/chatroom";
+import { isSystemAdmin } from "@/lib/types/user";
 import { cn } from "@/lib/utils/cn";
 import NotificationList from "../notification/NotificationList";
 import { useSidebarRealtime } from "@/lib/hooks/useSidebarRealtime";
@@ -140,6 +143,7 @@ export function AppSidebar({
   ...props
 }: AppSidebarProps) {
   const { user, logout } = useAuth();
+  const showAdminLink = isSystemAdmin(user);
   const queryClient = useQueryClient();
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = React.useState<
@@ -477,6 +481,16 @@ export function AppSidebar({
                     <Settings size={15} />
                     <span>Cài đặt</span>
                   </button>
+                  {showAdminLink && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setAvatarMenuOpen(false)}
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted"
+                    >
+                      <Shield size={15} />
+                      <span>Trang Admin</span>
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -706,6 +720,16 @@ export function AppSidebar({
                   <span>Cài đặt</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {showAdminLink && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild className="cursor-pointer">
+                    <Link href="/admin">
+                      <Shield size={16} />
+                      <span>Trang Admin</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={logout}

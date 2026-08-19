@@ -7,6 +7,7 @@ import type {
 
 export interface ChatroomResponse {
   chatroomId: string;
+  createdBy: string;
   roomName: string;
   description: string;
   avatar: string | null;

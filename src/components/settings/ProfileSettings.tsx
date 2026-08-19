@@ -14,6 +14,7 @@ import {
   type ProfileFormData,
 } from "@/lib/utils/validators";
 import { zodResolver } from "@hookform/resolvers/zod";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 export default function ProfileSettings() {
   const { user, refreshUser } = useAuth();
@@ -22,6 +23,8 @@ export default function ProfileSettings() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [confirmDeleteAvatarOpen, setConfirmDeleteAvatarOpen] =
+    useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -95,6 +98,7 @@ export default function ProfileSettings() {
       await usersApi.deleteAvatar();
       setAvatarPreview(null);
       await refreshUser();
+      setConfirmDeleteAvatarOpen(false);
       setSuccess("Xóa ảnh đại diện thành công!");
     } catch {
       setError("Xóa ảnh đại diện thất bại");
@@ -139,6 +143,18 @@ export default function ProfileSettings() {
           >
             {avatarLoading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
           </button>
+          {avatarSrc && (
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteAvatarOpen(true)}
+              disabled={avatarLoading}
+              className="absolute -top-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-md transition-colors hover:bg-destructive/90 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label="Xóa ảnh đại diện"
+              title="Xóa ảnh đại diện"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -229,6 +245,20 @@ export default function ProfileSettings() {
           </Button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={confirmDeleteAvatarOpen}
+        onOpenChange={(open) => {
+          if (!open && !avatarLoading) setConfirmDeleteAvatarOpen(open);
+        }}
+        title="Xóa ảnh đại diện"
+        description="Bạn có chắc chắn muốn xóa ảnh đại diện? Ảnh đại diện sẽ trở về dạng mặc định (chữ cái đầu tên bạn)."
+        confirmLabel="Xóa"
+        cancelLabel="Hủy"
+        variant="destructive"
+        loading={avatarLoading}
+        onConfirm={() => void handleDeleteAvatar()}
+      />
     </div>
   );
 }

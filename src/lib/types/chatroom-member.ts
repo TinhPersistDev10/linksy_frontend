@@ -52,6 +52,7 @@ export interface ChatroomMemberDetailResponse {
 export interface MemberInfoResponse {
   memberId: string;
   memberRole: ChatroomMemberRole;
+  isOwner?: boolean;
   nickname: string | null;
   isMuted: boolean;
   mutedUntil: string | null;

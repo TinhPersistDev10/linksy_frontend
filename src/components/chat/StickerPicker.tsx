@@ -13,6 +13,7 @@ import { useDeleteStickerMutation } from "@/lib/hooks/useStickerQueries";
 import { STICKERS } from "@/lib/stickers";
 import { cn } from "@/lib/utils/cn";
 import CreateStickerDialog from "./CreateStickerDialog";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 type StickerPickerProps = {
   children: React.ReactNode;
@@ -30,6 +31,7 @@ export default function StickerPicker({
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<StickerTab>("available");
   const [createOpen, setCreateOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const { user } = useAuth();
   const myStickersQuery = useMyStickersQuery(user?.userId);
@@ -147,7 +149,7 @@ export default function StickerPicker({
                           aria-label="Xoá sticker"
                           onClick={(e) => {
                             e.stopPropagation();
-                            deleteSticker.mutate(sticker.id);
+                            setConfirmDeleteId(sticker.id);
                           }}
                           className="absolute -right-0.5 -top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-muted-foreground/80 text-white group-hover:flex hover:bg-red-500"
                         >
@@ -166,6 +168,25 @@ export default function StickerPicker({
         open={createOpen}
         onOpenChange={setCreateOpen}
         onSend={handleSelect}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setConfirmDeleteId(null);
+        }}
+        title="Xoá sticker"
+        description="Bạn có chắc chắn muốn xoá sticker này? Hành động này không thể hoàn tác."
+        confirmLabel="Xoá"
+        variant="destructive"
+        loading={deleteSticker.isPending}
+        onConfirm={() => {
+          if (confirmDeleteId) {
+            deleteSticker.mutate(confirmDeleteId, {
+              onSuccess: () => setConfirmDeleteId(null),
+            });
+          }
+        }}
       />
     </>
   );

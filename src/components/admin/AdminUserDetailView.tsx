@@ -49,6 +49,11 @@ export function AdminUserDetailView() {
   const [form, setForm] = useState<UpdateAdminUserRequest>({});
   const [resetOpen, setResetOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [toggleConfirmOpen, setToggleConfirmOpen] = useState(false);
+  const [moderationConfirmOpen, setModerationConfirmOpen] = useState(false);
+  const [confirmRemoveRoleId, setConfirmRemoveRoleId] = useState<
+    number | null
+  >(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [selectedRoleId, setSelectedRoleId] = useState<number | "">("");
@@ -94,6 +99,7 @@ export function AdminUserDetailView() {
           incrementStrike: modLevel !== "none",
         },
       });
+      setModerationConfirmOpen(false);
       setMessage(
         modLevel === "none"
           ? "Đã gỡ hạn chế moderation."
@@ -127,6 +133,7 @@ export function AdminUserDetailView() {
 
     try {
       await toggleMutation.mutateAsync(userId);
+      setToggleConfirmOpen(false);
       setMessage("Đã thay đổi trạng thái user.");
     } catch (err) {
       setError(getApiErrorMessage(err, "Thao tác thất bại"));
@@ -173,6 +180,7 @@ export function AdminUserDetailView() {
 
     try {
       await removeRoleMutation.mutateAsync({ userId, roleId });
+      setConfirmRemoveRoleId(null);
       setMessage("Đã gỡ role.");
     } catch (err) {
       setError(getApiErrorMessage(err, "Gỡ role thất bại"));
@@ -339,7 +347,7 @@ export function AdminUserDetailView() {
             type="button"
             variant="outline"
             disabled={isSelf || moderationMutation.isPending}
-            onClick={() => void handleApplyModeration()}
+            onClick={() => setModerationConfirmOpen(true)}
           >
             {moderationMutation.isPending ? (
               <Loader2 className="animate-spin" />
@@ -420,7 +428,7 @@ export function AdminUserDetailView() {
               type="button"
               variant="outline"
               disabled={isSelf || toggleMutation.isPending}
-              onClick={handleToggle}
+              onClick={() => setToggleConfirmOpen(true)}
             >
               {detail.isActive ? "Khóa user" : "Mở khóa user"}
             </Button>
@@ -446,7 +454,7 @@ export function AdminUserDetailView() {
                   size="sm"
                   variant="outline"
                   disabled={isSelf || removeRoleMutation.isPending}
-                  onClick={() => handleRemoveRole(role.roleId)}
+                  onClick={() => setConfirmRemoveRoleId(role.roleId)}
                 >
                   Gỡ
                 </Button>
@@ -515,6 +523,97 @@ export function AdminUserDetailView() {
         onOpenChange={setResetOpen}
         userId={userId}
         username={detail.username}
+      />
+
+      <ConfirmDialog
+        open={toggleConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open && !toggleMutation.isPending) setToggleConfirmOpen(open);
+        }}
+        title={detail.isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+        description={
+          <>
+            Bạn có chắc chắn muốn{" "}
+            {detail.isActive ? "khóa" : "mở khóa"} tài khoản{" "}
+            <span className="font-semibold text-foreground">
+              {detail.fullname || detail.username}
+            </span>
+            ?{" "}
+            {detail.isActive
+              ? "Người dùng sẽ không thể đăng nhập cho tới khi được mở khóa lại."
+              : ""}
+          </>
+        }
+        confirmLabel={detail.isActive ? "Khóa" : "Mở khóa"}
+        cancelLabel="Hủy"
+        variant={detail.isActive ? "destructive" : "default"}
+        loading={toggleMutation.isPending}
+        onConfirm={() => void handleToggle()}
+      />
+
+      <ConfirmDialog
+        open={moderationConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open && !moderationMutation.isPending)
+            setModerationConfirmOpen(open);
+        }}
+        title="Áp dụng xử lý vi phạm"
+        description={
+          <>
+            Áp dụng mức{" "}
+            <span className="font-semibold text-foreground">
+              {MODERATION_LEVEL_LABELS[modLevel]}
+            </span>{" "}
+            cho{" "}
+            <span className="font-semibold text-foreground">
+              {detail.fullname || detail.username}
+            </span>
+            ?{" "}
+            {modLevel === "temporary_lock" || modLevel === "permanent_lock"
+              ? "Tài khoản sẽ không thể đăng nhập."
+              : modLevel === "restricted"
+                ? "Tài khoản sẽ không thể nhắn tin/gọi."
+                : ""}
+          </>
+        }
+        confirmLabel="Áp dụng"
+        cancelLabel="Hủy"
+        variant={modLevel === "none" ? "default" : "destructive"}
+        loading={moderationMutation.isPending}
+        onConfirm={() => void handleApplyModeration()}
+      />
+
+      <ConfirmDialog
+        open={confirmRemoveRoleId !== null}
+        onOpenChange={(open) => {
+          if (!open && !removeRoleMutation.isPending)
+            setConfirmRemoveRoleId(null);
+        }}
+        title="Gỡ role"
+        description={
+          <>
+            Bạn có chắc chắn muốn gỡ role{" "}
+            <span className="font-semibold text-foreground">
+              {
+                (detail.roles ?? []).find(
+                  (r) => r.roleId === confirmRemoveRoleId,
+                )?.roleName
+              }
+            </span>{" "}
+            khỏi{" "}
+            <span className="font-semibold text-foreground">
+              {detail.fullname || detail.username}
+            </span>
+            ?
+          </>
+        }
+        confirmLabel="Gỡ role"
+        cancelLabel="Hủy"
+        variant="destructive"
+        loading={removeRoleMutation.isPending}
+        onConfirm={() => {
+          if (confirmRemoveRoleId !== null) void handleRemoveRole(confirmRemoveRoleId);
+        }}
       />
 
       <ConfirmDialog
