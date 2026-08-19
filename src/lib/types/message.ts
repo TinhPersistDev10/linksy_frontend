@@ -63,6 +63,8 @@ export interface MessageResponse {
   mentions?: MentionDto[] | null;
   reactions?: ReactionSummary[] | null;
   poll?: PollResponse | null;
+  /** Client-only: set while an optimistic (temp-*) message is uploading/sending or after it failed. */
+  localStatus?: "sending" | "failed";
 }
 
 export interface ReactionUser {

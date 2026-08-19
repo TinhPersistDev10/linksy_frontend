@@ -1,9 +1,11 @@
 import { useState } from "react";
 import {
+  AlertCircle,
   Check,
   CheckCheck,
   Copy,
   Eye,
+  Loader2,
   MessageCircle,
   MoreVertical,
   Pencil,
@@ -73,6 +75,7 @@ interface MessageItemProps {
   nextMsg?: MessageResponse;
   currentUserId: string;
   onDelete: (messageId: string) => void;
+  onRetry?: (tempId: string) => void;
   onReply: (message: MessageResponse) => void;
   onReplyPrivately?: (message: MessageResponse) => void;
   isGroupChat?: boolean;
@@ -93,7 +96,7 @@ interface MessageItemProps {
 }
 
 function getDeliveryLabel(msg: MessageResponse, isTemp: boolean) {
-  if (isTemp) return "Đang gửi";
+  if (isTemp) return msg.localStatus === "failed" ? "Gửi thất bại" : "Đang gửi";
 
   if (msg.recipientCount > 1) {
     if (msg.readCount > 0) {
@@ -172,6 +175,7 @@ export default function MessageItem({
   nextMsg,
   currentUserId,
   onDelete,
+  onRetry,
   onReply,
   onReplyPrivately,
   isGroupChat = false,
@@ -193,6 +197,7 @@ export default function MessageItem({
   const [menuOpen, setMenuOpen] = useState(false);
   const isOwn = msg.isOwn || msg.senderId === currentUserId;
   const isTemp = msg.messageId.startsWith("temp-");
+  const isFailed = isTemp && msg.localStatus === "failed";
   const canReact = Boolean(onToggleReaction) && !isTemp && !msg.isDeleted;
   const showActions = !isTemp && !msg.isDeleted;
   const actionsVisible = reactionOpen || menuOpen;
@@ -234,7 +239,7 @@ export default function MessageItem({
             className={cn(
               "w-64 max-w-[calc(100vw-5rem)] overflow-hidden rounded-lg border text-sm shadow-sm sm:w-72",
               isOwn
-                ? "border-blue-500/30 bg-blue-500/10 text-foreground dark:border-blue-400/25 dark:bg-blue-500/15"
+                ? "border-sky-500/30 bg-sky-500/10 text-foreground dark:border-sky-400/25 dark:bg-sky-500/15"
                 : "border-border bg-card text-card-foreground",
             )}
           >
@@ -485,9 +490,10 @@ export default function MessageItem({
           <div className="relative">
             <div
               className={cn(
-                "relative flex flex-col gap-1 transition-opacity",
+                "relative flex flex-col gap-1 rounded-2xl transition-opacity",
                 msg.isDeleted && "opacity-50 italic",
                 isTemp && "opacity-60",
+                isFailed && "opacity-100 ring-2 ring-red-500/50",
               )}
             >
               {imageAttachments.length > 0 && (
@@ -586,7 +592,7 @@ export default function MessageItem({
                   : "rounded-2xl px-3.5 py-2",
                 !emojiTextClass &&
                   (isOwn
-                    ? "rounded-br-sm bg-blue-500 text-white"
+                    ? "rounded-br-sm bg-sky-500 text-white"
                     : "rounded-bl-sm bg-muted"),
                 isPinned && !mediaOnly && "ring-1 ring-sky-400/60",
               )}
@@ -866,6 +872,39 @@ export default function MessageItem({
               )}
             </div>
           </div>
+
+          {isTemp && (
+            <div
+              className={cn(
+                "mt-1 flex items-center gap-1 text-xs",
+                isFailed
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-muted-foreground",
+                isOwn ? "self-end" : "self-start",
+              )}
+            >
+              {isFailed ? (
+                <>
+                  <AlertCircle size={12} />
+                  <span>Gửi thất bại</span>
+                  {onRetry && (
+                    <button
+                      type="button"
+                      onClick={() => onRetry(msg.messageId)}
+                      className="font-medium underline underline-offset-2 hover:text-red-700 dark:hover:text-red-300"
+                    >
+                      Thử lại
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  <span>Đang gửi...</span>
+                </>
+              )}
+            </div>
+          )}
 
           {msg.reactions && msg.reactions.length > 0 && (
             <div className={cn("mt-1", isOwn ? "self-end" : "self-start")}>

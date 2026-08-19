@@ -694,7 +694,7 @@ export default function DirectMessageList({
                   type="button"
                   onClick={() => onSelectChat(chatroom)}
                   className={cn(
-                    "flex w-full items-center gap-2.5 rounded-lg px-2 py-2 pr-12 text-left transition-colors",
+                    "flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors",
                     isSelected
                       ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
                       : "hover:bg-sidebar-accent/60",

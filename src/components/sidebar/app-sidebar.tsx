@@ -21,6 +21,8 @@ import SettingsPanel from "../settings/SettingsPanel";
 import AccountInfoDialog from "../settings/AccountInfoDialog";
 import DirectMessageList from "../chat/DirectMessageList";
 import StartChatModal from "../chat/StartChatModal";
+import AddFriendModal from "../friend/AddFriendModal";
+import CreateGroupDialog from "../social/CreateGroupDialog";
 
 import {
   Sidebar,
@@ -32,7 +34,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/hooks/useAuth";
-import type { ChatroomResponse } from "@/lib/types/chatroom";
+import { friendsApi } from "@/lib/api/friends";
+import type { ChatroomResponse, Friend } from "@/lib/types/chatroom";
 import { isSystemAdmin } from "@/lib/types/user";
 import { cn } from "@/lib/utils/cn";
 import NotificationList from "../notification/NotificationList";
@@ -338,6 +341,9 @@ export function AppSidebar({
   const [currentSocialView, setCurrentSocialView] =
     React.useState<SocialView>("messages");
   const [avatarMenuOpen, setAvatarMenuOpen] = React.useState(false);
+  const [addFriendOpen, setAddFriendOpen] = React.useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = React.useState(false);
+  const [friendsForGroup, setFriendsForGroup] = React.useState<Friend[]>([]);
 
   useSidebarRealtime({
     enabled: Boolean(user),
@@ -388,6 +394,19 @@ export function AppSidebar({
   };
 
   const handleFriendAdded = () => setRefreshTrigger((p) => p + 1);
+
+  React.useEffect(() => {
+    if (!createGroupOpen) return;
+    friendsApi
+      .getFriends()
+      .then(setFriendsForGroup)
+      .catch(() => setFriendsForGroup([]));
+  }, [createGroupOpen]);
+
+  const handleGroupCreated = (chatroom: ChatroomResponse) => {
+    setCreateGroupOpen(false);
+    handleStartChat(chatroom);
+  };
 
   const handleStartChat = (chatroom: ChatroomResponse) => {
     handleTabChange("messages");
@@ -595,18 +614,42 @@ export function AppSidebar({
                 )}
               </div>
             </div>
-            <div className="relative mt-2">
-              <Search
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              />
-              <input
-                type="text"
-                placeholder={`Tìm trong ${tabLabel.toLowerCase()}...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-8 pl-8 pr-3 rounded-lg bg-muted/60 border border-transparent text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 placeholder:text-muted-foreground/60 transition-all"
-              />
+            <div className="mt-2 flex items-center gap-1.5">
+              <div className="relative min-w-0 flex-1">
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <input
+                  type="text"
+                  placeholder={`Tìm trong ${tabLabel.toLowerCase()}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 w-full rounded-lg border border-transparent bg-muted/60 pl-8 pr-3 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
+                />
+              </div>
+              {activeTab === "messages" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setAddFriendOpen(true)}
+                    title="Thêm bạn"
+                    aria-label="Thêm bạn"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-sidebar-foreground/80 transition-colors hover:bg-muted hover:text-sidebar-foreground"
+                  >
+                    <UserPlus size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreateGroupOpen(true)}
+                    title="Tạo nhóm"
+                    aria-label="Tạo nhóm"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-sidebar-foreground/80 transition-colors hover:bg-muted hover:text-sidebar-foreground"
+                  >
+                    <UsersRound size={15} />
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="mt-3 grid grid-cols-3 gap-1 rounded-xl bg-muted/50 p-1 md:hidden">
@@ -760,6 +803,19 @@ export function AppSidebar({
         open={startChatOpen}
         onClose={() => setStartChatOpen(false)}
         onSelectChat={handleStartChat}
+      />
+
+      <AddFriendModal
+        open={addFriendOpen}
+        onClose={() => setAddFriendOpen(false)}
+        onFriendAdded={handleFriendAdded}
+      />
+
+      <CreateGroupDialog
+        open={createGroupOpen}
+        friends={friendsForGroup}
+        onClose={() => setCreateGroupOpen(false)}
+        onCreated={handleGroupCreated}
       />
     </>
   );

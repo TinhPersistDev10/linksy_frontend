@@ -61,7 +61,7 @@ export default function IncomingCallModal({
   const isGroup = callState.isGroup;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="w-80 rounded-2xl bg-zinc-900 p-6 text-white shadow-2xl flex flex-col items-center gap-5">
         {/* Avatar */}
         <div className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-white/10">

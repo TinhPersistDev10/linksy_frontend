@@ -94,13 +94,13 @@ export default function SettingsPanel({
 
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm transition-opacity" onClick={onClose} />}
+      {open && <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity" onClick={onClose} />}
 
       <div
         className={cn(
           "fixed right-0 top-0 z-50 flex h-full border-l bg-background shadow-2xl transition-all duration-300 ease-in-out",
           open ? "translate-x-0" : "translate-x-full",
-          activeTab ? "w-[680px]" : "w-80",
+          activeTab ? "w-[min(680px,100vw)]" : "w-80",
         )}
       >
         <div className="flex h-full w-80 shrink-0 flex-col border-r">
@@ -125,7 +125,7 @@ export default function SettingsPanel({
                   type="button"
                   onClick={() => setActiveTab(isActive ? null : item.id)}
                   className={cn(
-                    "group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all",
+                    "group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-all",
                     isActive
                       ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
                       : "text-foreground hover:bg-accent",

@@ -129,6 +129,23 @@ export const chatroomsApi = {
     await apiClient.delete(`/chatrooms/${chatroomId}`);
   },
 
+  updateQuickEmoji: async (
+    chatroomId: string,
+    emoji: string,
+  ): Promise<void> => {
+    await apiClient.put(`/chatrooms/${chatroomId}/quick-emoji`, { emoji });
+  },
+
+  updateMemberNickname: async (
+    chatroomId: string,
+    userId: string,
+    nickname: string,
+  ): Promise<void> => {
+    await apiClient.put(`/chatrooms/${chatroomId}/members/${userId}/nickname`, {
+      nickname: nickname || null,
+    });
+  },
+
   updateGroupAvatar: async (chatroomId: string, file: File): Promise<AvatarResponse> => {
     const formData = new FormData();
     formData.append('avatarFile', file);

@@ -103,7 +103,7 @@ export default function StartChatModal({
   return (
     <>
       <div
-        className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm"
+        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
 

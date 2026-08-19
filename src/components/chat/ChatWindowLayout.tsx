@@ -322,6 +322,7 @@ export default function ChatWindowLayout({
     appendOptimistic,
     replaceOptimistic,
     removeOptimistic,
+    setOptimisticStatus,
   } = useMessages(
     chatroomId,
     user?.userId,
@@ -477,6 +478,8 @@ export default function ChatWindowLayout({
     handleSend,
     handleSendVoice,
     handleSendSticker,
+    handleSendQuickEmoji,
+    retryAttachmentMessage,
     notifyTyping,
     selectedFiles,
     addSelectedFiles,
@@ -491,6 +494,7 @@ export default function ChatWindowLayout({
     appendOptimistic,
     replaceOptimistic,
     removeOptimistic,
+    setOptimisticStatus,
     signalRSend,
     signalRTyping,
     signalRStopTyping,
@@ -949,8 +953,8 @@ export default function ChatWindowLayout({
   if (!currentChatroom) {
     return (
       <div className="flex-1 flex min-h-0 flex-col items-center justify-center gap-3 text-center p-8 bg-muted/10">
-        <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center">
-          <Send size={28} className="text-blue-500" />
+        <div className="w-16 h-16 rounded-2xl bg-sky-500/10 flex items-center justify-center">
+          <Send size={28} className="text-sky-500" />
         </div>
         <div>
           <h3 className="font-semibold text-lg">Chào mừng đến Linksy</h3>
@@ -1073,6 +1077,7 @@ export default function ChatWindowLayout({
               pageSize={PAGE_SIZE}
               onLoadMore={loadMore}
               onDelete={requestDeleteMessage}
+              onRetryMessage={retryAttachmentMessage}
               scrollToBottomRef={scrollToBottomRef}
               onNearBottom={(near) => {
                 nearBottomRef.current = near;
@@ -1188,6 +1193,15 @@ export default function ChatWindowLayout({
               onInsertEmoji={handleInsertEmoji}
               onSendSticker={(src) => {
                 void handleSendSticker(src, {
+                  parentMessageId: privateQuote ? null : replyTo?.messageId,
+                }).then(() => {
+                  setReplyTo(null);
+                  setPrivateQuote(null);
+                });
+              }}
+              quickEmoji={currentChatroom?.quickEmoji}
+              onSendQuickEmoji={(emoji) => {
+                void handleSendQuickEmoji(emoji, {
                   parentMessageId: privateQuote ? null : replyTo?.messageId,
                 }).then(() => {
                   setReplyTo(null);

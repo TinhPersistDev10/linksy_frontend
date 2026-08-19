@@ -110,7 +110,7 @@ export default function VoiceMessageBubble({
           "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors",
           isOwn
             ? "bg-white/25 text-white hover:bg-white/35"
-            : "bg-blue-500 text-white hover:bg-blue-600",
+            : "bg-sky-500 text-white hover:bg-sky-600",
         )}
       >
         {playing ? (
@@ -132,7 +132,7 @@ export default function VoiceMessageBubble({
                   filled
                     ? isOwn
                       ? "bg-white"
-                      : "bg-blue-500"
+                      : "bg-sky-500"
                     : isOwn
                       ? "bg-white/35"
                       : "bg-foreground/25",

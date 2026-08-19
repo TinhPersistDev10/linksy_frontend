@@ -167,6 +167,14 @@ export function useChatSignalR({
       connection.on("MemberRoleChanged", (data: { chatroomId: string }) =>
         cbRef.current.onMembershipChanged(data),
       );
+      connection.on("MemberNicknameChanged", (data: { chatroomId: string }) =>
+        cbRef.current.onMembershipChanged(data),
+      );
+      connection.on(
+        "ChatroomQuickEmojiChanged",
+        (data: { chatroomId: string }) =>
+          cbRef.current.onMembershipChanged(data),
+      );
       connection.on("MessagePinned", (event: MessagePinnedEvent) =>
         cbRef.current.onMessagePinned?.(event),
       );

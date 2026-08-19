@@ -174,7 +174,7 @@ export default function ProfileSettings() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {success && (
-          <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
             {success}
           </div>
         )}
@@ -231,7 +231,7 @@ export default function ProfileSettings() {
               className="h-9 flex-1 cursor-not-allowed rounded-md border border-input bg-muted/50 px-3 py-1 text-sm text-muted-foreground"
             />
             {user?.isEmailVerified && (
-              <span className="whitespace-nowrap rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-600 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300">
+              <span className="whitespace-nowrap rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">
                 Đã xác thực
               </span>
             )}

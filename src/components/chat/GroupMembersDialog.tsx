@@ -7,6 +7,7 @@ import {
   Phone,
   ShieldMinus,
   ShieldPlus,
+  Type,
   UserMinus,
   UserRound,
   UserX,
@@ -22,6 +23,7 @@ import type {
 } from "@/lib/types/chatroom";
 import { cn } from "@/lib/utils/cn";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import EditNicknameDialog from "./EditNicknameDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -89,6 +91,8 @@ export default function GroupMembersDialog({
   const [confirmAction, setConfirmAction] = useState<PendingConfirm | null>(
     null,
   );
+  const [nicknameTarget, setNicknameTarget] =
+    useState<ChatroomMemberResponse | null>(null);
 
   const isAdmin = chatroom.myMemberInfo?.memberRole === "admin";
   const canRemoveMembers =
@@ -139,6 +143,21 @@ export default function GroupMembersDialog({
   const blockMember = (member: ChatroomMemberResponse) => {
     setMenuMemberId(null);
     setConfirmAction({ type: "block", member });
+  };
+
+  const editNickname = (member: ChatroomMemberResponse) => {
+    setMenuMemberId(null);
+    setNicknameTarget(member);
+  };
+
+  const saveNickname = async (nickname: string) => {
+    if (!nicknameTarget) return;
+    await chatroomsApi.updateMemberNickname(
+      chatroom.chatroomId,
+      nicknameTarget.userId,
+      nickname,
+    );
+    onMembersChanged?.();
   };
 
   const removeMember = (member: ChatroomMemberResponse) => {
@@ -208,7 +227,7 @@ export default function GroupMembersDialog({
   return (
     <>
       <div
-        className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]"
+        className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         onClick={onClose}
       >
         <section
@@ -321,6 +340,11 @@ export default function GroupMembersDialog({
                             onSelect={() => setSelectedMember(member)}
                           >
                             <UserRound size={17} /> Xem hồ sơ
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => editNickname(member)}
+                          >
+                            <Type size={17} /> Đặt biệt danh
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             disabled={actionLoading}
@@ -472,6 +496,18 @@ export default function GroupMembersDialog({
         loading={actionLoading}
         onConfirm={() => void executeConfirmedAction()}
       />
+
+      {nicknameTarget && (
+        <EditNicknameDialog
+          open={nicknameTarget !== null}
+          targetName={nicknameTarget.fullname || nicknameTarget.username}
+          currentNickname={nicknameTarget.nickname}
+          onOpenChange={(open) => {
+            if (!open) setNicknameTarget(null);
+          }}
+          onSave={saveNickname}
+        />
+      )}
     </>
   );
 }

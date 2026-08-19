@@ -181,8 +181,8 @@ export default function CreateGroupDialog({
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={requestClose}>
-      <section className="flex max-h-[90svh] w-full max-w-[540px] flex-col overflow-hidden rounded-md bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-4" onClick={requestClose}>
+      <section className="flex max-h-[90svh] w-full max-w-[540px] flex-col overflow-hidden rounded-2xl bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 sm:px-5">
           <h2 className="text-base font-semibold text-foreground">Tạo nhóm</h2>
           <button type="button" onClick={requestClose} className="rounded-full p-1 text-muted-foreground hover:bg-muted">
@@ -219,7 +219,7 @@ export default function CreateGroupDialog({
               value={roomName}
               onChange={(event) => setRoomName(event.target.value)}
               placeholder="Nhập tên nhóm..."
-              className="h-11 min-w-0 flex-1 border-b border-blue-500 bg-transparent text-sm outline-none"
+              className="h-11 min-w-0 flex-1 border-b border-sky-500 bg-transparent text-sm outline-none"
             />
           </div>
 
@@ -239,7 +239,7 @@ export default function CreateGroupDialog({
                 key={item}
                 type="button"
                 className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium ${
-                  index === 0 ? "bg-blue-600 text-white" : "bg-muted text-foreground"
+                  index === 0 ? "bg-sky-600 text-white" : "bg-muted text-foreground"
                 }`}
               >
                 {item}
@@ -266,9 +266,9 @@ export default function CreateGroupDialog({
                         key={friend.userId}
                         type="button"
                         onClick={() => toggleFriend(friend.userId)}
-                        className="flex h-14 w-full items-center gap-3 rounded-md px-2 text-left hover:bg-muted/60"
+                        className="flex h-14 w-full items-center gap-3 rounded-lg px-2 text-left hover:bg-muted/60"
                       >
-                        <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${checked ? "border-blue-600 bg-blue-600 text-white" : "border-border"}`}>
+                        <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${checked ? "border-sky-600 bg-sky-600 text-white" : "border-border"}`}>
                           {checked && <Check size={13} />}
                         </span>
                         <FriendAvatar friend={friend} />
@@ -285,14 +285,14 @@ export default function CreateGroupDialog({
         <footer className="flex shrink-0 flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
           <p className="text-sm text-muted-foreground">Đã chọn {selectedIds.length} thành viên</p>
           <div className="flex w-full gap-2 sm:w-auto">
-            <button type="button" onClick={requestClose} className="h-10 flex-1 rounded-md bg-muted px-5 text-sm font-semibold text-foreground hover:bg-muted/80 sm:flex-none">
+            <button type="button" onClick={requestClose} className="h-10 flex-1 rounded-lg bg-muted px-5 text-sm font-semibold text-foreground hover:bg-muted/80 sm:flex-none">
               Hủy
             </button>
             <button
               type="button"
               disabled={!canCreate}
               onClick={createGroup}
-              className="flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-500 disabled:bg-blue-200 sm:flex-none"
+              className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-sky-600 px-5 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50 sm:flex-none"
             >
               {creating && <Loader2 size={16} className="animate-spin" />}
               Tạo nhóm

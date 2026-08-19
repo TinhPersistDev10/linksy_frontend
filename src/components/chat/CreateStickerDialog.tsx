@@ -38,6 +38,9 @@ export default function CreateStickerDialog({
   const [resultPreview, setResultPreview] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState("");
+  const [uploadAction, setUploadAction] = useState<"send" | "save" | null>(
+    null,
+  );
 
   const reset = () => {
     setSourcePreview(null);
@@ -45,6 +48,7 @@ export default function CreateStickerDialog({
     setResultPreview(null);
     setStage("idle");
     setError("");
+    setUploadAction(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -80,6 +84,7 @@ export default function CreateStickerDialog({
   const handleSendNow = async () => {
     try {
       setStage("uploading");
+      setUploadAction("send");
       const imageUrl = await uploadResult();
       onSend(imageUrl);
       onOpenChange(false);
@@ -87,18 +92,21 @@ export default function CreateStickerDialog({
     } catch {
       setError("Không thể gửi sticker. Vui lòng thử lại.");
       setStage("ready");
+      setUploadAction(null);
     }
   };
 
   const handleSaveToLibrary = async () => {
     try {
       setStage("uploading");
+      setUploadAction("save");
       await uploadResult();
       onOpenChange(false);
       reset();
     } catch {
       setError("Không thể lưu sticker. Vui lòng thử lại.");
       setStage("ready");
+      setUploadAction(null);
     }
   };
 
@@ -200,7 +208,7 @@ export default function CreateStickerDialog({
             disabled={stage !== "ready"}
             onClick={() => void handleSaveToLibrary()}
           >
-            {stage === "uploading" ? (
+            {stage === "uploading" && uploadAction === "save" ? (
               <Loader2 className="animate-spin" size={16} />
             ) : (
               "Lưu vào kho"
@@ -211,7 +219,11 @@ export default function CreateStickerDialog({
             disabled={stage !== "ready"}
             onClick={() => void handleSendNow()}
           >
-            Gửi ngay
+            {stage === "uploading" && uploadAction === "send" ? (
+              <Loader2 className="animate-spin" size={16} />
+            ) : (
+              "Gửi ngay"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

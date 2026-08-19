@@ -99,7 +99,7 @@ export default function CreatePollDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 backdrop-blur-sm sm:items-center">
       <div
         role="dialog"
         aria-modal="true"
@@ -127,7 +127,7 @@ export default function CreatePollDialog({
           onChange={(e) => setQuestion(e.target.value)}
           maxLength={200}
           placeholder="Bạn muốn hỏi gì?"
-          className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/40"
+          className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500/40"
         />
 
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
@@ -145,7 +145,7 @@ export default function CreatePollDialog({
                 }}
                 maxLength={100}
                 placeholder={`Lựa chọn ${index + 1}`}
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/40"
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500/40"
               />
               {options.length > 2 && (
                 <button
@@ -167,7 +167,7 @@ export default function CreatePollDialog({
           <button
             type="button"
             onClick={() => setOptions((prev) => [...prev, ""])}
-            className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+            className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-sky-600 hover:underline"
           >
             <Plus size={14} />
             Thêm lựa chọn
@@ -189,7 +189,7 @@ export default function CreatePollDialog({
             type="button"
             onClick={() => void handleSubmit()}
             disabled={submitting}
-            className={cn("bg-blue-500 text-white hover:bg-blue-600")}
+            className={cn("bg-sky-500 text-white hover:bg-sky-600")}
           >
             {submitting ? "Đang tạo..." : "Tạo bình chọn"}
           </Button>

@@ -30,6 +30,7 @@ interface MessageListProps {
   pageSize: number;
   onLoadMore: () => void;
   onDelete: (messageId: string) => void;
+  onRetryMessage?: (tempId: string) => void;
   /** Parent sets this ref so it can imperatively scroll to bottom */
   scrollToBottomRef: React.MutableRefObject<(() => void) | null>;
   /** Parent tracks whether auto-scroll should fire on new messages */
@@ -65,6 +66,7 @@ export default function MessageList({
   pageSize,
   onLoadMore,
   onDelete,
+  onRetryMessage,
   onReply,
   onReplyPrivately,
   isGroupChat = false,
@@ -342,6 +344,7 @@ export default function MessageList({
               nextMsg={messages[i + 1]}
               currentUserId={currentUserId}
               onDelete={onDelete}
+              onRetry={onRetryMessage}
               onReply={onReply}
               onReplyPrivately={onReplyPrivately}
               isGroupChat={isGroupChat}

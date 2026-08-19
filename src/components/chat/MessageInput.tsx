@@ -61,6 +61,10 @@ interface MessageInputProps {
   scheduling?: boolean;
   scheduledPending?: ScheduledMessageResponse[];
   onCancelScheduled?: (id: string) => void;
+
+  /** Messenger-style quick-send emoji shown next to the composer when it's empty. */
+  quickEmoji?: string;
+  onSendQuickEmoji?: (emoji: string) => void;
 }
 
 function formatFileSize(bytes: number) {
@@ -145,6 +149,8 @@ export default function MessageInput({
   scheduling = false,
   scheduledPending = [],
   onCancelScheduled,
+  quickEmoji,
+  onSendQuickEmoji,
 }: MessageInputProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -585,7 +591,7 @@ export default function MessageInput({
               onClick={() => void handleSendVoice()}
               disabled={sending || elapsedMs < 400}
               size="icon"
-              className="h-9 w-9 shrink-0 rounded-full bg-blue-500 text-white hover:bg-blue-600"
+              className="h-9 w-9 shrink-0 rounded-full bg-sky-500 text-white hover:bg-sky-600"
               title="Gửi tin nhắn thoại"
               aria-label="Gửi tin nhắn thoại"
             >
@@ -675,7 +681,8 @@ export default function MessageInput({
                 )}
               </div>
             )}
-          <div className="flex items-end gap-1.5 rounded-2xl border bg-muted/50 px-2 py-2 sm:items-center sm:gap-2 sm:px-3">
+          <div className="flex items-end gap-1.5 sm:items-center sm:gap-2">
+          <div className="flex min-w-0 flex-1 items-end gap-1.5 rounded-2xl border bg-muted/50 px-2 py-2 sm:items-center sm:gap-2 sm:px-3">
             <input
               ref={fileInputRef}
               type="file"
@@ -791,7 +798,7 @@ export default function MessageInput({
                 }}
                 className={cn(
                   "mb-0.5 inline-flex h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground",
-                  scheduleOpen && "text-blue-600",
+                  scheduleOpen && "text-sky-600",
                 )}
               >
                 <Clock size={18} />
@@ -833,7 +840,7 @@ export default function MessageInput({
                 size="icon"
                 title="Ghi âm tin nhắn thoại"
                 aria-label="Ghi âm tin nhắn thoại"
-                className="mb-0.5 h-8 w-8 shrink-0 rounded-full bg-blue-500 text-white hover:bg-blue-600"
+                className="mb-0.5 h-8 w-8 shrink-0 rounded-full bg-sky-500 text-white hover:bg-sky-600"
               >
                 <Mic size={16} />
               </Button>
@@ -862,7 +869,7 @@ export default function MessageInput({
                 className={cn(
                   "mb-0.5 h-7 w-7 shrink-0 rounded-xl transition-all",
                   (scheduleOpen ? canScheduleText : canSendText)
-                    ? "bg-blue-500 text-white hover:bg-blue-600"
+                    ? "bg-sky-500 text-white hover:bg-sky-600"
                     : "bg-transparent text-muted-foreground hover:bg-transparent",
                 )}
               >
@@ -870,7 +877,26 @@ export default function MessageInput({
               </Button>
             )}
           </div>
+
+          {!scheduleOpen &&
+            !editingMessage &&
+            !canSendText &&
+            quickEmoji &&
+            onSendQuickEmoji && (
+              <Button
+                type="button"
+                onClick={() => onSendQuickEmoji(quickEmoji)}
+                disabled={sending}
+                size="icon"
+                title={`Gửi nhanh ${quickEmoji}`}
+                aria-label={`Gửi nhanh ${quickEmoji}`}
+                className="mb-0.5 h-9 w-9 shrink-0 rounded-full bg-muted text-xl leading-none transition-transform hover:scale-110 hover:bg-accent"
+              >
+                <span>{quickEmoji}</span>
+              </Button>
+            )}
           </div>
+        </div>
         )}
       </div>
 

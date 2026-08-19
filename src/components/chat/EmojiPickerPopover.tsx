@@ -38,7 +38,7 @@ export default function EmojiPickerPopover({
         side={side}
         align={align}
         sideOffset={8}
-        className="w-auto overflow-hidden border-0 p-0 shadow-lg"
+        className="z-[95] w-auto overflow-hidden border-0 p-0 shadow-lg"
       >
         <Picker
           data={data}

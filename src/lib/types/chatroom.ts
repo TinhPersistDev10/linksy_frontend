@@ -11,6 +11,7 @@ export interface ChatroomResponse {
   roomName: string;
   description: string;
   avatar: string | null;
+  quickEmoji: string;
   roomType: "direct" | "group" | string;
   isActive: boolean;
   isArchived: boolean;

@@ -17,6 +17,10 @@ interface Options {
   appendOptimistic: (msg: MessageResponse) => void;
   replaceOptimistic: (tempId: string, confirmed: MessageResponse) => void;
   removeOptimistic: (tempId: string) => void;
+  setOptimisticStatus: (
+    tempId: string,
+    status: "sending" | "failed",
+  ) => void;
   signalRSend: (
     chatroomId: string,
     text: string,
@@ -30,12 +34,21 @@ interface Options {
   onSendError?: (message: string) => void;
 }
 
+interface AttachmentRetryPayload {
+  files: File[];
+  localUrls: string[];
+  content: string;
+  parentMessageId?: string | null;
+  mentionIds: string[];
+}
+
 export function useSendMessage({
   chatroomId,
   user,
   appendOptimistic,
   replaceOptimistic,
   removeOptimistic,
+  setOptimisticStatus,
   signalRSend,
   signalRTyping,
   signalRStopTyping,
@@ -45,6 +58,9 @@ export function useSendMessage({
   const [sending, setSending] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [pendingMentions, setPendingMentions] = useState<PendingMention[]>([]);
+  const attachmentRetriesRef = useRef<Record<string, AttachmentRetryPayload>>(
+    {},
+  );
 
   const reportSendError = useCallback(
     (message: string) => {
@@ -196,6 +212,64 @@ export function useSendMessage({
     ],
   );
 
+  const sendAttachmentBatch = useCallback(
+    async (
+      tempId: string,
+      files: File[],
+      content: string,
+      parentMessageId: string | null | undefined,
+      mentionIds: string[],
+      localUrls: string[],
+    ) => {
+      if (!chatroomId) return;
+      try {
+        const uploadedAttachments = await Promise.all(
+          files.map((file) =>
+            messagesApi.uploadAttachment(
+              file,
+              chatroomId,
+              getAttachmentType(file),
+            ),
+          ),
+        );
+
+        const sent = await messagesApi.sendMessage({
+          chatroomId,
+          messageText: content,
+          messageType: uploadedAttachments[0]?.attachmentType ?? "file",
+          attachments: uploadedAttachments,
+          parentMessageId,
+          mentions: mentionIds.length > 0 ? mentionIds : undefined,
+        });
+
+        replaceOptimistic(tempId, sent);
+        delete attachmentRetriesRef.current[tempId];
+        localUrls.forEach((url) => URL.revokeObjectURL(url));
+      } catch (err) {
+        setOptimisticStatus(tempId, "failed");
+        reportSendError(extractErrorMessage(err, "Không thể gửi tin nhắn"));
+      }
+    },
+    [chatroomId, replaceOptimistic, setOptimisticStatus, reportSendError],
+  );
+
+  const retryAttachmentMessage = useCallback(
+    async (tempId: string) => {
+      const payload = attachmentRetriesRef.current[tempId];
+      if (!payload) return;
+      setOptimisticStatus(tempId, "sending");
+      await sendAttachmentBatch(
+        tempId,
+        payload.files,
+        payload.content,
+        payload.parentMessageId,
+        payload.mentionIds,
+        payload.localUrls,
+      );
+    },
+    [setOptimisticStatus, sendAttachmentBatch],
+  );
+
   const handleSend = useCallback(
     async (options?: {
       parentMessageId?: string | null;
@@ -217,37 +291,65 @@ export function useSendMessage({
       setSending(true);
 
       if (files.length > 0) {
-        try {
-          const uploadedAttachments = await Promise.all(
-            files.map((file) =>
-              messagesApi.uploadAttachment(
-                file,
-                chatroomId,
-                getAttachmentType(file),
-              ),
-            ),
-          );
+        const tempId = `temp-${Math.random().toString(36).slice(2)}`;
+        const localUrls = files.map((file) => URL.createObjectURL(file));
 
-        const sent = await messagesApi.sendMessage({
+        appendOptimistic({
+          messageId: tempId,
           chatroomId,
+          senderId: user.userId,
+          senderUsername: user.username,
+          senderFullname: user.fullname,
+          senderAvatar: user.avatar || null,
+          senderNickname: null,
+          messageType: getAttachmentType(files[0]),
           messageText: content,
-          messageType: uploadedAttachments[0]?.attachmentType ?? "file",
-          attachments: uploadedAttachments,
-          parentMessageId: options?.parentMessageId,
-          mentions: mentionIds.length > 0 ? mentionIds : undefined,
+          parentMessageId: options?.parentMessageId ?? null,
+          parentMessage: null,
+          isEdited: false,
+          isDeleted: false,
+          isOwn: true,
+          sentAt: new Date().toISOString(),
+          editedAt: null,
+          deletedAt: null,
+          attachments: files.map((file, index) => ({
+            fileName: file.name,
+            fileUrl: localUrls[index],
+            cdnUrl: localUrls[index],
+            attachmentType: getAttachmentType(file),
+            fileType: getAttachmentType(file),
+            fileSize: file.size,
+            mimeType: file.type,
+          })),
+          localStatus: "sending",
+          deliveryStatus: "sent",
+          recipientCount: 0,
+          deliveredCount: 0,
+          readCount: 0,
+          mentions: null,
         });
 
-          appendOptimistic(sent);
-          setInput("");
-          clearSelectedFiles();
-          clearPendingMentions();
-        } catch (err) {
-          setInput(content);
-          reportSendError(extractErrorMessage(err, "Không thể gửi tin nhắn"));
-        } finally {
-          setSending(false);
-        }
+        attachmentRetriesRef.current[tempId] = {
+          files,
+          localUrls,
+          content,
+          parentMessageId: options?.parentMessageId,
+          mentionIds,
+        };
 
+        setInput("");
+        clearSelectedFiles();
+        clearPendingMentions();
+
+        await sendAttachmentBatch(
+          tempId,
+          files,
+          content,
+          options?.parentMessageId,
+          mentionIds,
+          localUrls,
+        );
+        setSending(false);
         return;
       }
 
@@ -349,6 +451,7 @@ export function useSendMessage({
       clearPendingMentions,
       signalRSend,
       reportSendError,
+      sendAttachmentBatch,
     ],
   );
 
@@ -424,6 +527,80 @@ export function useSendMessage({
     ],
   );
 
+  const handleSendQuickEmoji = useCallback(
+    async (emoji: string, options?: { parentMessageId?: string | null }) => {
+      if (!chatroomId || sending || !user || !emoji.trim()) return;
+
+      await stopTypingNow();
+      setSending(true);
+
+      const tempId = `temp-${Math.random().toString(36).slice(2)}`;
+      appendOptimistic({
+        messageId: tempId,
+        chatroomId,
+        senderId: user.userId,
+        senderUsername: user.username,
+        senderFullname: user.fullname,
+        senderAvatar: user.avatar || null,
+        senderNickname: null,
+        messageType: "text",
+        messageText: emoji,
+        parentMessageId: options?.parentMessageId ?? null,
+        parentMessage: null,
+        isEdited: false,
+        isDeleted: false,
+        isOwn: true,
+        sentAt: new Date().toISOString(),
+        editedAt: null,
+        deletedAt: null,
+        attachments: null,
+        deliveryStatus: "sent",
+        recipientCount: 0,
+        deliveredCount: 0,
+        readCount: 0,
+        mentions: null,
+      });
+
+      try {
+        await signalRSend(
+          chatroomId,
+          emoji,
+          "text",
+          undefined,
+          options?.parentMessageId,
+        );
+      } catch (signalRErr) {
+        try {
+          const sent = await messagesApi.sendMessage({
+            chatroomId,
+            messageText: emoji,
+            messageType: "text",
+            parentMessageId: options?.parentMessageId,
+          });
+          replaceOptimistic(tempId, sent);
+        } catch (apiErr) {
+          removeOptimistic(tempId);
+          reportSendError(
+            extractErrorMessage(apiErr ?? signalRErr, "Không thể gửi tin nhắn"),
+          );
+        }
+      } finally {
+        setSending(false);
+      }
+    },
+    [
+      chatroomId,
+      sending,
+      user,
+      stopTypingNow,
+      appendOptimistic,
+      replaceOptimistic,
+      removeOptimistic,
+      signalRSend,
+      reportSendError,
+    ],
+  );
+
   return {
     input,
     setInput,
@@ -431,6 +608,8 @@ export function useSendMessage({
     handleSend,
     handleSendVoice,
     handleSendSticker,
+    handleSendQuickEmoji,
+    retryAttachmentMessage,
     notifyTyping,
     selectedFiles,
     addSelectedFiles,

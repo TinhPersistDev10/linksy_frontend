@@ -608,6 +608,15 @@ export function useMessages(
     setMessages((prev) => prev.filter((m) => m.messageId !== tempId));
   }, []);
 
+  const setOptimisticStatus = useCallback(
+    (tempId: string, localStatus: "sending" | "failed") => {
+      setMessages((prev) =>
+        prev.map((m) => (m.messageId === tempId ? { ...m, localStatus } : m)),
+      );
+    },
+    [],
+  );
+
   return {
     messages,
     hasMore,
@@ -631,5 +640,6 @@ export function useMessages(
     appendOptimistic,
     replaceOptimistic,
     removeOptimistic,
+    setOptimisticStatus,
   };
 }

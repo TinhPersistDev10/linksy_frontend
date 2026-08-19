@@ -56,6 +56,8 @@ import AddGroupMembersDialog from "./AddGroupMembersDialog";
 import ChatAvatar from "./ChatAvatar";
 import ConversationSharedContent from "./ConversationSharedContent";
 import MemberProfileDialog from "./MemberProfileDialog";
+import EditNicknameDialog from "./EditNicknameDialog";
+import EmojiPickerPopover from "./EmojiPickerPopover";
 
 type AccordionKey = "chatInfo" | "customize" | "members";
 
@@ -208,6 +210,8 @@ export default function ConversationInfoPanel({
   const [reportTarget, setReportTarget] = useState<ChatroomMemberResponse | null>(
     null,
   );
+  const [nicknameTarget, setNicknameTarget] =
+    useState<ChatroomMemberResponse | null>(null);
 
   useEffect(() => {
     setView("main");
@@ -369,6 +373,30 @@ export default function ConversationInfoPanel({
   const reportMember = (member: ChatroomMemberResponse) => {
     setMenuMemberId(null);
     setReportTarget(member);
+  };
+
+  const editNickname = (member: ChatroomMemberResponse) => {
+    setMenuMemberId(null);
+    setNicknameTarget(member);
+  };
+
+  const saveQuickEmoji = async (emoji: string) => {
+    try {
+      await chatroomsApi.updateQuickEmoji(chatroom.chatroomId, emoji);
+      await refreshChatroom();
+    } catch (requestError) {
+      setError(requestMessage(requestError, "Không thể đổi emoji."));
+    }
+  };
+
+  const saveNickname = async (nickname: string) => {
+    if (!nicknameTarget) return;
+    await chatroomsApi.updateMemberNickname(
+      chatroom.chatroomId,
+      nicknameTarget.userId,
+      nickname,
+    );
+    await refreshChatroom();
   };
 
   const callMember = (
@@ -782,28 +810,33 @@ export default function ConversationInfoPanel({
                       />
                     </>
                   )}
-                  <ActionRow
-                    icon={<span className="text-lg leading-none">👍</span>}
-                    label="Đổi emoji"
-                    onClick={() =>
-                      setInfoNotice({
-                        title: "Tính năng đang phát triển",
-                        description:
-                          "Đổi emoji cho cuộc trò chuyện sẽ sớm được hỗ trợ.",
-                      })
-                    }
-                  />
-                  <ActionRow
-                    icon={<Type size={18} />}
-                    label="Chỉnh sửa biệt danh"
-                    onClick={() =>
-                      setInfoNotice({
-                        title: "Tính năng đang phát triển",
-                        description:
-                          "Chỉnh sửa biệt danh sẽ sớm được hỗ trợ.",
-                      })
-                    }
-                  />
+                  <EmojiPickerPopover
+                    side="right"
+                    align="start"
+                    onSelect={(emoji) => void saveQuickEmoji(emoji)}
+                  >
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-muted/60"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center text-lg leading-none">
+                        {chatroom.quickEmoji || "👍"}
+                      </span>
+                      <span className="font-medium">Đổi emoji</span>
+                    </button>
+                  </EmojiPickerPopover>
+                  {chatroom.myMemberInfo && (
+                    <ActionRow
+                      icon={<Type size={18} />}
+                      label="Đặt biệt danh của tôi"
+                      onClick={() => {
+                        const me = (chatroom.members ?? []).find(
+                          (member) => member.userId === user?.userId,
+                        );
+                        if (me) editNickname(me);
+                      }}
+                    />
+                  )}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -888,6 +921,11 @@ export default function ConversationInfoPanel({
                                   <UserRound size={17} /> Xem hồ sơ
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
+                                  onSelect={() => editNickname(member)}
+                                >
+                                  <Type size={17} /> Đặt biệt danh
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
                                   disabled={actionLoading}
                                   onSelect={() => void blockMember(member)}
                                 >
@@ -966,6 +1004,26 @@ export default function ConversationInfoPanel({
 
               {isDirect && otherMember && (
                 <section className="border-b border-border/70">
+                  <EmojiPickerPopover
+                    side="right"
+                    align="start"
+                    onSelect={(emoji) => void saveQuickEmoji(emoji)}
+                  >
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-muted/60"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center text-lg leading-none">
+                        {chatroom.quickEmoji || "👍"}
+                      </span>
+                      <span className="font-medium">Đổi emoji</span>
+                    </button>
+                  </EmojiPickerPopover>
+                  <ActionRow
+                    icon={<Type size={18} />}
+                    label="Đặt biệt danh"
+                    onClick={() => editNickname(otherMember)}
+                  />
                   <ActionRow
                     icon={<UserX size={18} />}
                     label="Chặn"
@@ -1087,7 +1145,7 @@ export default function ConversationInfoPanel({
 
       {editing && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setEditing(false)}
         >
           <section
@@ -1170,6 +1228,20 @@ export default function ConversationInfoPanel({
         variant="info"
         onConfirm={() => setInfoNotice(null)}
       />
+
+      {nicknameTarget && (
+        <EditNicknameDialog
+          open={nicknameTarget !== null}
+          targetName={
+            nicknameTarget.fullname || nicknameTarget.username
+          }
+          currentNickname={nicknameTarget.nickname}
+          onOpenChange={(open) => {
+            if (!open) setNicknameTarget(null);
+          }}
+          onSave={saveNickname}
+        />
+      )}
     </>
   );
 }
